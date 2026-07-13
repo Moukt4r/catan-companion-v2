@@ -202,38 +202,38 @@ Exit criteria:
 
 ## 3. Ordered work packages
 
-| ID | Work package | Depends on |
-| --- | --- | --- |
-| WP-001 | Scaffold React, TypeScript, Vite, pnpm, and strict config | M0 |
-| WP-002 | Add lint, format, unit, property, and browser test harnesses | WP-001 |
-| WP-003 | Enforce architecture import boundaries | WP-001 |
-| WP-004 | Define rules data, branded IDs, errors, and shared domain types | WP-001 |
-| WP-005 | Implement unbiased Web Crypto random adapter and test fake | WP-004 |
-| WP-006 | Implement generic shuffled deck and property tests | WP-005 |
-| WP-007 | Implement numbered and event decks | WP-006 |
-| WP-008 | Implement game setup, phases, turns, and player invariants | WP-004 |
-| WP-009 | Implement roll and Alchemy commands | WP-007, WP-008 |
-| WP-010 | Implement progress eligibility and metropolis control | WP-008 |
-| WP-011 | Implement barbarian track and attack proposals | WP-008, WP-010 |
-| WP-012 | Implement thematic cadence and selection | WP-006, WP-008 |
-| WP-013 | Define versioned persistence and import schemas | WP-004 |
-| WP-014 | Implement IndexedDB revision repository | WP-013 |
-| WP-015 | Implement application transaction service and idempotency | WP-009, WP-014 |
-| WP-016 | Implement undo, redo, branching, hashes, and recovery | WP-014, WP-015 |
-| WP-017 | Implement multi-tab coordination | WP-015 |
-| WP-018 | Build accessible UI primitives and design tokens | WP-001 |
-| WP-019 | Build home and setup flows | WP-015, WP-018 |
-| WP-020 | Build game table and player strip | WP-015, WP-018 |
-| WP-021 | Build persisted roll/result flow | WP-020 |
-| WP-022 | Build public player-state editor and turn controls | WP-020 |
-| WP-023 | Build progress and barbarian resolution | WP-010, WP-011, WP-021 |
-| WP-024 | Build thematic event flow and original event catalog | WP-012, WP-021 |
-| WP-025 | Build history, undo, backup, and recovery UI | WP-016, WP-020 |
-| WP-026 | Add PWA manifest, service worker, and update coordination | WP-019 |
-| WP-027 | Add offline, quota, wake lock, and install enhancements | WP-026 |
-| WP-028 | Add GitHub Actions CI and Pages deployment | WP-002, WP-026 |
+| ID     | Work package                                                     | Depends on             |
+| ------ | ---------------------------------------------------------------- | ---------------------- |
+| WP-001 | Scaffold React, TypeScript, Vite, pnpm, and strict config        | M0                     |
+| WP-002 | Add lint, format, unit, property, and browser test harnesses     | WP-001                 |
+| WP-003 | Enforce architecture import boundaries                           | WP-001                 |
+| WP-004 | Define rules data, branded IDs, errors, and shared domain types  | WP-001                 |
+| WP-005 | Implement unbiased Web Crypto random adapter and test fake       | WP-004                 |
+| WP-006 | Implement generic shuffled deck and property tests               | WP-005                 |
+| WP-007 | Implement numbered and event decks                               | WP-006                 |
+| WP-008 | Implement game setup, phases, turns, and player invariants       | WP-004                 |
+| WP-009 | Implement roll and Alchemy commands                              | WP-007, WP-008         |
+| WP-010 | Implement progress eligibility and metropolis control            | WP-008                 |
+| WP-011 | Implement barbarian track and attack proposals                   | WP-008, WP-010         |
+| WP-012 | Implement thematic cadence and selection                         | WP-006, WP-008         |
+| WP-013 | Define versioned persistence and import schemas                  | WP-004                 |
+| WP-014 | Implement IndexedDB revision repository                          | WP-013                 |
+| WP-015 | Implement application transaction service and idempotency        | WP-009, WP-014         |
+| WP-016 | Implement undo, redo, branching, hashes, and recovery            | WP-014, WP-015         |
+| WP-017 | Implement multi-tab coordination                                 | WP-015                 |
+| WP-018 | Build accessible UI primitives and design tokens                 | WP-001                 |
+| WP-019 | Build home and setup flows                                       | WP-015, WP-018         |
+| WP-020 | Build game table and player strip                                | WP-015, WP-018         |
+| WP-021 | Build persisted roll/result flow                                 | WP-020                 |
+| WP-022 | Build public player-state editor and turn controls               | WP-020                 |
+| WP-023 | Build progress and barbarian resolution                          | WP-010, WP-011, WP-021 |
+| WP-024 | Build thematic event flow and original event catalog             | WP-012, WP-021         |
+| WP-025 | Build history, undo, backup, and recovery UI                     | WP-016, WP-020         |
+| WP-026 | Add PWA manifest, service worker, and update coordination        | WP-019                 |
+| WP-027 | Add offline, quota, wake lock, and install enhancements          | WP-026                 |
+| WP-028 | Add GitHub Actions CI and Pages deployment                       | WP-002, WP-026         |
 | WP-029 | Complete accessibility, performance, security, and device passes | WP-023, WP-024, WP-027 |
-| WP-030 | Release v1 and verify production rollback procedure | WP-028, WP-029 |
+| WP-030 | Release v1 and verify production rollback procedure              | WP-028, WP-029         |
 
 ## 4. Work-package rules
 

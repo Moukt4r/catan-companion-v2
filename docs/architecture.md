@@ -17,21 +17,21 @@ There is no backend in the first release.
 
 ## 2. Technology baseline
 
-| Area | Choice | Rationale |
-| --- | --- | --- |
-| Language | TypeScript in strict mode | Shared types and exhaustive domain handling |
-| UI | React | Mature accessible component ecosystem and predictable rendering |
-| Build | Vite | Fast local development and static optimized output |
-| Package manager | pnpm via Corepack | Reproducible installs and strict dependency layout |
-| Domain state | Pure reducers and commands | Framework-independent correctness and replay |
-| Persistence | IndexedDB adapter | Transactional, durable, versioned browser storage |
-| Boundary validation | Zod | Runtime validation for imports, persistence, and migrations |
-| Styling | CSS Modules plus design tokens | Scoped styles without runtime CSS dependency |
-| PWA | vite-plugin-pwa / Workbox | Manifest, precache, and controlled updates |
-| Unit tests | Vitest | Native Vite/TypeScript workflow |
-| UI tests | Testing Library | Behavior-focused component tests |
-| Property tests | fast-check | Strong coverage of decks and rule invariants |
-| End-to-end | Playwright | Browser, offline, install, persistence, and accessibility flows |
+| Area                | Choice                                | Rationale                                                                         |
+| ------------------- | ------------------------------------- | --------------------------------------------------------------------------------- |
+| Language            | TypeScript in strict mode             | Shared types and exhaustive domain handling                                       |
+| UI                  | React                                 | Mature accessible component ecosystem and predictable rendering                   |
+| Build               | Vite                                  | Fast local development and static optimized output                                |
+| Package manager     | pnpm via Corepack                     | Reproducible installs and strict dependency layout                                |
+| Domain state        | Pure reducers and commands            | Framework-independent correctness and replay                                      |
+| Persistence         | IndexedDB adapter                     | Transactional, durable, versioned browser storage                                 |
+| Boundary validation | Zod                                   | Runtime validation for imports, persistence, and migrations                       |
+| Styling             | Layered global CSS plus design tokens | Small static bundle, predictable responsive states, and no runtime CSS dependency |
+| PWA                 | vite-plugin-pwa / Workbox             | Manifest, precache, and controlled updates                                        |
+| Unit tests          | Vitest                                | Native Vite/TypeScript workflow                                                   |
+| UI tests            | Testing Library                       | Behavior-focused component tests                                                  |
+| Property tests      | fast-check                            | Strong coverage of decks and rule invariants                                      |
+| End-to-end          | Playwright                            | Browser, offline, install, persistence, and accessibility flows                   |
 
 Exact versions are pinned to current stable releases when implementation
 starts. Runtime and package-manager versions are committed through
@@ -92,18 +92,30 @@ Representative commands:
 
 ```ts
 type GameCommand =
-  | { type: 'game.start'; setup: GameSetup }
-  | { type: 'roll.draw' }
-  | { type: 'roll.alchemy'; red: DieValue; yellow: DieValue }
-  | { type: 'resolution.progressAcknowledged'; rollId: RollId }
-  | { type: 'attack.confirmed'; proposalId: ProposalId; correction?: AttackCorrection }
-  | { type: 'event.acknowledged'; eventId: EventId }
-  | { type: 'player.publicStateAdjusted'; playerId: PlayerId; patch: PublicStatePatch }
-  | { type: 'metropolis.corrected'; discipline: Discipline; holderId: PlayerId | null }
-  | { type: 'turn.ended' }
-  | { type: 'history.undo' }
-  | { type: 'history.redo' }
-  | { type: 'game.completed'; winnerId: PlayerId };
+  | { type: "game.start"; setup: GameSetup }
+  | { type: "roll.draw" }
+  | { type: "roll.alchemy"; red: DieValue; yellow: DieValue }
+  | { type: "resolution.progressAcknowledged"; rollId: RollId }
+  | {
+      type: "attack.confirmed";
+      proposalId: ProposalId;
+      correction?: AttackCorrection;
+    }
+  | { type: "event.acknowledged"; eventId: EventId }
+  | {
+      type: "player.publicStateAdjusted";
+      playerId: PlayerId;
+      patch: PublicStatePatch;
+    }
+  | {
+      type: "metropolis.corrected";
+      discipline: Discipline;
+      holderId: PlayerId | null;
+    }
+  | { type: "turn.ended" }
+  | { type: "history.undo" }
+  | { type: "history.redo" }
+  | { type: "game.completed"; winnerId: PlayerId };
 ```
 
 Commands contain intent, not derived state.
@@ -113,7 +125,11 @@ Commands contain intent, not derived state.
 The domain API is pure:
 
 ```ts
-type Decide = (state: GameState, command: GameCommand, deps: DomainDeps) => Decision;
+type Decide = (
+  state: GameState,
+  command: GameCommand,
+  deps: DomainDeps,
+) => Decision;
 
 interface Decision {
   nextState: GameState;

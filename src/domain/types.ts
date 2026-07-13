@@ -1,0 +1,504 @@
+export type Brand<T, Name extends string> = T & { readonly __brand: Name };
+
+export type GameId = Brand<string, "GameId">;
+export type PlayerId = Brand<string, "PlayerId">;
+export type RevisionId = Brand<string, "RevisionId">;
+export type RollId = Brand<string, "RollId">;
+export type EventId = Brand<string, "EventId">;
+export type EventOccurrenceId = Brand<string, "EventOccurrenceId">;
+export type ProposalId = Brand<string, "ProposalId">;
+export type ScoreEntryId = Brand<string, "ScoreEntryId">;
+export type CommandId = Brand<string, "CommandId">;
+export type IsoTimestamp = Brand<string, "IsoTimestamp">;
+
+export type DieValue = 1 | 2 | 3 | 4 | 5 | 6;
+export type ImprovementLevel = 0 | 1 | 2 | 3 | 4 | 5;
+export type MetropolisDiscipline = "science" | "trade" | "politics";
+export type ProgressDiscipline = MetropolisDiscipline;
+export type EventFace = "barbarian" | ProgressDiscipline;
+export type ThematicCadence = "subtle" | "standard" | "lively";
+export type GameStatus = "active" | "completed";
+export type GameMode = "standard" | "two-player-house-rule";
+export type GamePhase =
+  | "awaiting-roll"
+  | "resolving-official-result"
+  | "resolving-barbarian-attack"
+  | "resolving-thematic-event"
+  | "action-phase"
+  | "turn-complete"
+  | "completed";
+
+export interface PlayerColor {
+  id: string;
+  label: string;
+  hex: string;
+  distinguishabilityKey: string;
+}
+
+export interface PlayerSetup {
+  id: PlayerId;
+  name: string;
+  color: PlayerColor;
+  ordinaryCities?: number;
+  activeKnights?: Partial<KnightCounts>;
+  improvements?: Partial<ImprovementLevels>;
+  initialScore?: number;
+}
+
+export interface ThematicEventDefinition {
+  id: EventId;
+  contentVersion: number;
+  title: string;
+  instruction: string;
+}
+
+export interface GameSetup {
+  title: string;
+  mode: GameMode;
+  players: PlayerSetup[];
+  firstPlayerId: PlayerId;
+  victoryTarget: number;
+  thematicCadence: ThematicCadence;
+  thematicEventsEnabled: boolean;
+  thematicEventCatalog: ThematicEventDefinition[];
+  rulesDataVersion: string;
+  gameDocumentVersion: number;
+}
+
+export interface KnightCounts {
+  basic: number;
+  strong: number;
+  mighty: number;
+}
+
+export interface ImprovementLevels {
+  science: ImprovementLevel;
+  trade: ImprovementLevel;
+  politics: ImprovementLevel;
+}
+
+export interface PlayerState {
+  id: PlayerId;
+  name: string;
+  color: PlayerColor;
+  order: number;
+  ordinaryCities: number;
+  activeKnights: KnightCounts;
+  improvements: ImprovementLevels;
+}
+
+export type ScoreReason =
+  | "initial"
+  | "manual"
+  | "defender"
+  | "metropolis"
+  | "merchant"
+  | "longest-road"
+  | "revealed-progress-vp"
+  | "correction";
+
+export interface ScoreEntry {
+  id: ScoreEntryId;
+  playerId: PlayerId;
+  delta: number;
+  reason: ScoreReason;
+  note?: string;
+  createdAt: IsoTimestamp;
+}
+
+export type MetropolisControl = {
+  holderId: PlayerId;
+  status: "temporary" | "permanent";
+} | null;
+
+export type MetropolisControls = Record<
+  MetropolisDiscipline,
+  MetropolisControl
+>;
+
+export interface MetropolisChange {
+  playerId: PlayerId;
+  ordinaryCityDelta: number;
+  scoreDelta: number;
+}
+
+export interface MetropolisProposal {
+  id: ProposalId;
+  discipline: MetropolisDiscipline;
+  source: "improvement" | "correction";
+  from: MetropolisControl;
+  to: MetropolisControl;
+  changes: MetropolisChange[];
+  summary: string;
+}
+
+export interface MetropolisState {
+  controls: MetropolisControls;
+  pendingProposal: MetropolisProposal | null;
+}
+
+export interface NumberedOutcome {
+  red: DieValue;
+  yellow: DieValue;
+}
+
+export interface DeckState<T> {
+  cycle: number;
+  cursor: number;
+  order: T[];
+  createdAtRevision: RevisionId;
+}
+
+export type NumberedDeckState = DeckState<NumberedOutcome>;
+export type EventDeckState = DeckState<EventFace>;
+
+export interface TriggerToken {
+  trigger: boolean;
+}
+
+export interface ThematicEventSnapshot {
+  occurrenceId: EventOccurrenceId;
+  eventId: EventId;
+  contentVersion: number;
+  title: string;
+  instruction: string;
+  triggeredAtCompletedTurn: number;
+  acknowledged: boolean;
+}
+
+export interface ThematicEventState {
+  enabled: boolean;
+  cadence: ThematicCadence;
+  enabledEvents: ThematicEventDefinition[];
+  triggerBag: DeckState<TriggerToken>;
+  eventDeck: DeckState<EventId>;
+  deferredTrigger: boolean;
+  lastTriggeredAtCompletedTurn: number | null;
+  previousEventId: EventId | null;
+  pendingEvent: ThematicEventSnapshot | null;
+}
+
+export interface BarbarianRules {
+  trackLength: number;
+  knightComponentLimitPerLevel: number;
+}
+
+export interface BarbarianAttackStrengths {
+  barbarian: number;
+  defenders: number;
+  contributions: Array<{ playerId: PlayerId; strength: number }>;
+}
+
+export type BarbarianAttackOutcome =
+  | {
+      type: "defenders-win";
+      reward:
+        | { type: "defender-point"; playerId: PlayerId }
+        | { type: "progress-choice"; playerIds: PlayerId[] };
+    }
+  | { type: "barbarians-win"; pillagedPlayerIds: PlayerId[] };
+
+export interface BarbarianAttackProposal {
+  id: ProposalId;
+  strengths: BarbarianAttackStrengths;
+  outcome: BarbarianAttackOutcome;
+  firstAttack: boolean;
+  summary: string;
+}
+
+export interface BarbarianAttackRecord {
+  proposalId: ProposalId;
+  completedAt: IsoTimestamp;
+  strengths: BarbarianAttackStrengths;
+  outcome: BarbarianAttackOutcome;
+  progressChoices: Array<{
+    playerId: PlayerId;
+    discipline: ProgressDiscipline;
+  }>;
+}
+
+export interface BarbarianState {
+  shipPosition: number;
+  robberActivated: boolean;
+  attacksCompleted: number;
+  rules: BarbarianRules;
+  pendingAttack: BarbarianAttackProposal | null;
+  history: BarbarianAttackRecord[];
+}
+
+export interface ProgressGuidance {
+  discipline: ProgressDiscipline;
+  eligiblePlayerIds: PlayerId[];
+  red: DieValue;
+}
+
+export type ProductionGuidance =
+  | { type: "production"; total: number }
+  | {
+      type: "seven";
+      robberActive: boolean;
+      reminder: "robber-not-yet-active" | "discard-and-move-robber";
+    };
+
+export interface RollRecord {
+  id: RollId;
+  playerId: PlayerId;
+  turnNumber: number;
+  round: number;
+  numbered: NumberedOutcome;
+  total: number;
+  eventFace: EventFace;
+  alchemy: boolean;
+  numberedDeckCycle: number;
+  numberedDeckIndex: number | null;
+  eventDeckCycle: number;
+  eventDeckIndex: number;
+  progress: ProgressGuidance | null;
+  production: ProductionGuidance;
+  thematicEventOccurrenceId: EventOccurrenceId | null;
+  createdAt: IsoTimestamp;
+}
+
+export interface OfficialResolution {
+  rollId: RollId;
+  progressPending: boolean;
+  productionPending: boolean;
+}
+
+export interface ResolutionState {
+  official: OfficialResolution | null;
+}
+
+export interface TurnState {
+  phase: GamePhase;
+  currentPlayerIndex: number;
+  round: number;
+  turnNumber: number;
+  completedTurns: number;
+}
+
+export interface GameStatistics {
+  totalRolls: number;
+  normalRolls: number;
+  alchemyRolls: number;
+  completedTurns: number;
+  completedRounds: number;
+  numberedTotals: Record<string, number>;
+  eventFaces: Record<EventFace, number>;
+  barbarianAttacksWon: number;
+  barbarianAttacksLost: number;
+  thematicEventsTriggered: number;
+}
+
+export interface GameHistory {
+  rolls: RollRecord[];
+  thematicEvents: ThematicEventSnapshot[];
+}
+
+export interface GameState {
+  id: GameId;
+  revisionId: RevisionId;
+  revisionNumber: number;
+  status: GameStatus;
+  winnerId: PlayerId | null;
+  setup: GameSetup;
+  turn: TurnState;
+  players: PlayerState[];
+  metropolises: MetropolisState;
+  numberedDeck: NumberedDeckState;
+  eventDeck: EventDeckState;
+  thematicEvents: ThematicEventState;
+  barbarian: BarbarianState;
+  resolution: ResolutionState;
+  scoreLedger: ScoreEntry[];
+  lastRoll: RollRecord | null;
+  statistics: GameStatistics;
+  history: GameHistory;
+  createdAt: IsoTimestamp;
+  updatedAt: IsoTimestamp;
+}
+
+export interface PublicStatePatch {
+  name?: string;
+  ordinaryCities?: number;
+  activeKnights?: Partial<KnightCounts>;
+  improvements?: Partial<ImprovementLevels>;
+  scoreAdjustment?: {
+    delta: number;
+    reason: Exclude<ScoreReason, "initial" | "defender" | "metropolis">;
+    note?: string;
+  };
+}
+
+export type GameCommand =
+  | { type: "roll.draw" }
+  | { type: "roll.alchemy"; red: DieValue; yellow: DieValue }
+  | { type: "resolution.progressAcknowledged"; rollId: RollId }
+  | { type: "resolution.productionAcknowledged"; rollId: RollId }
+  | {
+      type: "player.publicStateAdjusted";
+      playerId: PlayerId;
+      patch: PublicStatePatch;
+    }
+  | {
+      type: "metropolis.assignmentProposed";
+      discipline: MetropolisDiscipline;
+      holderId: PlayerId | null;
+      status: "temporary" | "permanent" | null;
+    }
+  | {
+      type: "metropolis.correctionProposed";
+      discipline: MetropolisDiscipline;
+      holderId: PlayerId | null;
+      status: "temporary" | "permanent" | null;
+    }
+  | { type: "metropolis.proposalConfirmed"; proposalId: ProposalId }
+  | { type: "metropolis.proposalCancelled"; proposalId: ProposalId }
+  | {
+      type: "attack.confirmed";
+      proposalId: ProposalId;
+      progressChoices?: Array<{
+        playerId: PlayerId;
+        discipline: ProgressDiscipline;
+      }>;
+    }
+  | {
+      type: "event.acknowledged";
+      occurrenceId: EventOccurrenceId;
+    }
+  | { type: "turn.ended" }
+  | { type: "game.completed"; winnerId: PlayerId };
+
+export type GeneratedIdKind =
+  "roll" | "event-occurrence" | "proposal" | "score-entry";
+
+export interface IdSource {
+  next(kind: GeneratedIdKind): string;
+}
+
+export interface RandomSource {
+  nextUint32(): number;
+}
+
+export type BoundedIntSource = (upperExclusive: number) => number;
+
+export interface DomainDeps {
+  at: IsoTimestamp;
+  revisionId: RevisionId;
+  random: RandomSource | BoundedIntSource;
+  ids: IdSource;
+}
+
+export interface CreateGameInput {
+  gameId: GameId;
+  revisionId: RevisionId;
+  createdAt: IsoTimestamp;
+  setup: GameSetup;
+  random: RandomSource | BoundedIntSource;
+  ids: IdSource;
+  barbarianRules?: Partial<BarbarianRules>;
+}
+
+export type JournalSummaryKind =
+  | "game-created"
+  | "roll-drawn"
+  | "alchemy-used"
+  | "resolution-acknowledged"
+  | "player-adjusted"
+  | "metropolis-proposed"
+  | "metropolis-confirmed"
+  | "metropolis-cancelled"
+  | "attack-confirmed"
+  | "thematic-event-acknowledged"
+  | "turn-ended"
+  | "game-completed";
+
+export interface JournalSummary {
+  kind: JournalSummaryKind;
+  text: string;
+  playerIds: PlayerId[];
+}
+
+export type PresentationSummary =
+  | {
+      type: "game-created";
+      currentPlayerId: PlayerId;
+      houseRules: string[];
+    }
+  | {
+      type: "roll";
+      roll: RollRecord;
+      phase: GamePhase;
+      barbarianAttack: BarbarianAttackProposal | null;
+      thematicEventPending: boolean;
+    }
+  | {
+      type: "resolution";
+      phase: GamePhase;
+      pendingProgress: boolean;
+      pendingProduction: boolean;
+    }
+  | {
+      type: "player-state";
+      playerId: PlayerId;
+      score: number;
+      metropolisProposal: MetropolisProposal | null;
+    }
+  | {
+      type: "metropolis";
+      proposal: MetropolisProposal | null;
+      controls: MetropolisControls;
+    }
+  | {
+      type: "barbarian-attack";
+      record: BarbarianAttackRecord;
+      phase: GamePhase;
+    }
+  | {
+      type: "thematic-event";
+      event: ThematicEventSnapshot;
+      phase: GamePhase;
+    }
+  | {
+      type: "turn";
+      currentPlayerId: PlayerId;
+      round: number;
+      turnNumber: number;
+      winnerCandidateIds: PlayerId[];
+    }
+  | { type: "game-completed"; winnerId: PlayerId };
+
+export interface Decision {
+  nextState: GameState;
+  summary: JournalSummary;
+  presentation: PresentationSummary;
+}
+
+export type DomainErrorCode =
+  | "NO_ACTIVE_GAME"
+  | "INVALID_PHASE"
+  | "INVALID_SETUP"
+  | "INVALID_PLAYER_STATE"
+  | "INVALID_SCORE"
+  | "INVALID_DECK_STATE"
+  | "DECK_STATE_CORRUPT"
+  | "INVALID_THEMATIC_STATE"
+  | "INVALID_METROPOLIS_STATE"
+  | "INVALID_BARBARIAN_STATE"
+  | "INVALID_RESOLUTION_STATE"
+  | "INVALID_COMMAND"
+  | "STALE_ROLL"
+  | "ATTACK_CONFIRMATION_STALE"
+  | "METROPOLIS_CONFIRMATION_STALE"
+  | "REVISION_CONFLICT"
+  | "WINNER_NOT_ELIGIBLE"
+  | "INVARIANT_VIOLATION";
+
+export interface DomainError {
+  code: DomainErrorCode;
+  message: string;
+  details: Record<string, string | number | boolean | null>;
+}
+
+export type DomainResult<T> =
+  { ok: true; value: T } | { ok: false; error: DomainError };

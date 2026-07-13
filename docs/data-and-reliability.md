@@ -33,13 +33,13 @@ Database name: `catan-table-companion`
 
 Logical stores:
 
-| Store | Key | Purpose |
-| --- | --- | --- |
-| `metadata` | string | Database schema, install ID, migration status |
-| `games` | game ID | Summary, lifecycle status, active branch, head revision |
-| `revisions` | game ID + revision ID | Immutable command metadata and full state snapshot |
-| `navigation` | game ID + sequence | Undo, redo, branch, archive, and restore audit |
-| `quarantine` | generated ID | Invalid imports or failed migration source records |
+| Store        | Key                   | Purpose                                                 |
+| ------------ | --------------------- | ------------------------------------------------------- |
+| `metadata`   | string                | Database schema, install ID, migration status           |
+| `games`      | game ID               | Summary, lifecycle status, active branch, head revision |
+| `revisions`  | game ID + revision ID | Immutable command metadata and full state snapshot      |
+| `navigation` | game ID + sequence    | Undo, redo, branch, archive, and restore audit          |
+| `quarantine` | generated ID          | Invalid imports or failed migration source records      |
 
 One installation may retain one active game and multiple archived games.
 
@@ -61,7 +61,7 @@ The exact implementation may refine names, but it must preserve these concepts:
 ```ts
 interface StoredGame {
   id: GameId;
-  status: 'active' | 'completed' | 'archived' | 'corrupt';
+  status: "active" | "completed" | "archived" | "corrupt";
   title: string;
   playerSummaries: PlayerSummary[];
   activeBranchId: BranchId;
@@ -147,14 +147,14 @@ interface ScoreEntry {
   playerId: PlayerId;
   delta: number;
   reason:
-    | 'initial'
-    | 'manual'
-    | 'defender'
-    | 'metropolis'
-    | 'merchant'
-    | 'longest-road'
-    | 'revealed-progress-vp'
-    | 'correction';
+    | "initial"
+    | "manual"
+    | "defender"
+    | "metropolis"
+    | "merchant"
+    | "longest-road"
+    | "revealed-progress-vp"
+    | "correction";
   note?: string;
   createdAt: IsoTimestamp;
 }
@@ -167,11 +167,12 @@ history. Standard setup writes an initial +3 entry for each player.
 ### Metropolis state
 
 ```ts
-type MetropolisDiscipline = 'science' | 'trade' | 'politics';
+type MetropolisDiscipline = "science" | "trade" | "politics";
 
-type MetropolisControl =
-  | { holderId: PlayerId; status: 'temporary' | 'permanent' }
-  | null;
+type MetropolisControl = {
+  holderId: PlayerId;
+  status: "temporary" | "permanent";
+} | null;
 
 type MetropolisState = Record<MetropolisDiscipline, MetropolisControl>;
 ```
@@ -308,7 +309,7 @@ Top-level shape:
 
 ```ts
 interface ExportDocument {
-  format: 'catan-table-companion';
+  format: "catan-table-companion";
   exportVersion: number;
   exportedAt: IsoTimestamp;
   applicationVersion: string;
@@ -316,7 +317,7 @@ interface ExportDocument {
   activeBranch: GameRevision[];
   optionalBranches?: GameRevision[][];
   integrity: {
-    algorithm: 'SHA-256';
+    algorithm: "SHA-256";
     documentHash: string;
   };
 }

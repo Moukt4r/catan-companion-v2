@@ -90,13 +90,13 @@ and saves locally. The main action is Start new game.
 
 Display a comparison panel:
 
-| Setting | Default |
-| --- | --- |
-| Ruleset | Base game + Cities & Knights |
-| Numbered dice | Balanced 36-outcome deck (house rule) |
-| Event die | Balanced six-face deck (house rule) |
-| Thematic events | Standard cadence (house rule) |
-| Victory target | 13 |
+| Setting         | Default                               |
+| --------------- | ------------------------------------- |
+| Ruleset         | Base game + Cities & Knights          |
+| Numbered dice   | Balanced 36-outcome deck (house rule) |
+| Event die       | Balanced six-face deck (house rule)   |
+| Thematic events | Standard cadence (house rule)         |
+| Victory target  | 13                                    |
 
 The balanced modes are fixed for this release and explained rather than
 toggleable.
@@ -238,7 +238,7 @@ Attack resolution takes over the main stage and prevents unrelated edits.
 Show a per-player table:
 
 | Player | Ordinary cities | Held metropolises | Active knights | Strength |
-| --- | --- | --- | --- | --- |
+| ------ | --------------- | ----------------- | -------------- | -------- |
 
 Each value has an Edit link. The operator confirms that the physical board and
 app match before calculation is accepted.

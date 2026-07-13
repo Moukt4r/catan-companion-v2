@@ -163,8 +163,11 @@ Automated checks do not replace manual assistive-technology review.
 - overall tested source: at least 85 percent branches and statements.
 - no lowered threshold without a reviewed decision and compensating test plan.
 
-Coverage excludes generated service-worker output, type-only files, and static
-asset declarations.
+Coverage excludes generated service-worker output, type-only/barrel files,
+static asset declarations, and the React composition/bootstrap shell that is
+covered through the Playwright critical-flow suite. Domain, application,
+persistence, platform, and reusable UI behavior remain in the unit coverage
+gate.
 
 Mutation testing may be introduced for deck and attack modules after the first
 release, but is not a release prerequisite.

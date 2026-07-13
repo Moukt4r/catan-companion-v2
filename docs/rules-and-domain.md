@@ -37,19 +37,19 @@ The repository may summarize mechanics but must not copy rulebook or card text.
 
 ## 2. Domain vocabulary
 
-| Term | Meaning |
-| --- | --- |
-| Turn | One player's roll, resolution, production, and action phase |
-| Round | One completed turn for every player in turn order |
-| Numbered deck | Shuffled ordered pairs for the red and yellow dice |
-| Event deck | Shuffled event-die faces in a 3/1/1/1 distribution |
-| Roll transaction | One accepted numbered result, event result, and all derived prompts |
-| Official resolution | Event movement/progress guidance followed by production or 7 guidance |
-| Thematic event | Original house-rule instruction shown after official resolution |
-| Vulnerable city | An ordinary city without a metropolis |
-| Active knight strength | Basic count + 2 x strong count + 3 x mighty count |
-| Barbarian strength | Ordinary cities + metropolises across all players |
-| Revision | Durable state produced by one accepted command |
+| Term                   | Meaning                                                               |
+| ---------------------- | --------------------------------------------------------------------- |
+| Turn                   | One player's roll, resolution, production, and action phase           |
+| Round                  | One completed turn for every player in turn order                     |
+| Numbered deck          | Shuffled ordered pairs for the red and yellow dice                    |
+| Event deck             | Shuffled event-die faces in a 3/1/1/1 distribution                    |
+| Roll transaction       | One accepted numbered result, event result, and all derived prompts   |
+| Official resolution    | Event movement/progress guidance followed by production or 7 guidance |
+| Thematic event         | Original house-rule instruction shown after official resolution       |
+| Vulnerable city        | An ordinary city without a metropolis                                 |
+| Active knight strength | Basic count + 2 x strong count + 3 x mighty count                     |
+| Barbarian strength     | Ordinary cities + metropolises across all players                     |
+| Revision               | Durable state produced by one accepted command                        |
 
 ## 3. Core state machine
 
@@ -169,13 +169,13 @@ each player's recorded improvement level for that discipline.
 The current 2025 board ranges are represented as rules data:
 
 | Improvement level | Eligible red-die values |
-| --- | --- |
-| 0 | none |
-| 1 | 1-2 |
-| 2 | 1-3 |
-| 3 | 1-4 |
-| 4 | 1-5 |
-| 5 | 1-6 |
+| ----------------- | ----------------------- |
+| 0                 | none                    |
+| 1                 | 1-2                     |
+| 2                 | 1-3                     |
+| 3                 | 1-4                     |
+| 4                 | 1-5                     |
+| 5                 | 1-6                     |
 
 Rules data is stored as an explicit lookup table rather than a formula so an
 edition correction can be reviewed and tested in isolation.
@@ -200,8 +200,8 @@ For each of science, trade, and politics, record:
 
 ```ts
 type MetropolisControl =
-  | { holderId: PlayerId; status: 'temporary' }
-  | { holderId: PlayerId; status: 'permanent' }
+  | { holderId: PlayerId; status: "temporary" }
+  | { holderId: PlayerId; status: "permanent" }
   | null;
 ```
 
@@ -348,11 +348,11 @@ separate from official event-die outcomes.
 
 The setup choices are:
 
-| Cadence | Trigger bag |
-| --- | --- |
-| Subtle | 1 trigger and 17 blanks |
+| Cadence  | Trigger bag             |
+| -------- | ----------------------- |
+| Subtle   | 1 trigger and 17 blanks |
 | Standard | 1 trigger and 11 blanks |
-| Lively | 1 trigger and 7 blanks |
+| Lively   | 1 trigger and 7 blanks  |
 
 Standard is enabled by default.
 

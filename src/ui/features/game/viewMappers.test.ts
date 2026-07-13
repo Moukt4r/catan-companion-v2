@@ -1,0 +1,359 @@
+import { describe, expect, it } from "vitest";
+import {
+  BUILT_IN_THEMATIC_EVENTS,
+  asEventOccurrenceId,
+  asGameId,
+  asIsoTimestamp,
+  asPlayerId,
+  asProposalId,
+  asRevisionId,
+  asRollId,
+  asScoreEntryId,
+  createGame,
+  type BarbarianAttackProposal,
+  type GameState,
+  type IdSource,
+} from "../../../domain";
+import {
+  toBarbarianAttackView,
+  toEligibleProgressPlayers,
+  toGameCompleteView,
+  toGameTableView,
+  toPlayerEditorValue,
+} from "./viewMappers";
+
+const ADA = asPlayerId("ada");
+const GRACE = asPlayerId("grace");
+const LINUS = asPlayerId("linus");
+
+function idSource(): IdSource {
+  let next = 0;
+  return {
+    next(kind) {
+      next += 1;
+      return `mapper-${kind}-${next}`;
+    },
+  };
+}
+
+function game(): GameState {
+  const result = createGame({
+    gameId: asGameId("mapper-game"),
+    revisionId: asRevisionId("mapper-revision"),
+    createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
+    setup: {
+      title: "Mapper table",
+      mode: "standard",
+      players: [
+        {
+          id: ADA,
+          name: "Ada",
+          color: {
+            id: "blue",
+            label: "Blue",
+            hex: "#123456",
+            distinguishabilityKey: "blue",
+          },
+          ordinaryCities: 2,
+          activeKnights: { basic: 1, strong: 1, mighty: 0 },
+          improvements: { science: 3, trade: 2, politics: 1 },
+        },
+        {
+          id: GRACE,
+          name: "Grace",
+          color: {
+            id: "red",
+            label: "Red",
+            hex: "#654321",
+            distinguishabilityKey: "red",
+          },
+          ordinaryCities: 1,
+          activeKnights: { basic: 0, strong: 0, mighty: 1 },
+          improvements: { science: 1, trade: 4, politics: 2 },
+        },
+        {
+          id: LINUS,
+          name: "Linus",
+          color: {
+            id: "green",
+            label: "Green",
+            hex: "#117744",
+            distinguishabilityKey: "green",
+          },
+        },
+      ],
+      firstPlayerId: ADA,
+      victoryTarget: 13,
+      thematicCadence: "standard",
+      thematicEventsEnabled: true,
+      thematicEventCatalog: BUILT_IN_THEMATIC_EVENTS.map((event) => ({
+        ...event,
+      })),
+      rulesDataVersion: "2025.1",
+      gameDocumentVersion: 1,
+    },
+    random: () => 0,
+    ids: idSource(),
+  });
+  if (!result.ok) {
+    throw new Error(result.error.message);
+  }
+  return result.value.nextState;
+}
+
+function lastRoll(): NonNullable<GameState["lastRoll"]> {
+  return {
+    id: asRollId("mapper-roll"),
+    playerId: ADA,
+    turnNumber: 2,
+    round: 1,
+    numbered: { red: 3, yellow: 4 },
+    total: 7,
+    eventFace: "science",
+    alchemy: true,
+    numberedDeckCycle: 0,
+    numberedDeckIndex: null,
+    eventDeckCycle: 0,
+    eventDeckIndex: 1,
+    progress: {
+      discipline: "science",
+      eligiblePlayerIds: [ADA, asPlayerId("missing")],
+      red: 3,
+    },
+    production: {
+      type: "seven",
+      robberActive: false,
+      reminder: "robber-not-yet-active",
+    },
+    thematicEventOccurrenceId: asEventOccurrenceId("occurrence"),
+    createdAt: asIsoTimestamp("2026-07-12T12:05:00.000Z"),
+  };
+}
+
+describe("toGameTableView", () => {
+  it("maps public table controls, scores, strength, and read-only state", () => {
+    const state = game();
+    const view = toGameTableView(
+      state,
+      { savedLabel: "Saving", saveTone: "warning" },
+      true,
+      true,
+      true,
+    );
+
+    expect(view).toMatchObject({
+      title: "Mapper table",
+      phaseLabel: "Awaiting roll",
+      currentPlayerName: "Ada",
+      savedLabel: "Saving",
+      saveTone: "warning",
+      offline: true,
+      readOnly: true,
+      canRoll: true,
+      canEndTurn: false,
+      rolling: true,
+      lastRoll: null,
+      numberedCycleProgress: "0 / 36",
+      barbarian: {
+        position: 0,
+        trackLength: 7,
+        strength: 4,
+        defenderStrength: 6,
+      },
+    });
+    expect(view.players[0]).toMatchObject({
+      name: "Ada",
+      victoryPoints: 3,
+      ordinaryCities: 2,
+      activeKnightStrength: 3,
+      current: true,
+    });
+  });
+
+  it("maps an Alchemy roll, metropolis ownership, and winner candidate", () => {
+    const base = game();
+    const state: GameState = {
+      ...base,
+      turn: { ...base.turn, phase: "action-phase" },
+      lastRoll: lastRoll(),
+      metropolises: {
+        ...base.metropolises,
+        controls: {
+          ...base.metropolises.controls,
+          science: { holderId: ADA, status: "temporary" },
+        },
+      },
+      scoreLedger: [
+        ...base.scoreLedger,
+        {
+          id: asScoreEntryId("winner-score"),
+          playerId: ADA,
+          delta: 10,
+          reason: "manual",
+          createdAt: asIsoTimestamp("2026-07-12T12:05:00.000Z"),
+        },
+      ],
+    };
+
+    const view = toGameTableView(state, {
+      savedLabel: "Saved",
+      saveTone: "success",
+    });
+
+    expect(view.canEndTurn).toBe(true);
+    expect(view.lastRoll).toEqual({
+      red: 3,
+      yellow: 4,
+      event: "science",
+      total: 7,
+      source: "alchemy",
+    });
+    expect(view.players[0]?.metropolisDisciplines).toEqual(["science"]);
+    expect(view.winnerCandidateName).toBe("Ada");
+
+    const pending = toGameTableView(
+      {
+        ...state,
+        metropolises: {
+          ...state.metropolises,
+          pendingProposal: {
+            id: asProposalId("pending"),
+            discipline: "trade",
+            source: "improvement",
+            from: null,
+            to: { holderId: GRACE, status: "temporary" },
+            changes: [],
+            summary: "Pending",
+          },
+        },
+      },
+      { savedLabel: "Saved", saveTone: "success" },
+    );
+    expect(pending.canEndTurn).toBe(false);
+  });
+});
+
+describe("other view mappers", () => {
+  it("maps player editing and rejects an unknown player", () => {
+    const base = game();
+    const state: GameState = {
+      ...base,
+      metropolises: {
+        ...base.metropolises,
+        controls: {
+          ...base.metropolises.controls,
+          science: { holderId: ADA, status: "temporary" },
+        },
+      },
+    };
+
+    expect(toPlayerEditorValue(state, ADA)).toMatchObject({
+      id: ADA,
+      name: "Ada",
+      victoryPoints: 3,
+      ordinaryCities: 2,
+      activeKnights: { basic: 1, strong: 1, mighty: 0 },
+      improvements: { science: 3, trade: 2, politics: 1 },
+      metropolisDisciplines: ["science"],
+    });
+    expect(() => toPlayerEditorValue(state, asPlayerId("unknown"))).toThrow(
+      "Player does not exist.",
+    );
+  });
+
+  it("maps eligible progress players and skips stale ids", () => {
+    const state: GameState = { ...game(), lastRoll: lastRoll() };
+    expect(toEligibleProgressPlayers(state, "science")).toEqual([
+      {
+        id: ADA,
+        name: "Ada",
+        color: "#123456",
+        level: 3,
+        eligibleRange: "1, 2, 3, 4",
+      },
+    ]);
+    expect(
+      toEligibleProgressPlayers({ ...state, lastRoll: null }, "science"),
+    ).toEqual([]);
+  });
+
+  it("maps defender rewards and barbarian pillaging", () => {
+    const state = game();
+    const defendersWin: BarbarianAttackProposal = {
+      id: asProposalId("defenders-win"),
+      strengths: {
+        barbarian: 3,
+        defenders: 6,
+        contributions: [
+          { playerId: ADA, strength: 3 },
+          { playerId: GRACE, strength: 3 },
+        ],
+      },
+      outcome: {
+        type: "defenders-win",
+        reward: { type: "progress-choice", playerIds: [ADA, GRACE] },
+      },
+      firstAttack: true,
+      summary: "Defenders win",
+    };
+    expect(toBarbarianAttackView(state, defendersWin)).toMatchObject({
+      proposalId: defendersWin.id,
+      outcome: "defenders-win",
+      uniqueDefenderId: null,
+      tiedDefenderIds: [ADA, GRACE],
+      pillagedPlayerIds: [],
+      firstAttack: true,
+    });
+    expect(toBarbarianAttackView(state, defendersWin).players[0]).toMatchObject(
+      {
+        activeKnights: "1 basic, 1 strong",
+        activeStrength: 3,
+      },
+    );
+
+    const barbariansWin: BarbarianAttackProposal = {
+      ...defendersWin,
+      id: asProposalId("barbarians-win"),
+      outcome: { type: "barbarians-win", pillagedPlayerIds: [GRACE] },
+      firstAttack: false,
+    };
+    expect(toBarbarianAttackView(state, barbariansWin)).toMatchObject({
+      outcome: "barbarians-win",
+      tiedDefenderIds: [],
+      pillagedPlayerIds: [GRACE],
+    });
+  });
+
+  it("maps completed-game statistics and requires a winner", () => {
+    const base = game();
+    expect(() => toGameCompleteView(base)).toThrow(
+      "Completed game has no winner.",
+    );
+
+    const state: GameState = {
+      ...base,
+      status: "completed",
+      winnerId: GRACE,
+      updatedAt: asIsoTimestamp("2026-07-12T13:35:00.000Z"),
+      turn: { ...base.turn, phase: "completed", round: 8 },
+      statistics: {
+        ...base.statistics,
+        completedTurns: 24,
+        totalRolls: 22,
+        thematicEventsTriggered: 2,
+      },
+      barbarian: { ...base.barbarian, attacksCompleted: 3 },
+    };
+    expect(toGameCompleteView(state)).toMatchObject({
+      title: "Mapper table",
+      winnerName: "Grace",
+      winnerColor: "#654321",
+      rounds: 8,
+      turns: 24,
+      durationMinutes: 95,
+      rolls: 22,
+      barbarianAttacks: 3,
+      thematicEvents: 2,
+    });
+  });
+});
