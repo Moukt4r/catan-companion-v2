@@ -20,6 +20,7 @@ import {
   toGameCompleteView,
   toGameTableView,
   toPlayerEditorValue,
+  toRollResolutionView,
 } from "./viewMappers";
 
 const ADA = asPlayerId("ada");
@@ -275,6 +276,58 @@ describe("other view mappers", () => {
     expect(
       toEligibleProgressPlayers({ ...state, lastRoll: null }, "science"),
     ).toEqual([]);
+  });
+
+  it("combines roll, progress, production, event, and next-player information", () => {
+    const event = BUILT_IN_THEMATIC_EVENTS[0]!;
+    const state: GameState = {
+      ...game(),
+      lastRoll: lastRoll(),
+      thematicEvents: {
+        ...game().thematicEvents,
+        pendingEvent: {
+          occurrenceId: asEventOccurrenceId("occurrence"),
+          eventId: event.id,
+          contentVersion: event.contentVersion,
+          title: event.title,
+          instruction: event.instruction,
+          triggeredAtCompletedTurn: 3,
+          acknowledged: false,
+        },
+      },
+    };
+
+    expect(toRollResolutionView(state)).toMatchObject({
+      currentPlayerName: "Ada",
+      nextPlayerName: "Grace",
+      roll: {
+        total: 7,
+        event: "science",
+        source: "alchemy",
+      },
+      progress: {
+        discipline: "science",
+        eligiblePlayers: [{ id: ADA, name: "Ada" }],
+      },
+      production: {
+        total: 7,
+        robberActivated: false,
+      },
+      attack: null,
+      thematicEvent: {
+        title: event.title,
+      },
+    });
+  });
+
+  it("rejects states without a valid rolling player", () => {
+    expect(() => toRollResolutionView(game())).toThrow(
+      "A roll result is required.",
+    );
+    const state = { ...game(), lastRoll: lastRoll(), players: [] };
+    expect(() => toRollResolutionView(state)).toThrow(
+      "The rolling player does not exist.",
+    );
   });
 
   it("maps defender rewards and barbarian pillaging", () => {

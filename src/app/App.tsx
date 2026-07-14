@@ -9,8 +9,6 @@ import {
   BUILT_IN_THEMATIC_EVENTS,
   asGameId,
   asPlayerId,
-  asProposalId,
-  asRollId,
   winnerCandidates,
   type DieValue,
   type GameCommand,
@@ -48,7 +46,6 @@ import {
 } from "../ui/features/home/ImportPreviewDialog";
 import { SetupWizard, type SetupDraft } from "../ui/features/setup/SetupWizard";
 import { AlchemyDialog } from "../ui/features/game/AlchemyDialog";
-import { BarbarianAttackDialog } from "../ui/features/game/BarbarianAttackDialog";
 import { GameCompleteScreen } from "../ui/features/game/GameCompleteScreen";
 import { GameTable } from "../ui/features/game/GameTable";
 import {
@@ -64,15 +61,15 @@ import {
   PlayerEditorDialog,
   type PlayerEditorPatch,
 } from "../ui/features/game/PlayerEditorDialog";
-import { ProductionResolutionDialog } from "../ui/features/game/ProductionResolutionDialog";
-import { ProgressResolutionDialog } from "../ui/features/game/ProgressResolutionDialog";
-import { ThematicEventDialog } from "../ui/features/game/ThematicEventDialog";
 import {
-  toBarbarianAttackView,
-  toEligibleProgressPlayers,
+  RollResolutionDialog,
+  type AttackProgressChoice,
+} from "../ui/features/game/RollResolutionDialog";
+import {
   toGameCompleteView,
   toGameTableView,
   toPlayerEditorValue,
+  toRollResolutionView,
 } from "../ui/features/game/viewMappers";
 import { WinnerDialog } from "../ui/features/game/WinnerDialog";
 import { SettingsDialog } from "../ui/features/settings/SettingsDialog";
@@ -107,9 +104,8 @@ export function App() {
   );
   const [metropolisCorrectionOpen, setMetropolisCorrectionOpen] =
     useState(false);
-  const [pausedAttackProposalId, setPausedAttackProposalId] = useState<
-    string | null
-  >(null);
+  const [rollResolutionPinned, setRollResolutionPinned] = useState(false);
+  const [resolutionBusy, setResolutionBusy] = useState(false);
   const [newGameConfirmation, setNewGameConfirmation] = useState(false);
   const [deleteGameId, setDeleteGameId] = useState<string | null>(null);
   const [resumeGameId, setResumeGameId] = useState<string | null>(null);
@@ -201,11 +197,10 @@ export function App() {
     state && selectedPlayerId
       ? (state.players.find((player) => player.id === selectedPlayerId) ?? null)
       : null;
-  const pendingAttack = state?.barbarian.pendingAttack ?? null;
-  const attackPaused =
-    pendingAttack !== null && pausedAttackProposalId === pendingAttack.id;
   const safeToUpdate =
     !snapshot.saving &&
+    !rollResolutionPinned &&
+    !resolutionBusy &&
     (!state ||
       state.turn.phase === "awaiting-roll" ||
       state.turn.phase === "action-phase" ||
@@ -289,15 +284,129 @@ export function App() {
     return completed;
   }
 
-  async function roll(command: GameCommand): Promise<void> {
+  async function roll(command: GameCommand): Promise<boolean> {
     setRolling(true);
     const completed = await dispatch(command, "roll");
     if (completed) {
+      setRollResolutionPinned(true);
       await new Promise<void>((resolve) => {
         window.setTimeout(resolve, preferences.motion === "reduced" ? 1 : 650);
       });
     }
     setRolling(false);
+    return completed;
+  }
+
+  async function resolveRollResult(
+    quickRoll: boolean,
+    choices: AttackProgressChoice[],
+  ): Promise<void> {
+    setResolutionBusy(true);
+    try {
+      let current = gameController.getSnapshot().activeState;
+      if (!current?.lastRoll) {
+        throw new Error("There is no roll result to resolve.");
+      }
+
+      if (current.turn.phase === "resolving-barbarian-attack") {
+        const proposal = current.barbarian.pendingAttack;
+        if (!proposal) {
+          throw new Error("The barbarian attack proposal is missing.");
+        }
+        const confirmed = await dispatch(
+          {
+            type: "attack.confirmed",
+            proposalId: proposal.id,
+            ...(choices.length === 0
+              ? {}
+              : {
+                  progressChoices: choices.map((choice) => ({
+                    playerId: asPlayerId(choice.playerId),
+                    discipline: choice.discipline,
+                  })),
+                }),
+          },
+          "confirm",
+        );
+        if (!confirmed) {
+          return;
+        }
+        current = gameController.getSnapshot().activeState;
+      }
+
+      if (
+        current?.turn.phase === "resolving-official-result" &&
+        current.resolution.official?.progressPending
+      ) {
+        const acknowledged = await dispatch({
+          type: "resolution.progressAcknowledged",
+          rollId: current.resolution.official.rollId,
+        });
+        if (!acknowledged) {
+          return;
+        }
+        current = gameController.getSnapshot().activeState;
+      }
+
+      if (
+        current?.turn.phase === "resolving-official-result" &&
+        current.resolution.official?.productionPending
+      ) {
+        const acknowledged = await dispatch({
+          type: "resolution.productionAcknowledged",
+          rollId: current.resolution.official.rollId,
+        });
+        if (!acknowledged) {
+          return;
+        }
+        current = gameController.getSnapshot().activeState;
+      }
+
+      if (
+        current?.turn.phase === "resolving-thematic-event" &&
+        current.thematicEvents.pendingEvent
+      ) {
+        const acknowledged = await dispatch(
+          {
+            type: "event.acknowledged",
+            occurrenceId: current.thematicEvents.pendingEvent.occurrenceId,
+          },
+          "event",
+        );
+        if (!acknowledged) {
+          return;
+        }
+        current = gameController.getSnapshot().activeState;
+      }
+
+      if (current?.turn.phase !== "action-phase") {
+        throw new Error("The roll could not reach the action phase.");
+      }
+
+      if (!quickRoll) {
+        setRollResolutionPinned(false);
+        return;
+      }
+
+      if (winnerCandidates(current).length > 0) {
+        setRollResolutionPinned(false);
+        setWinnerOpen(true);
+        return;
+      }
+
+      const ended = await dispatch({ type: "turn.ended" }, "confirm");
+      if (!ended) {
+        return;
+      }
+      const rolled = await roll({ type: "roll.draw" });
+      if (!rolled) {
+        setRollResolutionPinned(false);
+      }
+    } catch (error) {
+      setNotice(errorMessage(error));
+    } finally {
+      setResolutionBusy(false);
+    }
   }
 
   async function exportStoredGame(game: StoredGame): Promise<void> {
@@ -414,24 +523,6 @@ export function App() {
                 }}
               >
                 Take control
-              </Button>
-            </div>
-          ) : null}
-          {attackPaused ? (
-            <div
-              className="app-notice app-notice--warning app-notice--secondary"
-              role="status"
-            >
-              <span>
-                Attack review is paused while you correct public board state.
-              </span>
-              <Button
-                size="small"
-                onClick={() => {
-                  setPausedAttackProposalId(null);
-                }}
-              >
-                Review recalculated attack
               </Button>
             </div>
           ) : null}
@@ -702,101 +793,26 @@ export function App() {
           />
 
           {!snapshot.readOnly &&
-          state.turn.phase === "resolving-official-result" &&
-          state.resolution.official?.progressPending &&
-          state.lastRoll?.progress ? (
-            <ProgressResolutionDialog
+          !rolling &&
+          selectedPlayer === null &&
+          state.lastRoll &&
+          (rollResolutionPinned ||
+            state.turn.phase === "resolving-barbarian-attack" ||
+            state.turn.phase === "resolving-official-result" ||
+            state.turn.phase === "resolving-thematic-event") ? (
+            <RollResolutionDialog
+              key={`${state.lastRoll.id}-${state.barbarian.pendingAttack?.id ?? "no-attack"}`}
               open
-              discipline={state.lastRoll.progress.discipline}
-              redValue={state.lastRoll.progress.red}
-              eligiblePlayers={toEligibleProgressPlayers(
-                state,
-                state.lastRoll.progress.discipline,
-              )}
-              onAcknowledge={() => {
-                void dispatch({
-                  type: "resolution.progressAcknowledged",
-                  rollId: asRollId(state.lastRoll?.id ?? ""),
-                });
-              }}
-            />
-          ) : null}
-
-          {!snapshot.readOnly &&
-          state.turn.phase === "resolving-official-result" &&
-          state.resolution.official &&
-          !state.resolution.official.progressPending &&
-          state.resolution.official.productionPending &&
-          state.lastRoll ? (
-            <ProductionResolutionDialog
-              open
-              total={state.lastRoll.total}
-              robberActivated={state.barbarian.robberActivated}
-              onAcknowledge={() => {
-                void dispatch({
-                  type: "resolution.productionAcknowledged",
-                  rollId: state.lastRoll?.id ?? asRollId(""),
-                });
-              }}
-            />
-          ) : null}
-
-          {!snapshot.readOnly &&
-          state.turn.phase === "resolving-thematic-event" &&
-          state.thematicEvents.pendingEvent ? (
-            <ThematicEventDialog
-              open
-              title={state.thematicEvents.pendingEvent.title}
-              instruction={state.thematicEvents.pendingEvent.instruction}
-              category="Original house"
-              onAcknowledge={() => {
-                const occurrenceId =
-                  state.thematicEvents.pendingEvent?.occurrenceId;
-                if (occurrenceId) {
-                  void dispatch(
-                    {
-                      type: "event.acknowledged",
-                      occurrenceId,
-                    },
-                    "event",
-                  );
-                }
-              }}
-            />
-          ) : null}
-
-          {!snapshot.readOnly &&
-          pendingAttack &&
-          !attackPaused &&
-          selectedPlayer === null ? (
-            <BarbarianAttackDialog
-              attack={toBarbarianAttackView(state, pendingAttack)}
-              onEditPlayer={(id) => {
+              view={toRollResolutionView(state)}
+              busy={resolutionBusy || snapshot.saving}
+              onCorrectAttackPlayer={(id) => {
                 setSelectedPlayerId(asPlayerId(id));
               }}
-              onCancelToCorrect={() => {
-                setPausedAttackProposalId(pendingAttack.id);
+              onContinue={(choices) => {
+                void resolveRollResult(false, choices);
               }}
-              onConfirm={(choices) => {
-                void dispatch(
-                  {
-                    type: "attack.confirmed",
-                    proposalId: asProposalId(pendingAttack.id),
-                    ...(choices.length === 0
-                      ? {}
-                      : {
-                          progressChoices: choices.map((choice) => ({
-                            playerId: asPlayerId(choice.playerId),
-                            discipline: choice.discipline,
-                          })),
-                        }),
-                  },
-                  "confirm",
-                ).then((completed) => {
-                  if (completed) {
-                    setPausedAttackProposalId(null);
-                  }
-                });
+              onQuickRoll={(choices) => {
+                void resolveRollResult(true, choices);
               }}
             />
           ) : null}

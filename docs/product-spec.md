@@ -209,6 +209,8 @@ the winner rather than ending automatically. Confirmation archives:
 ### FR-06: Official result guidance
 
 - Resolve and present event-die effects before production guidance.
+- Present every consequence of one roll in a single consolidated result modal;
+  do not require a chain of acknowledgement dialogs.
 - On a progress icon, identify every player eligible for that discipline based
   on the red die and recorded improvement level.
 - On a 7, show robber/discard guidance rather than production guidance.
@@ -257,6 +259,9 @@ and vulnerable city count are derived rather than independently editable.
 - End turn only after all required resolution steps are acknowledged.
 - Advance clockwise and increment the round after the final player.
 - Keep quick public-state controls available during the action phase.
+- Offer **Next player & quick roll** in the consolidated result modal. This
+  acknowledges the displayed result, ends the current turn, and immediately
+  rolls for the next player.
 - Announce the next player visually and through an accessible live region.
 
 ### FR-11: History and undo

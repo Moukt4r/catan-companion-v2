@@ -47,52 +47,15 @@ async function setupStandardGame(page: Page) {
 }
 
 async function resolveRoll(page: Page) {
-  await expect
-    .poll(async () => {
-      const dialogOpen = (await page.locator("dialog[open]").count()) > 0;
-      const endTurnEnabled = await page
-        .getByRole("button", { name: "End turn" })
-        .isEnabled()
-        .catch(() => false);
-      return dialogOpen || endTurnEnabled;
-    })
-    .toBe(true);
-
-  for (let step = 0; step < 5; step += 1) {
-    const dialog = page.locator("dialog[open]");
-    if ((await dialog.count()) === 0) {
-      break;
-    }
-    const heading =
-      (await dialog.getByRole("heading").textContent())?.trim() ?? "";
-    if (/progress$/i.test(heading)) {
-      await dialog
-        .getByRole("button", { name: "Mark progress resolved" })
-        .click();
-    } else if (heading.startsWith("Resolve ")) {
-      await dialog
-        .getByRole("button", { name: /Mark (production|7) resolved/ })
-        .click();
-    } else if (
-      (await dialog.getByRole("button", { name: "Event completed" }).count()) >
-      0
-    ) {
-      await dialog.getByRole("button", { name: "Event completed" }).click();
-    } else {
-      throw new Error(`Unexpected resolution dialog: ${heading}`);
-    }
-    await expect
-      .poll(async () => {
-        const nextDialog = page.locator("dialog[open]");
-        if ((await nextDialog.count()) === 0) {
-          return "";
-        }
-        return (
-          (await nextDialog.getByRole("heading").textContent())?.trim() ?? ""
-        );
-      })
-      .not.toBe(heading);
+  const dialog = page.getByRole("dialog", { name: /Roll result:/ });
+  await expect(dialog).toBeVisible();
+  const choices = dialog.locator("select");
+  for (let index = 0; index < (await choices.count()); index += 1) {
+    await choices
+      .nth(index)
+      .selectOption(index % 2 === 0 ? "science" : "trade");
   }
+  await dialog.getByRole("button", { name: "Continue current turn" }).click();
   await expect(page.getByRole("button", { name: "End turn" })).toBeEnabled();
 }
 
@@ -170,6 +133,25 @@ test("supports the explicit two-player house mode", async ({ page }) => {
 
   await expect(page.locator(".player-card")).toHaveCount(2);
   await expect(page.getByText("Balanced house dice")).toBeVisible();
+});
+
+test("quick roll advances the turn and updates the same result modal", async ({
+  page,
+}) => {
+  await setupStandardGame(page);
+  await page.getByRole("button", { name: "Roll", exact: true }).click();
+
+  let dialog = page.getByRole("dialog", { name: /Roll result:/ });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Ada rolled");
+  await dialog
+    .getByRole("button", { name: "Next: Grace & quick roll" })
+    .click();
+
+  dialog = page.getByRole("dialog", { name: /Roll result:/ });
+  await expect(dialog).toContainText("Grace rolled");
+  await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
+  await expect(page.locator(".game-meta")).toContainText("Turn 2");
 });
 
 test("keeps secondary tabs read-only until control is available", async ({

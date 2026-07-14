@@ -34,9 +34,7 @@ Setup
 
 Game
   Table view
-  Roll result sheet
-  Barbarian resolution
-  Thematic event
+  Consolidated roll result
   Player-state editor
   History / undo
   Backup / settings
@@ -200,7 +198,9 @@ for keyboard and assistive-technology users.
 
 ## 6. Roll result flow
 
-The result sheet is a sequence, not a dense modal:
+Each roll opens one consolidated modal. It contains all applicable sections at
+once rather than opening a sequence of progress, production, attack, and
+thematic-event dialogs:
 
 1. **Event result**
    - Barbarian: animate one track step.
@@ -210,11 +210,20 @@ The result sheet is a sequence, not a dense modal:
 3. **Numbered result**
    - Production total or 7 guidance.
 4. **House event**
-   - Show only if scheduled and official resolution is complete.
-5. **Continue to action phase**
+   - Show only when scheduled, with an unmistakable House event label.
 
-Completed steps remain visible as a compact checklist so the table can verify
-what was resolved.
+The footer has two actions:
+
+- **Continue current turn** acknowledges the displayed information and enters
+  the current player's action phase.
+- **Next: PLAYER & quick roll** acknowledges the displayed information, ends
+  the current turn, and immediately rolls for the next player. Its helper text
+  makes clear that the current player should first finish physical-board
+  actions.
+
+The modal stays open while attack choices or persistence are incomplete. A
+quick roll replaces its content with the next player's result instead of
+opening another modal.
 
 ## 7. Progress eligibility sheet
 
@@ -226,12 +235,14 @@ Display:
 - each eligible player's recorded level and matching range;
 - a reminder that cards remain private and are not tracked.
 
-If no player is eligible, state this explicitly. The primary action is Mark
-resolved.
+If no player is eligible, state this explicitly. Eligibility is acknowledged
+with the consolidated modal's footer action rather than a separate button or
+dialog.
 
 ## 8. Barbarian attack experience
 
-Attack resolution takes over the main stage and prevents unrelated edits.
+Attack resolution occupies one section of the consolidated roll modal and
+prevents the footer actions until required tie choices are complete.
 
 ### Step 1: Verify inputs
 
@@ -258,9 +269,9 @@ For a barbarian victory:
 - explain why protected-metropolis-only players were skipped;
 - let the operator correct city selection before confirmation.
 
-### Step 3: Confirm
+### Step 3: Confirm through the modal footer
 
-The confirmation summarizes every mutation:
+The footer action summarizes and commits every mutation:
 
 - score changes;
 - ordinary city changes;
@@ -268,17 +279,19 @@ The confirmation summarizes every mutation:
 - all active knight counters reset;
 - robber activation when applicable.
 
-After confirmation, show a short outcome banner and return to the roll flow.
+The operator may temporarily open the public-state editor from an attack row;
+closing it returns to the same recalculated result modal.
 
 ## 9. Thematic event experience
 
-The event card must look visually distinct from official resolution:
+The house-event section inside the consolidated modal must look visually
+distinct from official resolution:
 
 - persistent House event label;
 - original title and concise instruction;
 - optional category and intensity marker;
-- Acknowledge action;
-- no countdown or auto-dismiss.
+- no countdown or auto-dismiss;
+- acknowledgement through the same modal footer as the official result.
 
 The event must fit without scrolling at 320 CSS pixels wide when text is at
 200 percent zoom, or provide a clear internal scroll region with focus

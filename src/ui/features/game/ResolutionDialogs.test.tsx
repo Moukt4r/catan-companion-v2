@@ -2,9 +2,50 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AlchemyDialog } from "./AlchemyDialog";
-import { ProductionResolutionDialog } from "./ProductionResolutionDialog";
-import { ProgressResolutionDialog } from "./ProgressResolutionDialog";
-import { ThematicEventDialog } from "./ThematicEventDialog";
+import {
+  RollResolutionDialog,
+  type RollResolutionView,
+} from "./RollResolutionDialog";
+
+function baseView(): RollResolutionView {
+  return {
+    currentPlayerName: "Ada",
+    nextPlayerName: "Grace",
+    roll: {
+      red: 4,
+      yellow: 3,
+      total: 7,
+      event: "science",
+      source: "balanced",
+    },
+    progress: {
+      discipline: "science",
+      redValue: 4,
+      eligiblePlayers: [
+        {
+          id: "ada",
+          name: "Ada",
+          color: "#123456",
+          level: 3,
+          eligibleRange: "1, 2, 3, 4",
+        },
+      ],
+    },
+    production: {
+      total: 7,
+      robberActivated: false,
+    },
+    barbarian: {
+      position: 2,
+      trackLength: 7,
+    },
+    attack: null,
+    thematicEvent: {
+      title: "Harbor Festival",
+      instruction: "Announce every maritime trade.",
+    },
+  };
+}
 
 describe("AlchemyDialog", () => {
   it("updates both labelled dice, reports the total, and confirms the choice", async () => {
@@ -35,146 +76,161 @@ describe("AlchemyDialog", () => {
   });
 });
 
-describe("ProgressResolutionDialog", () => {
-  it("lists eligible players in draw order and requires acknowledgement", async () => {
+describe("RollResolutionDialog", () => {
+  it("shows every roll consequence in one modal and continues the current turn", async () => {
     const user = userEvent.setup();
-    const onAcknowledge = vi.fn();
+    const onContinue = vi.fn();
 
     render(
-      <ProgressResolutionDialog
+      <RollResolutionDialog
         open
-        discipline="science"
-        redValue={4}
-        eligiblePlayers={[
+        view={baseView()}
+        busy={false}
+        onCorrectAttackPlayer={vi.fn()}
+        onContinue={onContinue}
+        onQuickRoll={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("dialog", { name: "Roll result: 7" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Science", { selector: "h3" })).toBeVisible();
+    expect(screen.getByText("Ada", { exact: true })).toBeVisible();
+    expect(screen.getByText("Resolve the 7")).toBeVisible();
+    expect(screen.getByText("Harbor Festival")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Mark progress resolved" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Continue current turn" }),
+    );
+    expect(onContinue).toHaveBeenCalledWith([]);
+  });
+
+  it("offers a quick next-player roll from the same modal", async () => {
+    const user = userEvent.setup();
+    const onQuickRoll = vi.fn();
+
+    render(
+      <RollResolutionDialog
+        open
+        view={baseView()}
+        busy={false}
+        onCorrectAttackPlayer={vi.fn()}
+        onContinue={vi.fn()}
+        onQuickRoll={onQuickRoll}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Next: Grace & quick roll",
+      }),
+    );
+    expect(onQuickRoll).toHaveBeenCalledWith([]);
+  });
+
+  it("collects tied defender choices before either modal action is available", async () => {
+    const user = userEvent.setup();
+    const onCorrect = vi.fn();
+    const onQuickRoll = vi.fn();
+    const view: RollResolutionView = {
+      ...baseView(),
+      roll: {
+        ...baseView().roll,
+        event: "barbarian",
+      },
+      progress: null,
+      attack: {
+        proposalId: "attack-1",
+        barbarianStrength: 3,
+        defenderStrength: 4,
+        outcome: "defenders-win",
+        players: [
           {
             id: "ada",
             name: "Ada",
             color: "#123456",
-            level: 3,
-            eligibleRange: "1, 2, 3, 4",
+            ordinaryCities: 1,
+            metropolises: 0,
+            activeKnights: "1 strong",
+            activeStrength: 2,
           },
           {
             id: "grace",
             name: "Grace",
             color: "#654321",
-            level: 5,
-            eligibleRange: "1, 2, 3, 4, 5, 6",
+            ordinaryCities: 1,
+            metropolises: 0,
+            activeKnights: "1 strong",
+            activeStrength: 2,
           },
-        ]}
-        onAcknowledge={onAcknowledge}
-      />,
-    );
-
-    const dialog = screen.getByRole("dialog", { name: "Science progress" });
-    expect(dialog).toHaveAccessibleDescription(
-      "The red die is 4. Draw in current-player order.",
-    );
-    expect(screen.getAllByRole("listitem")).toHaveLength(2);
-    expect(
-      screen.queryByRole("button", { name: "Close" }),
-    ).not.toBeInTheDocument();
-
-    await user.click(
-      screen.getByRole("button", { name: "Mark progress resolved" }),
-    );
-    expect(onAcknowledge).toHaveBeenCalledOnce();
-  });
-
-  it("explains when no player is eligible", () => {
-    render(
-      <ProgressResolutionDialog
-        open
-        discipline="trade"
-        redValue={6}
-        eligiblePlayers={[]}
-        onAcknowledge={vi.fn()}
-      />,
-    );
-
-    expect(
-      screen.getByText(
-        "No recorded player is eligible for this progress card.",
-      ),
-    ).toBeInTheDocument();
-  });
-});
-
-describe("ProductionResolutionDialog", () => {
-  it("distinguishes inactive and active robber resolution from production", async () => {
-    const user = userEvent.setup();
-    const onAcknowledge = vi.fn();
-    const { rerender } = render(
-      <ProductionResolutionDialog
-        open
-        total={7}
-        robberActivated={false}
-        onAcknowledge={onAcknowledge}
-      />,
-    );
-
-    expect(
-      screen.getByText(
-        /robber is not active until the first barbarian attack/i,
-      ),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Mark 7 resolved" }));
-
-    rerender(
-      <ProductionResolutionDialog
-        open
-        total={7}
-        robberActivated
-        onAcknowledge={onAcknowledge}
-      />,
-    );
-    expect(
-      screen.getByText(/move the robber and steal as normal/i),
-    ).toBeVisible();
-
-    rerender(
-      <ProductionResolutionDialog
-        open
-        total={8}
-        robberActivated
-        onAcknowledge={onAcknowledge}
-      />,
-    );
-    expect(
-      screen.getByRole("dialog", { name: "Resolve production 8" }),
-    ).toHaveAccessibleDescription(
-      "Distribute resources and commodities at the physical board.",
-    );
-    expect(
-      screen.getByText(/resolve hex production for total 8/i),
-    ).toBeVisible();
-    expect(onAcknowledge).toHaveBeenCalledOnce();
-  });
-});
-
-describe("ThematicEventDialog", () => {
-  it("announces the event category and completes the required table action", async () => {
-    const user = userEvent.setup();
-    const onAcknowledge = vi.fn();
+        ],
+        uniqueDefenderId: null,
+        tiedDefenderIds: ["ada", "grace"],
+        pillagedPlayerIds: [],
+        firstAttack: true,
+      },
+    };
 
     render(
-      <ThematicEventDialog
+      <RollResolutionDialog
         open
-        title="Harbor Festival"
-        category="Trade"
-        instruction="Announce every maritime trade."
-        onAcknowledge={onAcknowledge}
+        view={view}
+        busy={false}
+        onCorrectAttackPlayer={onCorrect}
+        onContinue={vi.fn()}
+        onQuickRoll={onQuickRoll}
+      />,
+    );
+
+    const quickRoll = screen.getByRole("button", {
+      name: "Next: Grace & quick roll",
+    });
+    expect(quickRoll).toBeDisabled();
+
+    await user.click(screen.getAllByRole("button", { name: "Correct" })[0]!);
+    expect(onCorrect).toHaveBeenCalledWith("ada");
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Ada's progress deck" }),
+      "science",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Grace's progress deck" }),
+      "trade",
+    );
+    await user.click(quickRoll);
+
+    expect(onQuickRoll).toHaveBeenCalledWith([
+      {
+        playerId: "ada",
+        discipline: "science",
+      },
+      {
+        playerId: "grace",
+        discipline: "trade",
+      },
+    ]);
+  });
+
+  it("disables modal actions while the consolidated result is saving", () => {
+    render(
+      <RollResolutionDialog
+        open
+        view={baseView()}
+        busy
+        onCorrectAttackPlayer={vi.fn()}
+        onContinue={vi.fn()}
+        onQuickRoll={vi.fn()}
       />,
     );
 
     expect(
-      screen.getByRole("dialog", { name: "Harbor Festival" }),
-    ).toHaveAccessibleDescription("Trade table event");
-    expect(screen.getByText("Announce every maritime trade.")).toBeVisible();
-    expect(
-      screen.queryByRole("button", { name: "Close" }),
-    ).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Event completed" }));
-    expect(onAcknowledge).toHaveBeenCalledOnce();
+      screen.getByRole("button", { name: "Continue current turn" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
   });
 });

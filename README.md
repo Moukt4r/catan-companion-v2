@@ -13,6 +13,9 @@ this implementation.
 - Independently shuffled event-die cycles with 3 barbarian, 1 science, 1
   trade, and 1 politics face.
 - Alchemy rolls that preserve the numbered-deck cursor.
+- One consolidated roll-result modal containing event, progress, production,
+  barbarian, and house-event guidance.
+- **Next player & quick roll** directly from the result modal.
 - Progress-card eligibility guidance using the current 2025 improvement board.
 - Barbarian movement, verified attacks, tie rewards, live board corrections,
   pillaging, knight reset, and first-attack robber activation.

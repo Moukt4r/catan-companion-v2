@@ -198,6 +198,14 @@ export class IndexedDbGameRepository implements GameRepository {
 
   async commitRevision(input: RevisionCommit): Promise<StoredRevision> {
     const db = await this.database();
+    const preflightDuplicate = await db.getFromIndex(
+      "revisions",
+      "gameCommand",
+      [input.gameId, input.commandId],
+    );
+    if (preflightDuplicate !== undefined) {
+      return preflightDuplicate;
+    }
     const preflightGame = await db.get("games", input.gameId);
     if (preflightGame === undefined) {
       throw persistenceError("NOT_FOUND", "Game was not found.");

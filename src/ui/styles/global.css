@@ -1067,6 +1067,79 @@ h3 {
   overflow-y: auto;
 }
 
+.dialog:has(.roll-resolution) {
+  width: min(96vw, 960px);
+}
+
+.roll-resolution {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.resolution-section {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid rgb(23 50 77 / 14%);
+  border-radius: var(--radius-medium);
+  background: rgb(23 50 77 / 4%);
+}
+
+.resolution-section--dice {
+  padding-bottom: 2.3rem;
+}
+
+.resolution-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.resolution-heading h3,
+.resolution-section h3 {
+  margin: 0;
+}
+
+.resolution-dice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.4rem, 2vw, 0.9rem);
+  padding-top: 0.5rem;
+}
+
+.resolution-dice .die {
+  width: clamp(72px, 14vw, 104px);
+}
+
+.resolution-dice > span,
+.resolution-dice > strong {
+  font-size: clamp(1.15rem, 3vw, 2rem);
+  font-weight: 900;
+}
+
+.resolution-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.roll-resolution__actions {
+  position: sticky;
+  bottom: -1.4rem;
+  z-index: 2;
+  display: grid;
+  gap: 0.7rem;
+  padding: 1rem 0 0.2rem;
+  border-top: 1px solid rgb(23 50 77 / 14%);
+  background: var(--color-cream-50);
+}
+
+.roll-resolution__actions > p {
+  margin: 0;
+}
+
 .stepper {
   display: grid;
   gap: 0.45rem;
@@ -1177,6 +1250,7 @@ h3 {
 .die__caption {
   position: absolute;
   bottom: -1.75rem;
+  color: var(--color-navy-950);
   font-size: 0.78rem;
   font-weight: 800;
   text-transform: uppercase;
@@ -1468,6 +1542,26 @@ h3 {
 
   .alchemy-grid {
     grid-template-columns: 1fr;
+  }
+
+  .resolution-heading {
+    display: grid;
+  }
+
+  .resolution-dice {
+    gap: 0.25rem;
+  }
+
+  .resolution-dice .die {
+    width: min(22vw, 82px);
+  }
+
+  .resolution-dice .die__caption {
+    font-size: 0.65rem;
+  }
+
+  .roll-resolution__actions .button-row {
+    display: grid;
   }
 
   .attack-player-row {

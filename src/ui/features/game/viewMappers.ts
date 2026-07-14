@@ -13,11 +13,14 @@ import {
   type PlayerId,
   type ProgressDiscipline,
 } from "../../../domain";
-import type { BarbarianAttackView } from "./BarbarianAttackDialog";
 import type { GameCompleteView } from "./GameCompleteScreen";
 import type { GameTableView } from "./GameTable";
 import type { PlayerEditorValue } from "./PlayerEditorDialog";
-import type { ProgressEligiblePlayer } from "./ProgressResolutionDialog";
+import type {
+  BarbarianAttackView,
+  ProgressEligiblePlayer,
+  RollResolutionView,
+} from "./RollResolutionDialog";
 
 const phaseLabels: Record<GamePhase, string> = {
   "action-phase": "Action phase",
@@ -132,6 +135,7 @@ export function toEligibleProgressPlayers(
     if (!player) {
       return [];
     }
+
     const level = player.improvements[discipline];
     const range = PROGRESS_ELIGIBILITY_2025[level];
     return [
@@ -144,6 +148,58 @@ export function toEligibleProgressPlayers(
       },
     ];
   });
+}
+
+export function toRollResolutionView(state: GameState): RollResolutionView {
+  const roll = state.lastRoll;
+  if (!roll) {
+    throw new Error("A roll result is required.");
+  }
+  const roller = state.players.find((player) => player.id === roll.playerId);
+  if (!roller) {
+    throw new Error("The rolling player does not exist.");
+  }
+  const nextPlayer =
+    state.players[(roller.order + 1) % state.players.length] ?? roller;
+
+  return {
+    currentPlayerName: roller.name,
+    nextPlayerName: nextPlayer.name,
+    roll: {
+      red: roll.numbered.red,
+      yellow: roll.numbered.yellow,
+      total: roll.total,
+      event: roll.eventFace,
+      source: roll.alchemy ? "alchemy" : "balanced",
+    },
+    progress: roll.progress
+      ? {
+          discipline: roll.progress.discipline,
+          redValue: roll.progress.red,
+          eligiblePlayers: toEligibleProgressPlayers(
+            state,
+            roll.progress.discipline,
+          ),
+        }
+      : null,
+    production: {
+      total: roll.total,
+      robberActivated: state.barbarian.robberActivated,
+    },
+    barbarian: {
+      position: state.barbarian.shipPosition,
+      trackLength: state.barbarian.rules.trackLength,
+    },
+    attack: state.barbarian.pendingAttack
+      ? toBarbarianAttackView(state, state.barbarian.pendingAttack)
+      : null,
+    thematicEvent: state.thematicEvents.pendingEvent
+      ? {
+          title: state.thematicEvents.pendingEvent.title,
+          instruction: state.thematicEvents.pendingEvent.instruction,
+        }
+      : null,
+  };
 }
 
 export function toBarbarianAttackView(
