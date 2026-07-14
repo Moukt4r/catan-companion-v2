@@ -121,12 +121,16 @@ The sticky header contains:
 
 - current player name and accessible color marker;
 - round and turn number;
+- live current-turn and total active-game clocks;
 - save-state indicator;
 - connection status only when relevant;
 - compact overflow menu.
 
 The save indicator states Saving, Saved, or Save failed. Save failure remains
 visible and blocks risky navigation until resolved or exported.
+
+The header also exposes Pause. Pausing immediately freezes the current turn,
+the current player's accumulated time, and total active game time.
 
 ### 5.2 Roll stage
 
@@ -312,6 +316,19 @@ The latest reversible entry exposes Undo. Undo opens a summary of everything
 that will change. After undo, offer Redo until a new branch-changing action is
 accepted. Branching history requires explicit confirmation and remains visible
 in the exported audit record.
+
+## 10.1 Pause experience
+
+Pause may be selected from the game header or consolidated roll modal. The
+active dialog is replaced by a blocking **Game paused** dialog containing:
+
+- the frozen current-turn time;
+- the frozen total active-game time;
+- current player identity;
+- one Resume action.
+
+The modal makes every other control inert. Paused intervals never contribute
+to total or per-player time, and resuming returns to the exact prior phase.
 
 ## 11. Error and recovery UX
 

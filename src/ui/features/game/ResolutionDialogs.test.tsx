@@ -11,6 +11,8 @@ function baseView(): RollResolutionView {
   return {
     currentPlayerName: "Ada",
     nextPlayerName: "Grace",
+    currentTurnMs: 65_000,
+    totalGameMs: 3_661_000,
     roll: {
       red: 4,
       yellow: 3,
@@ -87,6 +89,7 @@ describe("RollResolutionDialog", () => {
         view={baseView()}
         busy={false}
         onCorrectAttackPlayer={vi.fn()}
+        onPause={vi.fn()}
         onContinue={onContinue}
         onQuickRoll={vi.fn()}
       />,
@@ -99,6 +102,8 @@ describe("RollResolutionDialog", () => {
     expect(screen.getByText("Ada", { exact: true })).toBeVisible();
     expect(screen.getByText("Resolve the 7")).toBeVisible();
     expect(screen.getByText("Harbor Festival")).toBeVisible();
+    expect(screen.getByText("00:01:05")).toBeVisible();
+    expect(screen.getByText("01:01:01")).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Mark progress resolved" }),
     ).not.toBeInTheDocument();
@@ -112,6 +117,7 @@ describe("RollResolutionDialog", () => {
   it("offers a quick next-player roll from the same modal", async () => {
     const user = userEvent.setup();
     const onQuickRoll = vi.fn();
+    const onPause = vi.fn();
 
     render(
       <RollResolutionDialog
@@ -119,6 +125,7 @@ describe("RollResolutionDialog", () => {
         view={baseView()}
         busy={false}
         onCorrectAttackPlayer={vi.fn()}
+        onPause={onPause}
         onContinue={vi.fn()}
         onQuickRoll={onQuickRoll}
       />,
@@ -130,6 +137,8 @@ describe("RollResolutionDialog", () => {
       }),
     );
     expect(onQuickRoll).toHaveBeenCalledWith([]);
+    await user.click(screen.getByRole("button", { name: "Pause game" }));
+    expect(onPause).toHaveBeenCalledOnce();
   });
 
   it("collects tied defender choices before either modal action is available", async () => {
@@ -181,6 +190,7 @@ describe("RollResolutionDialog", () => {
         view={view}
         busy={false}
         onCorrectAttackPlayer={onCorrect}
+        onPause={vi.fn()}
         onContinue={vi.fn()}
         onQuickRoll={onQuickRoll}
       />,
@@ -223,6 +233,7 @@ describe("RollResolutionDialog", () => {
         view={baseView()}
         busy
         onCorrectAttackPlayer={vi.fn()}
+        onPause={vi.fn()}
         onContinue={vi.fn()}
         onQuickRoll={vi.fn()}
       />,

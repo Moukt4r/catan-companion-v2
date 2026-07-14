@@ -132,7 +132,9 @@ Critical flows:
 11. operate offline after first load;
 12. accept a service-worker update between turns;
 13. reject a second-tab concurrent roll;
-14. finish and archive a game.
+14. freeze all timers while paused and resume without counting the break;
+15. attribute elapsed turn time to each player across next-player rolls;
+16. finish and archive a game.
 
 ### 2.6 Accessibility tests
 

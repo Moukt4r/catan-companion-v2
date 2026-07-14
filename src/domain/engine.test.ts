@@ -50,7 +50,7 @@ function deps(
   random: (upperExclusive: number) => number = () => 0,
 ): DomainDeps {
   return {
-    at: asIsoTimestamp(`2026-07-12T21:38:${prefix.padStart(2, "0")}Z`),
+    at: asIsoTimestamp("2026-07-12T21:38:00Z"),
     revisionId: asRevisionId(`revision-${prefix}`),
     random,
     ids: idSource(`command-${prefix}`),

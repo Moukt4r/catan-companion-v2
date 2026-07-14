@@ -102,6 +102,7 @@ interface GameState {
   status: GameStatus;
   setup: GameSetup;
   turn: TurnState;
+  clock?: GameClockState;
   players: PlayerState[];
   metropolises: MetropolisState;
   numberedDeck: NumberedDeckState;
@@ -116,6 +117,17 @@ interface GameState {
   updatedAt: IsoTimestamp;
 }
 ```
+
+`clock` is optional only for backward compatibility with saves created before
+timing support. New games persist active total, current-turn, and per-player
+milliseconds plus running/paused timestamps. A legacy game initializes its
+clock when first resumed under the newer application.
+
+An unpaused `runningSince` deliberately survives reloads, browser restarts, and
+PWA updates, so active time continues until the table explicitly pauses. Since
+undo/redo selects a historical game timeline, it also restores that timeline's
+current player and clock anchor; total live time remains wall-clock continuous
+while per-player attribution follows the selected timeline.
 
 ### Player state
 

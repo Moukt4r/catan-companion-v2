@@ -1,4 +1,5 @@
 import { calculateBarbarianAttack } from "./barbarian";
+import { accrueGameClock, createGameClock, parseIsoTimestamp } from "./clock";
 import {
   createEventDeck,
   createNumberedDeck,
@@ -102,6 +103,10 @@ export function createGame(input: CreateGameInput): DomainResult<Decision> {
       turnNumber: 1,
       completedTurns: 0,
     },
+    clock: createGameClock(
+      players.map((player) => player.id),
+      input.createdAt,
+    ),
     players,
     metropolises: {
       controls: { science: null, trade: null, politics: null },
@@ -203,7 +208,51 @@ export function decide(
       domainError("NO_ACTIVE_GAME", "The game is already completed."),
     );
   }
+  if (state.clock?.pausedAt !== null && state.clock?.pausedAt !== undefined) {
+    if (command.type !== "clock.resumed") {
+      return failure(
+        domainError(
+          "CLOCK_PAUSED",
+          "Resume the game clock before issuing another command.",
+        ),
+      );
+    }
+  }
+  if (parseIsoTimestamp(deps.at) === null) {
+    return failure(
+      domainError(
+        "INVALID_COMMAND",
+        "Command time must be a valid ISO timestamp.",
+      ),
+    );
+  }
 
+  switch (command.type) {
+    case "clock.started":
+      return startClock(state, deps);
+    case "clock.paused":
+      return pauseClock(state, deps);
+    case "clock.resumed":
+      return resumeClock(state, deps);
+    default: {
+      const accrued = accrueGameClock(state, deps.at);
+      return accrued.ok
+        ? decideNormal(accrued.value, command, deps)
+        : failure(accrued.error);
+    }
+  }
+}
+
+function decideNormal(
+  state: GameState,
+  command: Exclude<
+    GameCommand,
+    | { type: "clock.started" }
+    | { type: "clock.paused" }
+    | { type: "clock.resumed" }
+  >,
+  deps: DomainDeps,
+): DomainResult<Decision> {
   switch (command.type) {
     case "roll.draw":
       return roll(state, deps, null);
@@ -253,6 +302,100 @@ export function decide(
     default:
       return exhaustiveCommand(command);
   }
+}
+
+function startClock(
+  state: GameState,
+  deps: DomainDeps,
+): DomainResult<Decision> {
+  if (state.clock !== undefined) {
+    return failure(
+      domainError("INVALID_COMMAND", "The game clock is already initialized."),
+    );
+  }
+  const candidate: GameState = {
+    ...state,
+    clock: createGameClock(
+      state.players.map((player) => player.id),
+      deps.at,
+    ),
+  };
+  return commit(
+    candidate,
+    deps,
+    {
+      kind: "clock-started",
+      text: "Started the game clock.",
+      playerIds: [currentPlayer(state).id],
+    },
+    { type: "clock-started", at: deps.at },
+  );
+}
+
+function pauseClock(
+  state: GameState,
+  deps: DomainDeps,
+): DomainResult<Decision> {
+  if (state.clock === undefined || state.clock.runningSince === null) {
+    return failure(
+      domainError("INVALID_COMMAND", "The game clock is not running."),
+    );
+  }
+  const accrued = accrueGameClock(state, deps.at);
+  if (!accrued.ok) {
+    return failure(accrued.error);
+  }
+  const candidate: GameState = {
+    ...accrued.value,
+    clock: {
+      ...accrued.value.clock!,
+      runningSince: null,
+      pausedAt: deps.at,
+    },
+  };
+  return commit(
+    candidate,
+    deps,
+    {
+      kind: "clock-paused",
+      text: "Paused the game clock.",
+      playerIds: [currentPlayer(state).id],
+    },
+    { type: "clock-paused", at: deps.at },
+  );
+}
+
+function resumeClock(
+  state: GameState,
+  deps: DomainDeps,
+): DomainResult<Decision> {
+  if (
+    state.clock === undefined ||
+    state.clock.pausedAt === null ||
+    state.clock.runningSince !== null
+  ) {
+    return failure(
+      domainError("INVALID_COMMAND", "The game clock is not paused."),
+    );
+  }
+  const candidate: GameState = {
+    ...state,
+    clock: {
+      ...state.clock,
+      runningSince: deps.at,
+      pausedAt: null,
+    },
+  };
+  return commit(
+    candidate,
+    deps,
+    {
+      kind: "clock-resumed",
+      text: "Resumed the game clock.",
+      playerIds: [currentPlayer(state).id],
+    },
+    { type: "clock-resumed", at: deps.at },
+  );
 }
 
 function roll(
@@ -1088,6 +1231,16 @@ function endTurn(state: GameState, deps: DomainDeps): DomainResult<Decision> {
       round: state.turn.round + (completedRound ? 1 : 0),
       turnNumber: state.turn.turnNumber + 1,
     },
+    ...(state.clock === undefined
+      ? {}
+      : {
+          clock: {
+            ...state.clock,
+            currentTurnActiveMs: 0,
+            runningSince: deps.at,
+            pausedAt: null,
+          },
+        }),
     statistics: {
       ...state.statistics,
       completedTurns,
@@ -1136,6 +1289,15 @@ function completeGame(
     status: "completed",
     winnerId,
     turn: { ...state.turn, phase: "completed" },
+    ...(state.clock === undefined
+      ? {}
+      : {
+          clock: {
+            ...state.clock,
+            runningSince: null,
+            pausedAt: null,
+          },
+        }),
   };
   return commit(
     candidate,

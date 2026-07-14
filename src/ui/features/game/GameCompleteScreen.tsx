@@ -1,4 +1,5 @@
 import { Button, PlayerMarker } from "../../components";
+import { formatDuration } from "./time";
 
 export interface GameCompleteView {
   title: string;
@@ -7,7 +8,7 @@ export interface GameCompleteView {
   completedAt: string;
   rounds: number;
   turns: number;
-  durationMinutes: number;
+  totalGameMs: number;
   rolls: number;
   barbarianAttacks: number;
   thematicEvents: number;
@@ -16,6 +17,7 @@ export interface GameCompleteView {
     name: string;
     color: string;
     victoryPoints: number;
+    activeTimeMs: number;
   }[];
 }
 
@@ -62,7 +64,7 @@ export function GameCompleteScreen({
         </article>
         <article className="surface summary-card">
           <span>Duration</span>
-          <strong>{view.durationMinutes} min</strong>
+          <strong>{formatDuration(view.totalGameMs)}</strong>
         </article>
         <article className="surface summary-card">
           <span>Rolls</span>
@@ -90,7 +92,10 @@ export function GameCompleteScreen({
             .map((player) => (
               <li key={player.id}>
                 <PlayerMarker color={player.color} label={player.name} />
-                <strong>{player.victoryPoints} VP</strong>
+                <span className="final-player-result">
+                  <strong>{player.victoryPoints} VP</strong>
+                  <small>{formatDuration(player.activeTimeMs)}</small>
+                </span>
               </li>
             ))}
         </ol>

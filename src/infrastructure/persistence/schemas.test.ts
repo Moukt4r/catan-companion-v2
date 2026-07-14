@@ -7,7 +7,7 @@ import {
   createGame,
 } from "../../domain";
 import type { GameSetup } from "../../domain";
-import { parseGameState } from "./schemas";
+import { commandSchema, journalSchema, parseGameState } from "./schemas";
 
 describe("persistence schemas", () => {
   it("rejects malformed game-state structures", () => {
@@ -46,6 +46,64 @@ describe("persistence schemas", () => {
     expect(parseGameState(result.value.nextState)).toEqual(
       result.value.nextState,
     );
+    expect(result.value.nextState.clock).toBeDefined();
+  });
+
+  it("accepts legacy states without a clock", () => {
+    const result = createGame({
+      gameId: asGameId("schema-legacy-game"),
+      revisionId: asRevisionId("schema-legacy-revision"),
+      createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
+      setup: setup(),
+      random: () => 0,
+      ids: sequentialIds(),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const legacy = structuredClone(result.value.nextState);
+    delete legacy.clock;
+
+    expect(parseGameState(legacy)).toEqual(legacy);
+  });
+
+  it("fully validates a present clock", () => {
+    const result = createGame({
+      gameId: asGameId("schema-clock-game"),
+      revisionId: asRevisionId("schema-clock-revision"),
+      createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
+      setup: setup(),
+      random: () => 0,
+      ids: sequentialIds(),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const invalidDuration = structuredClone(result.value.nextState);
+    invalidDuration.clock!.totalActiveMs = -1;
+    expect(() => parseGameState(invalidDuration)).toThrow();
+
+    const invalidKeys = structuredClone(result.value.nextState);
+    delete invalidKeys.clock!.playerActiveMs[invalidKeys.players[0]!.id];
+    expect(() => parseGameState(invalidKeys)).toThrow();
+
+    const invalidTimestamp = structuredClone(result.value.nextState);
+    invalidTimestamp.clock!.runningSince = asIsoTimestamp("invalid");
+    expect(() => parseGameState(invalidTimestamp)).toThrow();
+  });
+
+  it("roundtrips clock commands and journal summaries", () => {
+    for (const type of [
+      "clock.started",
+      "clock.paused",
+      "clock.resumed",
+    ] as const) {
+      expect(commandSchema.parse({ type })).toEqual({ type });
+    }
+    for (const kind of [
+      "clock-started",
+      "clock-paused",
+      "clock-resumed",
+    ] as const) {
+      const summary = { kind, text: kind, playerIds: ["player"] };
+      expect(journalSchema.parse(summary)).toEqual(summary);
+    }
   });
 });
 

@@ -599,6 +599,46 @@ describe("persisted game invariants", () => {
     unknownWinner.winnerId = asPlayerId("missing");
     expectCode(unknownWinner, "INVARIANT_VIOLATION");
   });
+
+  it("validates clock durations, player keys, timestamps, and completion", () => {
+    const legacy = game();
+    delete legacy.clock;
+    expect(validateGameState(legacy)).toEqual([]);
+
+    for (const duration of [-1, 1.5]) {
+      const invalid = game();
+      invalid.clock!.totalActiveMs = duration;
+      expectCode(invalid, "INVALID_CLOCK_STATE");
+    }
+
+    const missingPlayer = game();
+    delete missingPlayer.clock!.playerActiveMs[PLAYER_IDS[0]!];
+    expectCode(missingPlayer, "INVALID_CLOCK_STATE");
+
+    const extraPlayer = game();
+    extraPlayer.clock!.playerActiveMs[asPlayerId("extra")] = 0;
+    expectCode(extraPlayer, "INVALID_CLOCK_STATE");
+
+    const stoppedActive = game();
+    stoppedActive.clock!.runningSince = null;
+    expectCode(stoppedActive, "INVALID_CLOCK_STATE");
+
+    const runningAndPaused = game();
+    runningAndPaused.clock!.pausedAt = asIsoTimestamp("2026-07-12T00:01:00Z");
+    expectCode(runningAndPaused, "INVALID_CLOCK_STATE");
+
+    const malformedTimestamp = game();
+    malformedTimestamp.clock!.runningSince = asIsoTimestamp("invalid");
+    expectCode(malformedTimestamp, "INVALID_CLOCK_STATE");
+
+    const completed = game();
+    completed.status = "completed";
+    completed.turn.phase = "completed";
+    completed.winnerId = PLAYER_IDS[0]!;
+    expectCode(completed, "INVALID_CLOCK_STATE");
+    completed.clock!.runningSince = null;
+    expect(validateGameState(completed)).toEqual([]);
+  });
 });
 
 describe("runtime validators", () => {

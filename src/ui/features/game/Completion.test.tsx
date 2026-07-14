@@ -64,7 +64,7 @@ describe("GameCompleteScreen", () => {
           completedAt: "2026-07-12T12:00:00.000Z",
           rounds: 8,
           turns: 24,
-          durationMinutes: 95,
+          totalGameMs: 5_700_000,
           rolls: 22,
           barbarianAttacks: 3,
           thematicEvents: 2,
@@ -74,12 +74,14 @@ describe("GameCompleteScreen", () => {
               name: "Grace",
               color: "#654321",
               victoryPoints: 9,
+              activeTimeMs: 2_100_000,
             },
             {
               id: "ada",
               name: "Ada",
               color: "#123456",
               victoryPoints: 13,
+              activeTimeMs: 3_600_000,
             },
           ],
         }}
@@ -92,12 +94,12 @@ describe("GameCompleteScreen", () => {
     expect(screen.getByRole("heading", { name: "Ada wins" })).toBeVisible();
     expect(
       screen.getByRole("region", { name: "Game summary" }),
-    ).toHaveTextContent("95 min");
+    ).toHaveTextContent("01:35:00");
     const scores = within(
       screen.getByRole("region", { name: "Final public scores" }),
     ).getAllByRole("listitem");
-    expect(scores[0]).toHaveTextContent("Ada13 VP");
-    expect(scores[1]).toHaveTextContent("Grace9 VP");
+    expect(scores[0]).toHaveTextContent("Ada13 VP01:00:00");
+    expect(scores[1]).toHaveTextContent("Grace9 VP00:35:00");
 
     await user.click(screen.getByRole("button", { name: "Export full game" }));
     await user.click(screen.getByRole("button", { name: "Start new game" }));

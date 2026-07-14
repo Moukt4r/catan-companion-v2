@@ -1,4 +1,5 @@
 import { createCanonicalNumberedDeck } from "./decks";
+import { parseIsoTimestamp } from "./clock";
 import { domainError } from "./errors";
 import {
   DISCIPLINES,
@@ -147,6 +148,7 @@ export function validateGameState(state: GameState): DomainError[] {
   errors.push(...validateBarbarianState(state));
   errors.push(...validateResolutionState(state));
   errors.push(...validateTurnAndStatus(state));
+  errors.push(...validateClockState(state));
   return errors;
 }
 
@@ -576,6 +578,62 @@ function validateTurnAndStatus(state: GameState): DomainError[] {
       domainError(
         "INVARIANT_VIOLATION",
         "Winner must reference an existing player.",
+      ),
+    );
+  }
+  return errors;
+}
+
+function validateClockState(state: GameState): DomainError[] {
+  const clock = state.clock;
+  if (clock === undefined) {
+    return [];
+  }
+  const errors: DomainError[] = [];
+  if (
+    !nonNegativeInteger(clock.totalActiveMs) ||
+    !nonNegativeInteger(clock.currentTurnActiveMs) ||
+    Object.values(clock.playerActiveMs).some(
+      (duration) => !nonNegativeInteger(duration),
+    )
+  ) {
+    errors.push(
+      domainError(
+        "INVALID_CLOCK_STATE",
+        "Clock durations must be non-negative integers.",
+      ),
+    );
+  }
+  const playerIds = [...state.players.map((player) => player.id)].sort();
+  const accumulatorIds = Object.keys(clock.playerActiveMs).sort();
+  if (
+    playerIds.length !== accumulatorIds.length ||
+    playerIds.some((playerId, index) => playerId !== accumulatorIds[index])
+  ) {
+    errors.push(
+      domainError(
+        "INVALID_CLOCK_STATE",
+        "Clock player accumulators must exactly match the game players.",
+      ),
+    );
+  }
+  const runningValid =
+    clock.runningSince === null ||
+    parseIsoTimestamp(clock.runningSince) !== null;
+  const pausedValid =
+    clock.pausedAt === null || parseIsoTimestamp(clock.pausedAt) !== null;
+  const running = clock.runningSince !== null;
+  const paused = clock.pausedAt !== null;
+  if (
+    !runningValid ||
+    !pausedValid ||
+    (state.status === "active" && running === paused) ||
+    (state.status === "completed" && (running || paused))
+  ) {
+    errors.push(
+      domainError(
+        "INVALID_CLOCK_STATE",
+        "Clock timestamps do not match the game clock status.",
       ),
     );
   }

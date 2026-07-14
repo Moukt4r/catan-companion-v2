@@ -18,6 +18,9 @@ this implementation.
 - **Next player & quick roll** directly from the result modal.
 - No standalone end-turn button: the next-player roll action records the turn
   boundary and immediately rolls.
+- Live current-turn, per-player accumulated, and total active game timers.
+- A persisted Pause mode that stops every timer and blocks all controls except
+  Resume.
 - Progress-card eligibility guidance using the current 2025 improvement board.
 - Barbarian movement, verified attacks, tie rewards, live board corrections,
   pillaging, knight reset, and first-attack robber activation.

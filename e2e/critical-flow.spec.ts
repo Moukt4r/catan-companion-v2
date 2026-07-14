@@ -55,10 +55,17 @@ async function resolveRoll(page: Page) {
       .nth(index)
       .selectOption(index % 2 === 0 ? "science" : "trade");
   }
+
   await dialog.getByRole("button", { name: "Continue current turn" }).click();
   await expect(
     page.getByRole("button", { name: /^Next: .* & roll$/ }),
   ).toBeEnabled();
+}
+
+function durationSeconds(value: string | null): number {
+  if (!value) return 0;
+  const [hours, minutes, seconds] = value.split(":").map(Number);
+  return (hours ?? 0) * 3_600 + (minutes ?? 0) * 60 + (seconds ?? 0);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -163,6 +170,59 @@ test("quick roll advances the turn and updates the same result modal", async ({
   await expect(dialog).toContainText("Grace rolled");
   await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
   await expect(page.locator(".game-meta")).toContainText("Turn 2");
+});
+
+test("tracks per-player time and freezes every timer while paused", async ({
+  page,
+}) => {
+  await setupStandardGame(page);
+  await page.waitForTimeout(1_100);
+  await page.getByRole("button", { name: "Roll", exact: true }).click();
+  let dialog = page.getByRole("dialog", { name: /Roll result:/ });
+  await dialog.getByRole("button", { name: "Continue current turn" }).click();
+  await page.getByRole("button", { name: "Next: Grace & roll" }).click();
+
+  dialog = page.getByRole("dialog", { name: /Roll result:/ });
+  await expect(dialog).toContainText("Grace rolled");
+  const playerTime = (index: number) =>
+    page
+      .locator(".player-card")
+      .nth(index)
+      .locator(".player-stats dd")
+      .nth(3)
+      .textContent()
+      .then(durationSeconds);
+  await expect.poll(() => playerTime(0)).toBeGreaterThan(0);
+  await expect.poll(() => playerTime(1)).toBeGreaterThan(0);
+
+  await dialog.getByRole("button", { name: "Pause game" }).click();
+  const paused = page.getByRole("dialog", { name: "Game paused" });
+  await expect(paused).toBeVisible();
+  const pausedTimes = await paused
+    .locator(".pause-clock-grid dd")
+    .allTextContents();
+  await page.waitForTimeout(1_200);
+  expect(
+    await paused.locator(".pause-clock-grid dd").allTextContents(),
+  ).toEqual(pausedTimes);
+  await expect(paused.getByRole("button")).toHaveCount(1);
+  const underlyingButtons = page.locator("main.game-layout button");
+  for (let index = 0; index < (await underlyingButtons.count()); index += 1) {
+    await expect(underlyingButtons.nth(index)).toBeDisabled();
+  }
+  await expect(page.locator(".pwa-toast")).toHaveCount(0);
+
+  await paused.getByRole("button", { name: "Resume game" }).click();
+  dialog = page.getByRole("dialog", { name: /Roll result:/ });
+  await expect(dialog).toBeVisible();
+  const turnClock = () =>
+    page
+      .locator(".game-clock-row strong")
+      .nth(0)
+      .textContent()
+      .then(durationSeconds);
+  const beforeResumeTick = await turnClock();
+  await expect.poll(turnClock).toBeGreaterThan(beforeResumeTick);
 });
 
 test("keeps secondary tabs read-only until control is available", async ({

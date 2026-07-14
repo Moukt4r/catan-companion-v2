@@ -6,6 +6,7 @@ import {
   PlayerMarker,
   StatusBanner,
 } from "../../components";
+import { formatDuration } from "./time";
 
 export interface ProgressEligiblePlayer {
   id: string;
@@ -40,6 +41,8 @@ export interface BarbarianAttackView {
 export interface RollResolutionView {
   currentPlayerName: string;
   nextPlayerName: string;
+  currentTurnMs: number;
+  totalGameMs: number;
   roll: {
     red: number;
     yellow: number;
@@ -77,6 +80,7 @@ interface RollResolutionDialogProps {
   view: RollResolutionView;
   busy: boolean;
   onCorrectAttackPlayer: (playerId: string) => void;
+  onPause: () => void;
   onContinue: (choices: AttackProgressChoice[]) => void;
   onQuickRoll: (choices: AttackProgressChoice[]) => void;
 }
@@ -92,6 +96,7 @@ export function RollResolutionDialog({
   busy,
   onContinue,
   onCorrectAttackPlayer,
+  onPause,
   onQuickRoll,
   open,
   view,
@@ -149,6 +154,14 @@ export function RollResolutionDialog({
               {view.roll.source === "alchemy"
                 ? "Chosen with Alchemy"
                 : "Balanced draw"}
+            </span>
+          </div>
+          <div className="game-clock-row resolution-clock-row">
+            <span>
+              Turn <strong>{formatDuration(view.currentTurnMs)}</strong>
+            </span>
+            <span>
+              Game <strong>{formatDuration(view.totalGameMs)}</strong>
             </span>
           </div>
           <div className="resolution-dice">
@@ -371,6 +384,14 @@ export function RollResolutionDialog({
             {view.nextPlayerName}.
           </p>
           <div className="button-row dialog-actions">
+            <Button
+              variant="quiet"
+              size="large"
+              disabled={busy}
+              onClick={onPause}
+            >
+              Pause game
+            </Button>
             <Button
               variant="secondary"
               size="large"

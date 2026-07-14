@@ -80,6 +80,14 @@ const playerStateSchema = z.strictObject({
   improvements: improvementSchema,
 });
 
+const gameClockSchema = z.strictObject({
+  totalActiveMs: nonNegativeInteger,
+  currentTurnActiveMs: nonNegativeInteger,
+  playerActiveMs: z.record(id, nonNegativeInteger),
+  runningSince: isoTimestamp.nullable(),
+  pausedAt: isoTimestamp.nullable(),
+});
+
 const deckMetadata = {
   cycle: integer.min(1),
   cursor: nonNegativeInteger,
@@ -261,6 +269,7 @@ export const gameStateSchema = z.strictObject({
     turnNumber: integer.min(1),
     completedTurns: nonNegativeInteger,
   }),
+  clock: gameClockSchema.optional(),
   players: z.array(playerStateSchema).min(2).max(4),
   metropolises: z.strictObject({
     controls: metropolisControlsSchema,
@@ -346,8 +355,11 @@ const publicPatchSchema = z.strictObject({
     .optional(),
 });
 
-const commandSchema = z.discriminatedUnion("type", [
+export const commandSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("game.created") }),
+  z.strictObject({ type: z.literal("clock.started") }),
+  z.strictObject({ type: z.literal("clock.paused") }),
+  z.strictObject({ type: z.literal("clock.resumed") }),
   z.strictObject({ type: z.literal("roll.draw") }),
   z.strictObject({ type: z.literal("roll.alchemy"), red: die, yellow: die }),
   z.strictObject({
@@ -395,9 +407,12 @@ const commandSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("game.completed"), winnerId: id }),
 ]);
 
-const journalSchema = z.strictObject({
+export const journalSchema = z.strictObject({
   kind: z.enum([
     "game-created",
+    "clock-started",
+    "clock-paused",
+    "clock-resumed",
     "roll-drawn",
     "alchemy-used",
     "resolution-acknowledged",

@@ -40,4 +40,13 @@ test("the consolidated roll result has no detectable accessibility violations", 
     .include("dialog[open]")
     .analyze();
   expect(results.violations).toEqual([]);
+
+  await dialog.getByRole("button", { name: "Pause game" }).click();
+  const paused = page.getByRole("dialog", { name: "Game paused" });
+  await expect(paused).toBeVisible();
+  const pausedResults = await new AxeBuilder({ page })
+    .include("dialog[open]")
+    .analyze();
+  expect(pausedResults.violations).toEqual([]);
+  await expect(paused.getByRole("button")).toHaveCount(1);
 });

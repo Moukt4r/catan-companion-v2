@@ -3,13 +3,17 @@ import {
   activeKnightStrength,
   barbarianStrength,
   currentPlayer,
+  currentTurnActiveMilliseconds,
   defenderStrength,
   metropolisCountForPlayer,
+  playerActiveMilliseconds,
   scoreForPlayer,
+  totalActiveMilliseconds,
   winnerCandidates,
   type BarbarianAttackProposal,
   type GamePhase,
   type GameState,
+  type IsoTimestamp,
   type PlayerId,
   type ProgressDiscipline,
 } from "../../../domain";
@@ -38,6 +42,7 @@ export function toGameTableView(
   offline = false,
   rolling = false,
   readOnly = false,
+  clockAt: IsoTimestamp = state.updatedAt,
 ): GameTableView {
   const active = currentPlayer(state);
   const nextPlayer =
@@ -60,11 +65,16 @@ export function toGameTableView(
     saveTone: save.saveTone,
     offline,
     readOnly,
+    paused:
+      state.clock?.pausedAt !== null && state.clock?.pausedAt !== undefined,
     canRoll: state.turn.phase === "awaiting-roll",
     showNextRoll: state.turn.phase === "action-phase",
     canRollNextTurn:
       state.turn.phase === "action-phase" &&
       state.metropolises.pendingProposal === null,
+    canPause: state.clock?.runningSince !== null && state.clock !== undefined,
+    currentTurnMs: currentTurnActiveMilliseconds(state, clockAt),
+    totalGameMs: totalActiveMilliseconds(state, clockAt),
     rolling,
     lastRoll: state.lastRoll
       ? {
@@ -92,6 +102,7 @@ export function toGameTableView(
         .filter(([, control]) => control?.holderId === player.id)
         .map(([discipline]) => discipline),
       activeKnightStrength: activeKnightStrength(player),
+      activeTimeMs: playerActiveMilliseconds(state, player.id, clockAt),
       improvements: {
         ...player.improvements,
       },
@@ -155,7 +166,10 @@ export function toEligibleProgressPlayers(
   });
 }
 
-export function toRollResolutionView(state: GameState): RollResolutionView {
+export function toRollResolutionView(
+  state: GameState,
+  clockAt: IsoTimestamp = state.updatedAt,
+): RollResolutionView {
   const roll = state.lastRoll;
   if (!roll) {
     throw new Error("A roll result is required.");
@@ -170,6 +184,8 @@ export function toRollResolutionView(state: GameState): RollResolutionView {
   return {
     currentPlayerName: roller.name,
     nextPlayerName: nextPlayer.name,
+    currentTurnMs: currentTurnActiveMilliseconds(state, clockAt),
+    totalGameMs: totalActiveMilliseconds(state, clockAt),
     roll: {
       red: roll.numbered.red,
       yellow: roll.numbered.yellow,
@@ -242,15 +258,6 @@ export function toGameCompleteView(state: GameState): GameCompleteView {
   if (!winner) {
     throw new Error("Completed game has no winner.");
   }
-  const durationMinutes = Math.max(
-    1,
-    Math.round(
-      (new Date(state.updatedAt).getTime() -
-        new Date(state.createdAt).getTime()) /
-        60_000,
-    ),
-  );
-
   return {
     title: state.setup.title,
     winnerName: winner.name,
@@ -258,7 +265,7 @@ export function toGameCompleteView(state: GameState): GameCompleteView {
     completedAt: state.updatedAt,
     rounds: state.turn.round,
     turns: state.statistics.completedTurns,
-    durationMinutes,
+    totalGameMs: totalActiveMilliseconds(state, state.updatedAt),
     rolls: state.statistics.totalRolls,
     barbarianAttacks: state.barbarian.attacksCompleted,
     thematicEvents: state.statistics.thematicEventsTriggered,
@@ -267,6 +274,7 @@ export function toGameCompleteView(state: GameState): GameCompleteView {
       name: player.name,
       color: player.color.hex,
       victoryPoints: scoreForPlayer(state, player.id),
+      activeTimeMs: playerActiveMilliseconds(state, player.id, state.updatedAt),
     })),
   };
 }

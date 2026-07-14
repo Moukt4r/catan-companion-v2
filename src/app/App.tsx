@@ -8,7 +8,10 @@ import {
 import {
   BUILT_IN_THEMATIC_EVENTS,
   asGameId,
+  asIsoTimestamp,
   asPlayerId,
+  currentTurnActiveMilliseconds,
+  totalActiveMilliseconds,
   winnerCandidates,
   type DieValue,
   type GameCommand,
@@ -61,6 +64,7 @@ import {
   PlayerEditorDialog,
   type PlayerEditorPatch,
 } from "../ui/features/game/PlayerEditorDialog";
+import { PauseGameDialog } from "../ui/features/game/PauseGameDialog";
 import {
   RollResolutionDialog,
   type AttackProgressChoice,
@@ -76,6 +80,7 @@ import { SettingsDialog } from "../ui/features/settings/SettingsDialog";
 import { gameController } from "./gameController";
 import { PwaUpdate } from "./PwaUpdate";
 import { useDevicePreferences } from "./useDevicePreferences";
+import { useClockNow } from "./useClockNow";
 import { useGameController } from "./useGameController";
 import { useOnlineStatus } from "./useOnlineStatus";
 
@@ -93,6 +98,7 @@ export function App() {
   const { preferences, updatePreferences } = useDevicePreferences();
   const online = useOnlineStatus();
   const initialized = useRef(false);
+  const clockStartRequests = useRef(new Set<string>());
   const [screen, setScreen] = useState<Screen>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savedGamesOpen, setSavedGamesOpen] = useState(false);
@@ -173,6 +179,12 @@ export function App() {
   );
 
   const state = snapshot.activeState;
+  const clockRunning =
+    state?.clock !== undefined && state.clock.runningSince !== null;
+  const clockNow = useClockNow(screen === "game" && clockRunning);
+  const clockAt = asIsoTimestamp(new Date(clockNow).toISOString());
+  const clockPaused =
+    state?.clock?.pausedAt !== null && state?.clock?.pausedAt !== undefined;
   const activeRecord = snapshot.games.find(
     (game) => game.lifecycle === "active",
   );
@@ -205,6 +217,35 @@ export function App() {
       state.turn.phase === "awaiting-roll" ||
       state.turn.phase === "action-phase" ||
       state.turn.phase === "completed");
+
+  useEffect(() => {
+    if (
+      screen !== "game" ||
+      !state ||
+      state.status !== "active" ||
+      state.clock !== undefined ||
+      snapshot.readOnly ||
+      snapshot.saving ||
+      clockStartRequests.current.has(state.id)
+    ) {
+      return;
+    }
+    clockStartRequests.current.add(state.id);
+    void gameController
+      .dispatch({ type: "clock.started" })
+      .catch((error: unknown) => {
+        clockStartRequests.current.delete(state.id);
+        setNotice(errorMessage(error));
+      });
+  }, [
+    screen,
+    snapshot.readOnly,
+    snapshot.saving,
+    state,
+    state?.clock,
+    state?.id,
+    state?.status,
+  ]);
 
   async function runOperation(
     operation: () => Promise<void>,
@@ -544,6 +585,7 @@ export function App() {
               !online,
               rolling,
               snapshot.readOnly,
+              clockAt,
             )}
             onRoll={() => {
               void roll({ type: "roll.draw" });
@@ -556,6 +598,9 @@ export function App() {
             }}
             onNextRoll={() => {
               void rollNextTurn();
+            }}
+            onPause={() => {
+              void dispatch({ type: "clock.paused" }, "confirm");
             }}
             onHistory={() => {
               setHistoryOpen(true);
@@ -786,7 +831,11 @@ export function App() {
       {state && screen === "game" ? (
         <>
           <AlchemyDialog
-            open={alchemyOpen && state.turn.phase === "awaiting-roll"}
+            open={
+              !clockPaused &&
+              alchemyOpen &&
+              state.turn.phase === "awaiting-roll"
+            }
             onCancel={() => {
               setAlchemyOpen(false);
             }}
@@ -801,6 +850,7 @@ export function App() {
           />
 
           {!snapshot.readOnly &&
+          !clockPaused &&
           !rolling &&
           selectedPlayer === null &&
           state.lastRoll &&
@@ -811,10 +861,13 @@ export function App() {
             <RollResolutionDialog
               key={`${state.lastRoll.id}-${state.barbarian.pendingAttack?.id ?? "no-attack"}`}
               open
-              view={toRollResolutionView(state)}
+              view={toRollResolutionView(state, clockAt)}
               busy={resolutionBusy || snapshot.saving}
               onCorrectAttackPlayer={(id) => {
                 setSelectedPlayerId(asPlayerId(id));
+              }}
+              onPause={() => {
+                void dispatch({ type: "clock.paused" }, "confirm");
               }}
               onContinue={(choices) => {
                 void resolveRollResult(false, choices);
@@ -825,7 +878,7 @@ export function App() {
             />
           ) : null}
 
-          {!snapshot.readOnly && selectedPlayer ? (
+          {!snapshot.readOnly && !clockPaused && selectedPlayer ? (
             <PlayerEditorDialog
               key={`${selectedPlayer.id}-${state.revisionId}`}
               player={toPlayerEditorValue(state, selectedPlayer.id)}
@@ -839,6 +892,7 @@ export function App() {
           ) : null}
 
           {!snapshot.readOnly &&
+          !clockPaused &&
           state.metropolises.pendingProposal &&
           selectedPlayer === null ? (
             <MetropolisDialog
@@ -875,7 +929,9 @@ export function App() {
           ) : null}
 
           <MetropolisCorrectionDialog
-            open={metropolisCorrectionOpen && !snapshot.readOnly}
+            open={
+              metropolisCorrectionOpen && !snapshot.readOnly && !clockPaused
+            }
             players={state.players.map((player) => ({
               id: player.id,
               name: player.name,
@@ -900,7 +956,7 @@ export function App() {
           />
 
           <HistoryDialog
-            open={historyOpen}
+            open={historyOpen && !clockPaused}
             entries={historyEntries}
             canUndo={snapshot.canUndo && !snapshot.readOnly}
             canRedo={snapshot.canRedo && !snapshot.readOnly}
@@ -920,7 +976,7 @@ export function App() {
           />
 
           <WinnerDialog
-            open={winnerOpen && !snapshot.readOnly}
+            open={winnerOpen && !snapshot.readOnly && !clockPaused}
             player={
               winnerCandidate
                 ? {
@@ -955,10 +1011,29 @@ export function App() {
               });
             }}
           />
+
+          <PauseGameDialog
+            open={clockPaused}
+            currentPlayerName={
+              state.players[state.turn.currentPlayerIndex]?.name ??
+              "Current player"
+            }
+            currentPlayerColor={
+              state.players[state.turn.currentPlayerIndex]?.color.hex ??
+              "#286b9b"
+            }
+            currentTurnMs={currentTurnActiveMilliseconds(state, clockAt)}
+            totalGameMs={totalActiveMilliseconds(state, clockAt)}
+            canResume={!snapshot.readOnly}
+            busy={snapshot.saving}
+            onResume={() => {
+              void dispatch({ type: "clock.resumed" }, "confirm");
+            }}
+          />
         </>
       ) : null}
 
-      <PwaUpdate safeToUpdate={safeToUpdate} />
+      {!clockPaused ? <PwaUpdate safeToUpdate={safeToUpdate} /> : null}
     </>
   );
 }
@@ -1094,6 +1169,9 @@ function historyTitle(revision: StoredRevision): string {
   const titles: Record<StoredRevision["summary"]["kind"], string> = {
     "alchemy-used": "Alchemy roll",
     "attack-confirmed": "Barbarian attack",
+    "clock-paused": "Game paused",
+    "clock-resumed": "Game resumed",
+    "clock-started": "Game timer started",
     "game-completed": "Game completed",
     "game-created": "Game created",
     "metropolis-cancelled": "Metropolis cancelled",

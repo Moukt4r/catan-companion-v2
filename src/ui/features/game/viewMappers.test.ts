@@ -151,9 +151,13 @@ describe("toGameTableView", () => {
       saveTone: "warning",
       offline: true,
       readOnly: true,
+      paused: false,
       canRoll: true,
       showNextRoll: false,
       canRollNextTurn: false,
+      canPause: true,
+      currentTurnMs: 0,
+      totalGameMs: 0,
       rolling: true,
       lastRoll: null,
       numberedCycleProgress: "0 / 36",
@@ -169,6 +173,7 @@ describe("toGameTableView", () => {
       victoryPoints: 3,
       ordinaryCities: 2,
       activeKnightStrength: 3,
+      activeTimeMs: 0,
       current: true,
     });
   });
@@ -304,6 +309,8 @@ describe("other view mappers", () => {
     expect(toRollResolutionView(state)).toMatchObject({
       currentPlayerName: "Ada",
       nextPlayerName: "Grace",
+      currentTurnMs: 0,
+      totalGameMs: 0,
       roll: {
         total: 7,
         event: "science",
@@ -401,16 +408,25 @@ describe("other view mappers", () => {
       },
       barbarian: { ...base.barbarian, attacksCompleted: 3 },
     };
-    expect(toGameCompleteView(state)).toMatchObject({
+    const completed = toGameCompleteView(state);
+    expect(completed).toMatchObject({
       title: "Mapper table",
       winnerName: "Grace",
       winnerColor: "#654321",
       rounds: 8,
       turns: 24,
-      durationMinutes: 95,
+      totalGameMs: 5_700_000,
       rolls: 22,
       barbarianAttacks: 3,
       thematicEvents: 2,
+    });
+    expect(completed.players[0]).toMatchObject({
+      id: ADA,
+      activeTimeMs: 5_700_000,
+    });
+    expect(completed.players[1]).toMatchObject({
+      id: GRACE,
+      activeTimeMs: 0,
     });
   });
 });

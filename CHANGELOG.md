@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 - 2026-07-14
+
+- Added live current-turn and total active-game clocks.
+- Added accumulated active time for each player.
+- Added persisted pause/resume controls that exclude breaks from every timer and
+  disable all other game controls.
+
 ## 0.1.2 - 2026-07-14
 
 - Removed the standalone End turn control.

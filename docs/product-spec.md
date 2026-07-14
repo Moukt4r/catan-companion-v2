@@ -312,6 +312,23 @@ and vulnerable city count are derived rather than independently editable.
 - Provide a safe "copy diagnostics" action that excludes player names and game
   content by default.
 
+### FR-16: Active-play timing and pause
+
+- Track current-turn active time, accumulated active time per player, and total
+  active game time.
+- Exclude every paused interval from all timers.
+- Persist timing and pause state across reloads, browser restarts, and PWA
+  updates.
+- Continue counting active time while the app is closed or on the Home screen
+  unless Pause was selected first.
+- Allow Pause during normal play and roll resolution.
+- While paused, replace the game UI with a blocking Resume-only dialog so no
+  other game action can run.
+- Attribute elapsed time to the outgoing player before the next-player roll
+  advances the turn.
+- Undo and redo restore the corresponding turn owner, so live elapsed time is
+  attributed according to the selected game-state timeline.
+
 ## 9. UX acceptance scenarios
 
 The first release is acceptable only when all scenarios pass:

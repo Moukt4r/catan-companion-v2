@@ -1,5 +1,8 @@
+import { elapsedActiveMilliseconds } from "./clock";
 import type {
+  GameClockState,
   GameState,
+  IsoTimestamp,
   MetropolisDiscipline,
   PlayerId,
   PlayerState,
@@ -65,4 +68,57 @@ export function winnerCandidates(state: GameState): PlayerId[] {
       (player) => scoreForPlayer(state, player.id) >= state.setup.victoryTarget,
     )
     .map((player) => player.id);
+}
+
+export function totalActiveMilliseconds(
+  state: Pick<GameState, "clock">,
+  at: IsoTimestamp,
+): number {
+  const clock = state.clock;
+  if (clock === undefined) {
+    return 0;
+  }
+  return clock.totalActiveMs + liveClockMilliseconds(clock.runningSince, at);
+}
+
+export function currentTurnActiveMilliseconds(
+  state: Pick<GameState, "clock">,
+  at: IsoTimestamp,
+): number {
+  const clock = state.clock;
+  if (clock === undefined) {
+    return 0;
+  }
+  return (
+    clock.currentTurnActiveMs + liveClockMilliseconds(clock.runningSince, at)
+  );
+}
+
+export function playerActiveMilliseconds(
+  state: Pick<GameState, "clock" | "players" | "turn">,
+  playerId: PlayerId,
+  at: IsoTimestamp,
+): number {
+  const clock = state.clock;
+  if (clock === undefined) {
+    return 0;
+  }
+  const settled = clock.playerActiveMs[playerId] ?? 0;
+  const currentPlayer = state.players[state.turn.currentPlayerIndex];
+  return (
+    settled +
+    (currentPlayer?.id === playerId
+      ? liveClockMilliseconds(clock.runningSince, at)
+      : 0)
+  );
+}
+
+function liveClockMilliseconds(
+  runningSince: GameClockState["runningSince"],
+  at: IsoTimestamp,
+): number {
+  if (runningSince === null) {
+    return 0;
+  }
+  return elapsedActiveMilliseconds(runningSince, at) ?? 0;
 }

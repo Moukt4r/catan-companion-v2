@@ -277,6 +277,14 @@ export interface TurnState {
   completedTurns: number;
 }
 
+export interface GameClockState {
+  totalActiveMs: number;
+  currentTurnActiveMs: number;
+  playerActiveMs: Record<PlayerId, number>;
+  runningSince: IsoTimestamp | null;
+  pausedAt: IsoTimestamp | null;
+}
+
 export interface GameStatistics {
   totalRolls: number;
   normalRolls: number;
@@ -303,6 +311,7 @@ export interface GameState {
   winnerId: PlayerId | null;
   setup: GameSetup;
   turn: TurnState;
+  clock?: GameClockState;
   players: PlayerState[];
   metropolises: MetropolisState;
   numberedDeck: NumberedDeckState;
@@ -331,6 +340,9 @@ export interface PublicStatePatch {
 }
 
 export type GameCommand =
+  | { type: "clock.started" }
+  | { type: "clock.paused" }
+  | { type: "clock.resumed" }
   | { type: "roll.draw" }
   | { type: "roll.alchemy"; red: DieValue; yellow: DieValue }
   | { type: "resolution.progressAcknowledged"; rollId: RollId }
@@ -401,6 +413,9 @@ export interface CreateGameInput {
 
 export type JournalSummaryKind =
   | "game-created"
+  | "clock-started"
+  | "clock-paused"
+  | "clock-resumed"
   | "roll-drawn"
   | "alchemy-used"
   | "resolution-acknowledged"
@@ -425,6 +440,9 @@ export type PresentationSummary =
       currentPlayerId: PlayerId;
       houseRules: string[];
     }
+  | { type: "clock-started"; at: IsoTimestamp }
+  | { type: "clock-paused"; at: IsoTimestamp }
+  | { type: "clock-resumed"; at: IsoTimestamp }
   | {
       type: "roll";
       roll: RollRecord;
@@ -486,6 +504,8 @@ export type DomainErrorCode =
   | "INVALID_METROPOLIS_STATE"
   | "INVALID_BARBARIAN_STATE"
   | "INVALID_RESOLUTION_STATE"
+  | "INVALID_CLOCK_STATE"
+  | "CLOCK_PAUSED"
   | "INVALID_COMMAND"
   | "STALE_ROLL"
   | "ATTACK_CONFIRMATION_STALE"

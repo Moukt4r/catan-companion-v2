@@ -1,4 +1,5 @@
 import { Button, DieFace, PlayerMarker, StatusBanner } from "../../components";
+import { formatDuration } from "./time";
 
 export interface GamePlayerView {
   id: string;
@@ -8,6 +9,7 @@ export interface GamePlayerView {
   ordinaryCities: number;
   metropolisDisciplines: string[];
   activeKnightStrength: number;
+  activeTimeMs: number;
   improvements: {
     science: number;
     trade: number;
@@ -28,9 +30,13 @@ export interface GameTableView {
   saveTone: "info" | "success" | "warning" | "danger";
   offline: boolean;
   readOnly: boolean;
+  paused: boolean;
   canRoll: boolean;
   showNextRoll: boolean;
   canRollNextTurn: boolean;
+  canPause: boolean;
+  currentTurnMs: number;
+  totalGameMs: number;
   rolling: boolean;
   lastRoll: {
     red: number;
@@ -57,6 +63,7 @@ interface GameTableProps {
   onAlchemy: () => void;
   onEditPlayer: (playerId: string) => void;
   onNextRoll: () => void;
+  onPause: () => void;
   onHistory: () => void;
   onSettings: () => void;
   onExport: () => void;
@@ -93,6 +100,7 @@ export function GameTable({
   onConfirmWinner,
   onEditPlayer,
   onNextRoll,
+  onPause,
   onExport,
   onHistory,
   onRoll,
@@ -120,6 +128,14 @@ export function GameTable({
           <p className="game-meta">
             Round {view.round} · Turn {view.turnNumber} · {view.phaseLabel}
           </p>
+          <div className="game-clock-row" aria-label="Game timers">
+            <span>
+              Turn <strong>{formatDuration(view.currentTurnMs)}</strong>
+            </span>
+            <span>
+              Game <strong>{formatDuration(view.totalGameMs)}</strong>
+            </span>
+          </div>
         </div>
         <div className="game-header__actions">
           {view.offline ? (
@@ -128,17 +144,43 @@ export function GameTable({
           {view.readOnly ? (
             <span className="save-pill save-pill--warning">Read only</span>
           ) : null}
+          {view.paused ? (
+            <span className="save-pill save-pill--warning">Paused</span>
+          ) : null}
           <span className={`save-pill save-pill--${view.saveTone}`}>
             {view.savedLabel}
           </span>
-          <Button variant="quiet" size="small" onClick={onHistory}>
+          <Button
+            variant="quiet"
+            size="small"
+            disabled={view.paused}
+            onClick={onHistory}
+          >
             History
           </Button>
-          <Button variant="quiet" size="small" onClick={onExport}>
+          <Button
+            variant="quiet"
+            size="small"
+            disabled={view.paused}
+            onClick={onExport}
+          >
             Export
           </Button>
-          <Button variant="quiet" size="small" onClick={onSettings}>
+          <Button
+            variant="quiet"
+            size="small"
+            disabled={view.paused}
+            onClick={onSettings}
+          >
             Settings
+          </Button>
+          <Button
+            variant="secondary"
+            size="small"
+            disabled={!view.canPause || view.readOnly || view.paused}
+            onClick={onPause}
+          >
+            Pause
           </Button>
         </div>
       </header>
@@ -151,7 +193,7 @@ export function GameTable({
             </span>
             <Button
               size="small"
-              disabled={view.readOnly}
+              disabled={view.readOnly || view.paused}
               onClick={onConfirmWinner}
             >
               Confirm winner
@@ -204,7 +246,7 @@ export function GameTable({
             <Button
               size="large"
               block
-              disabled={view.readOnly}
+              disabled={view.readOnly || view.paused}
               onClick={onRoll}
             >
               Roll
@@ -213,7 +255,7 @@ export function GameTable({
               size="large"
               block
               variant="secondary"
-              disabled={view.readOnly}
+              disabled={view.readOnly || view.paused}
               onClick={onAlchemy}
             >
               Use Alchemy
@@ -316,6 +358,10 @@ export function GameTable({
                 <dt>Active knights</dt>
                 <dd>{player.activeKnightStrength}</dd>
               </div>
+              <div>
+                <dt>Time</dt>
+                <dd>{formatDuration(player.activeTimeMs)}</dd>
+              </div>
             </dl>
             <div
               className="improvement-row"
@@ -328,7 +374,7 @@ export function GameTable({
             <Button
               variant="secondary"
               block
-              disabled={view.readOnly}
+              disabled={view.readOnly || view.paused}
               onClick={() => {
                 onEditPlayer(player.id);
               }}
@@ -350,7 +396,7 @@ export function GameTable({
         {view.showNextRoll ? (
           <Button
             size="large"
-            disabled={!view.canRollNextTurn || view.readOnly}
+            disabled={!view.canRollNextTurn || view.readOnly || view.paused}
             onClick={onNextRoll}
           >
             Next: {view.nextPlayerName} &amp; roll
