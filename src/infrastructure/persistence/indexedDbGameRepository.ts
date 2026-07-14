@@ -211,6 +211,13 @@ export class IndexedDbGameRepository implements GameRepository {
       throw persistenceError("NOT_FOUND", "Game was not found.");
     }
     if (preflightGame.headRevisionId !== input.expectedHeadRevisionId) {
+      const committedRetry = await db.getFromIndex("revisions", "gameCommand", [
+        input.gameId,
+        input.commandId,
+      ]);
+      if (committedRetry !== undefined) {
+        return committedRetry;
+      }
       throw persistenceError(
         "REVISION_CONFLICT",
         "The game changed in another tab.",
