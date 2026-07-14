@@ -256,7 +256,9 @@ and vulnerable city count are derived rather than independently editable.
 
 ### FR-10: Turn management
 
-- End turn only after all required resolution steps are acknowledged.
+- Do not expose a standalone End turn action.
+- The action-phase **Next: PLAYER & roll** control ends the current turn and
+  immediately rolls for the next player.
 - Advance clockwise and increment the round after the final player.
 - Keep quick public-state controls available during the action phase.
 - Offer **Next player & quick roll** in the consolidated result modal. This

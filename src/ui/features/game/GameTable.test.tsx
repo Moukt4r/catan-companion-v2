@@ -9,6 +9,7 @@ function view(): GameTableView {
     phaseLabel: "Awaiting roll",
     currentPlayerName: "Ada",
     currentPlayerColor: "#286b9b",
+    nextPlayerName: "Grace",
     round: 1,
     turnNumber: 1,
     savedLabel: "Saved",
@@ -16,7 +17,8 @@ function view(): GameTableView {
     offline: false,
     readOnly: false,
     canRoll: true,
-    canEndTurn: false,
+    showNextRoll: false,
+    canRollNextTurn: false,
     rolling: false,
     lastRoll: null,
     numberedCycleProgress: "0 / 36",
@@ -60,7 +62,7 @@ describe("GameTable", () => {
         onRoll={onRoll}
         onAlchemy={vi.fn()}
         onEditPlayer={onEditPlayer}
-        onEndTurn={vi.fn()}
+        onNextRoll={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
         onExport={vi.fn()}
@@ -86,13 +88,14 @@ describe("GameTable", () => {
         view={{
           ...view(),
           readOnly: true,
-          canEndTurn: true,
+          showNextRoll: true,
+          canRollNextTurn: true,
           winnerCandidateName: "Ada",
         }}
         onRoll={vi.fn()}
         onAlchemy={vi.fn()}
         onEditPlayer={vi.fn()}
-        onEndTurn={vi.fn()}
+        onNextRoll={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
         onExport={vi.fn()}
@@ -106,10 +109,45 @@ describe("GameTable", () => {
     expect(
       screen.getByRole("button", { name: "Edit public state" }),
     ).toBeDisabled();
-    expect(screen.getByRole("button", { name: "End turn" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Next: Grace & roll" }),
+    ).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Confirm winner" }),
     ).toBeDisabled();
     expect(screen.getByRole("button", { name: "History" })).toBeEnabled();
+  });
+
+  it("advances the action phase only by rolling for the next player", async () => {
+    const user = userEvent.setup();
+    const onNextRoll = vi.fn();
+
+    render(
+      <GameTable
+        view={{
+          ...view(),
+          phaseLabel: "Action phase",
+          canRoll: false,
+          showNextRoll: true,
+          canRollNextTurn: true,
+        }}
+        onRoll={vi.fn()}
+        onAlchemy={vi.fn()}
+        onEditPlayer={vi.fn()}
+        onNextRoll={onNextRoll}
+        onHistory={vi.fn()}
+        onSettings={vi.fn()}
+        onExport={vi.fn()}
+        onConfirmWinner={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "End turn" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Next: Grace & roll" }),
+    );
+    expect(onNextRoll).toHaveBeenCalledOnce();
   });
 });

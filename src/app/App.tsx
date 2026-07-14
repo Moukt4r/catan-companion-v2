@@ -388,24 +388,32 @@ export function App() {
         return;
       }
 
-      if (winnerCandidates(current).length > 0) {
-        setRollResolutionPinned(false);
-        setWinnerOpen(true);
-        return;
-      }
-
-      const ended = await dispatch({ type: "turn.ended" }, "confirm");
-      if (!ended) {
-        return;
-      }
-      const rolled = await roll({ type: "roll.draw" });
-      if (!rolled) {
-        setRollResolutionPinned(false);
-      }
+      await rollNextTurn();
     } catch (error) {
       setNotice(errorMessage(error));
     } finally {
       setResolutionBusy(false);
+    }
+  }
+
+  async function rollNextTurn(): Promise<void> {
+    const current = gameController.getSnapshot().activeState;
+    if (current?.turn.phase !== "action-phase") {
+      setNotice("The current roll must reach the action phase first.");
+      return;
+    }
+    if (winnerCandidates(current).length > 0) {
+      setRollResolutionPinned(false);
+      setWinnerOpen(true);
+      return;
+    }
+    const ended = await dispatch({ type: "turn.ended" }, "confirm");
+    if (!ended) {
+      return;
+    }
+    const rolled = await roll({ type: "roll.draw" });
+    if (!rolled) {
+      setRollResolutionPinned(false);
     }
   }
 
@@ -546,8 +554,8 @@ export function App() {
             onEditPlayer={(id) => {
               setSelectedPlayerId(asPlayerId(id));
             }}
-            onEndTurn={() => {
-              void dispatch({ type: "turn.ended" }, "confirm");
+            onNextRoll={() => {
+              void rollNextTurn();
             }}
             onHistory={() => {
               setHistoryOpen(true);

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 - 2026-07-14
+
+- Removed the standalone End turn control.
+- Made **Next: PLAYER & roll** the only action-phase turn transition.
+
 ## 0.1.1 - 2026-07-14
 
 - Replaced sequential roll-resolution dialogs with one consolidated modal.

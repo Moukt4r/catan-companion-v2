@@ -16,6 +16,8 @@ this implementation.
 - One consolidated roll-result modal containing event, progress, production,
   barbarian, and house-event guidance.
 - **Next player & quick roll** directly from the result modal.
+- No standalone end-turn button: the next-player roll action records the turn
+  boundary and immediately rolls.
 - Progress-card eligibility guidance using the current 2025 improvement board.
 - Barbarian movement, verified attacks, tie rewards, live board corrections,
   pillaging, knight reset, and first-attack robber activation.

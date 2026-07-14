@@ -146,12 +146,14 @@ describe("toGameTableView", () => {
       title: "Mapper table",
       phaseLabel: "Awaiting roll",
       currentPlayerName: "Ada",
+      nextPlayerName: "Grace",
       savedLabel: "Saving",
       saveTone: "warning",
       offline: true,
       readOnly: true,
       canRoll: true,
-      canEndTurn: false,
+      showNextRoll: false,
+      canRollNextTurn: false,
       rolling: true,
       lastRoll: null,
       numberedCycleProgress: "0 / 36",
@@ -201,7 +203,8 @@ describe("toGameTableView", () => {
       saveTone: "success",
     });
 
-    expect(view.canEndTurn).toBe(true);
+    expect(view.showNextRoll).toBe(true);
+    expect(view.canRollNextTurn).toBe(true);
     expect(view.lastRoll).toEqual({
       red: 3,
       yellow: 4,
@@ -230,7 +233,8 @@ describe("toGameTableView", () => {
       },
       { savedLabel: "Saved", saveTone: "success" },
     );
-    expect(pending.canEndTurn).toBe(false);
+    expect(pending.showNextRoll).toBe(true);
+    expect(pending.canRollNextTurn).toBe(false);
   });
 });
 

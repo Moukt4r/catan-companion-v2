@@ -56,7 +56,9 @@ async function resolveRoll(page: Page) {
       .selectOption(index % 2 === 0 ? "science" : "trade");
   }
   await dialog.getByRole("button", { name: "Continue current turn" }).click();
-  await expect(page.getByRole("button", { name: "End turn" })).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: /^Next: .* & roll$/ }),
+  ).toBeEnabled();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -93,19 +95,28 @@ test("persists Alchemy, public state, turns, undo, and redo", async ({
     page.locator(".player-card").first().locator(".player-score strong"),
   ).toHaveText("4");
 
-  await page.getByRole("button", { name: "End turn" }).click();
-  await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
-
   await page.getByRole("button", { name: "History" }).click();
   let history = page.locator("dialog[open]");
   await history.getByRole("button", { name: "Undo latest" }).click();
   await history.getByRole("button", { name: "Close" }).click();
-  await expect(page.getByText("Ada's turn", { exact: true })).toBeVisible();
+  await expect(
+    page.locator(".player-card").first().locator(".player-score strong"),
+  ).toHaveText("3");
 
   await page.getByRole("button", { name: "History" }).click();
   history = page.locator("dialog[open]");
   await history.getByRole("button", { name: "Redo" }).click();
   await history.getByRole("button", { name: "Close" }).click();
+  await expect(
+    page.locator(".player-card").first().locator(".player-score strong"),
+  ).toHaveText("4");
+
+  await page.getByRole("button", { name: "Next: Grace & roll" }).click();
+  const graceResult = page.getByRole("dialog", { name: /Roll result:/ });
+  await expect(graceResult).toContainText("Grace rolled");
+  await graceResult
+    .getByRole("button", { name: "Continue current turn" })
+    .click();
   await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
 
   await page.reload();

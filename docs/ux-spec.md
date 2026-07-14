@@ -190,7 +190,7 @@ The action phase presents quick actions for the current player:
 - ordinary-city adjustment;
 - active knight counters;
 - improvement levels, with a confirmed metropolis proposal when applicable;
-- End turn.
+- **Next: PLAYER & roll**, which is the only action-phase turn transition.
 
 Every adjustment previews the resulting derived strength or score and supports
 Cancel. High-frequency plus/minus controls must also allow direct numeric entry
@@ -410,7 +410,8 @@ resolution, or alter domain state.
 
 ## 16. Content style
 
-- Use short imperative labels: Roll, Resolve attack, End turn.
+- Use short imperative labels: Roll, Continue current turn, Next: PLAYER &
+  roll.
 - Name official and house behavior explicitly.
 - State consequences before confirmation.
 - Avoid jargon such as cursor, revision conflict, or IndexedDB in normal UI.

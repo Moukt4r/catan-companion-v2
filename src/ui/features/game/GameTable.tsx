@@ -21,6 +21,7 @@ export interface GameTableView {
   phaseLabel: string;
   currentPlayerName: string;
   currentPlayerColor: string;
+  nextPlayerName: string;
   round: number;
   turnNumber: number;
   savedLabel: string;
@@ -28,7 +29,8 @@ export interface GameTableView {
   offline: boolean;
   readOnly: boolean;
   canRoll: boolean;
-  canEndTurn: boolean;
+  showNextRoll: boolean;
+  canRollNextTurn: boolean;
   rolling: boolean;
   lastRoll: {
     red: number;
@@ -54,7 +56,7 @@ interface GameTableProps {
   onRoll: () => void;
   onAlchemy: () => void;
   onEditPlayer: (playerId: string) => void;
-  onEndTurn: () => void;
+  onNextRoll: () => void;
   onHistory: () => void;
   onSettings: () => void;
   onExport: () => void;
@@ -90,7 +92,7 @@ export function GameTable({
   onAlchemy,
   onConfirmWinner,
   onEditPlayer,
-  onEndTurn,
+  onNextRoll,
   onExport,
   onHistory,
   onRoll,
@@ -345,13 +347,15 @@ export function GameTable({
         ) : (
           <span>All accepted actions are saved locally and can be undone.</span>
         )}
-        <Button
-          size="large"
-          disabled={!view.canEndTurn || view.readOnly}
-          onClick={onEndTurn}
-        >
-          End turn
-        </Button>
+        {view.showNextRoll ? (
+          <Button
+            size="large"
+            disabled={!view.canRollNextTurn || view.readOnly}
+            onClick={onNextRoll}
+          >
+            Next: {view.nextPlayerName} &amp; roll
+          </Button>
+        ) : null}
       </footer>
     </main>
   );

@@ -40,6 +40,9 @@ export function toGameTableView(
   readOnly = false,
 ): GameTableView {
   const active = currentPlayer(state);
+  const nextPlayer =
+    state.players[(state.turn.currentPlayerIndex + 1) % state.players.length] ??
+    active;
   const candidates = winnerCandidates(state);
   const candidate = candidates[0]
     ? state.players.find((player) => player.id === candidates[0])
@@ -50,6 +53,7 @@ export function toGameTableView(
     phaseLabel: phaseLabels[state.turn.phase],
     currentPlayerName: active.name,
     currentPlayerColor: active.color.hex,
+    nextPlayerName: nextPlayer.name,
     round: state.turn.round,
     turnNumber: state.turn.turnNumber,
     savedLabel: save.savedLabel,
@@ -57,7 +61,8 @@ export function toGameTableView(
     offline,
     readOnly,
     canRoll: state.turn.phase === "awaiting-roll",
-    canEndTurn:
+    showNextRoll: state.turn.phase === "action-phase",
+    canRollNextTurn:
       state.turn.phase === "action-phase" &&
       state.metropolises.pendingProposal === null,
     rolling,
