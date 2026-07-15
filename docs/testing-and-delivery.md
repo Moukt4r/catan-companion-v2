@@ -240,26 +240,29 @@ usage and feature support, then committed to the README.
 One workflow runs:
 
 1. dependency install with frozen lockfile;
-2. generated-file consistency check;
-3. format;
-4. lint;
-5. type check;
-6. unit/property/component tests with coverage;
-7. production build;
-8. bundle budget;
-9. Playwright critical smoke;
-10. artifact upload for inspection.
+2. format check;
+3. lint;
+4. type check;
+5. unit/property/component tests with enforced coverage thresholds;
+6. production build;
+7. desktop and mobile Chromium Playwright critical smoke.
 
 Cancel superseded runs on the same branch.
 
 ### Main branch
 
-Run the full browser matrix, Lighthouse, offline tests, and deployment. GitHub
-Pages deploys only after every required job succeeds.
+CI and Pages deployment run as separate workflows on each push to `main`. The
+deployment workflow repeats the quality gates independently, then runs
+desktop/mobile Chromium flows, the repository-path build, Pages artifact
+upload, deployment, and a public HTML smoke check. Pages deploys only after its
+build job succeeds.
 
-### Scheduled
+WebKit, Firefox, Lighthouse, and broader device checks remain manual release
+checks until dedicated automated projects are added.
 
-Weekly:
+### Planned scheduled checks
+
+The following checks are desirable but are not currently scheduled:
 
 - full dependency audit;
 - latest supported browser matrix;
@@ -271,16 +274,18 @@ Weekly:
 GitHub Pages deployment:
 
 - uses an immutable build artifact from the tested commit;
-- has a protected `github-pages` environment;
+- targets the `github-pages` environment, where repository administrators may
+  add deployment protection rules;
 - reports the deployed commit and URL;
 - keeps source maps out of public artifacts unless explicitly approved;
 - embeds application and schema versions;
 - verifies that the site is reachable at the repository base path;
 - runs a post-deploy smoke test without mutating real game data.
 
-Rollback is a redeploy of the previous known-good commit. Game migrations must
-remain backward-recoverable through the backup strategy; a code rollback must
-not silently open newer data with older logic.
+Concrete release, verification, service-worker, and rollback commands are in
+[publishing.md](publishing.md). Game migrations must remain
+backward-recoverable through the backup strategy; a code rollback must not
+silently open newer data with older logic.
 
 ## 10. Release checklist
 

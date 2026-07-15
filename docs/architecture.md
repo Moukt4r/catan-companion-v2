@@ -312,18 +312,15 @@ than root-absolute paths.
 
 GitHub Actions performs:
 
-1. checkout;
-2. pinned Node and pnpm setup;
-3. frozen dependency install;
-4. format check;
-5. lint;
-6. type check;
-7. unit, property, and component tests;
-8. production build;
-9. Playwright critical flow against the built preview;
-10. bundle-budget check;
-11. Pages artifact upload;
-12. protected deployment from `main`.
+1. checkout and pinned Node/pnpm setup;
+2. frozen dependency install;
+3. format, lint, type, unit/property/component, coverage, and production build
+   gates;
+4. desktop and mobile Chromium Playwright flows against the built preview;
+5. a repository-base-path production build;
+6. Pages configuration and immutable artifact upload;
+7. deployment through the `github-pages` environment;
+8. a public-HTML smoke check against the deployed URL.
 
 Use official current major versions of:
 
@@ -336,6 +333,9 @@ Use official current major versions of:
 The workflow receives only `contents: read`, `pages: write`, and
 `id-token: write` where deployment requires them. Pull requests never receive
 deployment credentials.
+
+Operational release and rollback steps are maintained in
+[the publishing runbook](publishing.md).
 
 ## 14. Performance architecture
 

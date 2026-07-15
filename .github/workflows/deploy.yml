@@ -29,8 +29,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
+      - run: pnpm test:coverage
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e --project=chromium
+      - run: pnpm test:e2e
       - run: pnpm build
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/
@@ -48,3 +49,12 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify deployed site
+        shell: bash
+        run: |
+          set -euo pipefail
+          page_url="${{ steps.deployment.outputs.page_url }}"
+          html="$(curl --fail --silent --show-error --location \
+            --retry 12 --retry-all-errors --retry-delay 5 \
+            "$page_url")"
+          grep -Fq '<title>Catan Table Companion</title>' <<<"$html"

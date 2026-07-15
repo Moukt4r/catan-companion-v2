@@ -1,8 +1,15 @@
 # Catan Table Companion
 
+[![CI](https://github.com/Moukt4r/catan-companion-v2/actions/workflows/ci.yml/badge.svg)](https://github.com/Moukt4r/catan-companion-v2/actions/workflows/ci.yml)
+[![Deploy GitHub Pages](https://github.com/Moukt4r/catan-companion-v2/actions/workflows/deploy.yml/badge.svg)](https://github.com/Moukt4r/catan-companion-v2/actions/workflows/deploy.yml)
+[![Live site](https://img.shields.io/badge/live-GitHub%20Pages-2ea44f)](https://moukt4r.github.io/catan-companion-v2/)
+
 A production-ready, local-first web companion for one shared-device game of
 base CATAN with Cities & Knights. It installs as a PWA, runs offline, deploys
 as static GitHub Pages, and requires no account or backend.
+
+- **Live application:** https://moukt4r.github.io/catan-companion-v2/
+- **Source repository:** https://github.com/Moukt4r/catan-companion-v2
 
 No code or assets from the earlier `agentic-catan` prototype were copied into
 this implementation.
@@ -72,6 +79,13 @@ flows, axe accessibility checks, and offline service-worker loading.
 
 ## GitHub Pages
 
+The repository is already configured and published:
+
+- Source branch: `main`
+- Pages source: **GitHub Actions**
+- Live URL: https://moukt4r.github.io/catan-companion-v2/
+- Deployment workflow: `.github/workflows/deploy.yml`
+
 The deployment workflow builds with:
 
 ```text
@@ -82,8 +96,17 @@ All asset, manifest, and service-worker paths are derived from that base. The
 application uses one document URL and state-driven screens, so GitHub Pages
 does not need an SPA redirect workaround.
 
-Enable Pages with **GitHub Actions** as its source, then push `main`. The
-protected `github-pages` environment receives the tested build artifact.
+Every push to `main` runs CI and creates a tested Pages artifact. The deploy job
+targets the `github-pages` environment and verifies the public HTML after
+deployment. `workflow_dispatch` also allows a manual deployment from the
+Actions UI.
+
+The generated `dist/` directory is ignored and is never committed; Pages
+publishes the immutable artifact uploaded by GitHub Actions.
+
+See the [publishing runbook](docs/publishing.md) for one-time setup, exact
+release steps, local repository-path preview, verification, rollback, token
+permissions, and service-worker update behavior.
 
 ## Local data
 
@@ -93,16 +116,17 @@ moving devices, or deleting a saved game.
 
 ## Specification
 
-| Document                                             | Purpose                                                                  |
-| ---------------------------------------------------- | ------------------------------------------------------------------------ |
-| [Product specification](docs/product-spec.md)        | Goals, scope, workflows, requirements, and release criteria              |
-| [Rules and domain](docs/rules-and-domain.md)         | Roll algorithms, turn resolution, Cities & Knights logic, and invariants |
-| [UX specification](docs/ux-spec.md)                  | Screens, interactions, responsive behavior, and accessibility            |
-| [Architecture](docs/architecture.md)                 | Technical stack, boundaries, application flow, PWA, and deployment       |
-| [Data and reliability](docs/data-and-reliability.md) | Data model, revisions, migrations, recovery, and privacy                 |
-| [Testing and delivery](docs/testing-and-delivery.md) | Quality strategy, CI/CD, performance, security, and release gates        |
-| [Implementation plan](docs/implementation-plan.md)   | Milestones and work packages                                             |
-| [Architecture decisions](docs/decisions/)            | Durable design decisions and tradeoffs                                   |
+| Document                                             | Purpose                                                                   |
+| ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| [Product specification](docs/product-spec.md)        | Goals, scope, workflows, requirements, and release criteria               |
+| [Rules and domain](docs/rules-and-domain.md)         | Roll algorithms, turn resolution, Cities & Knights logic, and invariants  |
+| [UX specification](docs/ux-spec.md)                  | Screens, interactions, responsive behavior, and accessibility             |
+| [Architecture](docs/architecture.md)                 | Technical stack, boundaries, application flow, PWA, and deployment        |
+| [Data and reliability](docs/data-and-reliability.md) | Data model, revisions, migrations, recovery, and privacy                  |
+| [Testing and delivery](docs/testing-and-delivery.md) | Quality strategy, CI/CD, performance, security, and release gates         |
+| [Publishing runbook](docs/publishing.md)             | GitHub Pages setup, releases, verification, troubleshooting, and rollback |
+| [Implementation plan](docs/implementation-plan.md)   | Milestones and work packages                                              |
+| [Architecture decisions](docs/decisions/)            | Durable design decisions and tradeoffs                                    |
 
 ## Architecture
 
