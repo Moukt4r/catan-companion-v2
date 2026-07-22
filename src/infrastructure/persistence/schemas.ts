@@ -684,8 +684,24 @@ function validateRevisionGraph(
     validateBranch(branch, leaf.id);
   }
   const head = byId.get(game.headRevisionId);
+  const lifecycleMatchesState =
+    head?.state.status === "completed"
+      ? game.lifecycle === "completed"
+      : game.lifecycle === "active" || game.lifecycle === "archived";
+  const winnerMatches =
+    head !== undefined &&
+    (head.state.winnerId === null
+      ? game.winnerId === undefined
+      : game.winnerId === head.state.winnerId);
+  const completionMatches =
+    head?.state.status === "completed"
+      ? game.completedAt === head.state.updatedAt
+      : game.completedAt === undefined;
   if (
     head === undefined ||
+    !lifecycleMatchesState ||
+    !winnerMatches ||
+    !completionMatches ||
     game.title !== head.state.setup.title ||
     game.gameDocumentVersion !== head.state.setup.gameDocumentVersion ||
     game.rulesDataVersion !== head.state.setup.rulesDataVersion ||

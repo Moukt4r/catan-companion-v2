@@ -5,8 +5,10 @@ import {
   asIsoTimestamp,
   asPlayerId,
   asRevisionId,
+  asScoreEntryId,
   createGame,
   decide,
+  validateGameState,
 } from "../domain";
 import type {
   CommandId,
@@ -97,12 +99,17 @@ describe("GameController", () => {
       canRedo: false,
       readOnly: true,
     });
+    control.held = true;
     await expect(
       controller.dispatch({ type: "roll.draw" }),
     ).rejects.toMatchObject({ code: "REVISION_CONFLICT" });
     expect(controller.getSnapshot().error).toMatchObject({
       code: "REVISION_CONFLICT",
     });
+
+    control.held = false;
+    await expect(controller.takeControl()).resolves.toBe(false);
+    expect(controller.getSnapshot().readOnly).toBe(true);
 
     control.allowed = true;
     await expect(controller.takeControl()).resolves.toBe(true);
@@ -200,6 +207,9 @@ describe("GameController", () => {
 
     await controller.resumeGame(first.game.id);
     expect(controller.getSnapshot().activeState?.id).toBe(first.game.id);
+    expect(controller.getSnapshot().activeState?.clock).toMatchObject({
+      pausedAt: null,
+    });
     await expect(controller.exportGame(first.game.id)).resolves.toMatchObject({
       format: EXPORT_FORMAT,
       game: { id: first.game.id },
@@ -208,6 +218,15 @@ describe("GameController", () => {
     await controller.archiveActive();
     expect(controller.getSnapshot().activeState).toBeNull();
     expect(repository.games.get(first.game.id)?.lifecycle).toBe("archived");
+    const archivedHead = repository.revisions
+      .get(first.game.id)
+      ?.find(
+        (revision) =>
+          revision.id === repository.games.get(first.game.id)?.headRevisionId,
+      );
+    expect(archivedHead?.state.clock).toMatchObject({
+      runningSince: null,
+    });
 
     await controller.deleteGame(second.game.id);
     expect(repository.games.has(second.game.id)).toBe(false);
@@ -217,6 +236,240 @@ describe("GameController", () => {
       activeState: null,
       revisionHistory: [],
       readOnly: false,
+    });
+  });
+
+  it("stops the outgoing clock before switching active games", async () => {
+    const repository = new MemoryRepository();
+    const first = await fixture("switch-first", "active");
+    const second = await fixture("switch-second", "archived");
+    repository.seed(first.game, first.revision);
+    repository.seed(second.game, second.revision);
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("switch"),
+      undefined,
+      new TestControl(),
+    );
+    await controller.initialize();
+
+    await controller.resumeGame(second.game.id);
+
+    const firstGame = repository.games.get(first.game.id);
+    const firstHead = repository.revisions
+      .get(first.game.id)
+      ?.find((revision) => revision.id === firstGame?.headRevisionId);
+    expect(firstGame?.lifecycle).toBe("archived");
+    expect(firstHead?.state.clock).toMatchObject({
+      runningSince: null,
+    });
+    expect(controller.getSnapshot().activeState).toMatchObject({
+      id: second.game.id,
+      clock: {
+        pausedAt: null,
+      },
+    });
+    expect(
+      controller.getSnapshot().activeState?.clock?.runningSince,
+    ).not.toBeNull();
+  });
+
+  it("retains a failed save for retry, export, and mutation blocking", async () => {
+    const repository = new MemoryRepository();
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("failed-save"),
+    );
+    await controller.initialize();
+    await controller.startGame(setup());
+    repository.nextCommitFailure = {
+      error: persistenceError("TRANSACTION_FAILED", "Storage write failed."),
+      afterWrite: false,
+    };
+
+    await expect(
+      controller.dispatch({ type: "roll.draw" }),
+    ).rejects.toMatchObject({ code: "TRANSACTION_FAILED" });
+    const pending = controller.getSnapshot().pendingSave;
+    expect(pending).toMatchObject({
+      commandType: "roll.draw",
+      message: "Storage write failed.",
+    });
+    expect(controller.getSnapshot().activeState?.statistics.totalRolls).toBe(0);
+
+    await expect(controller.dispatch({ type: "roll.draw" })).rejects.toThrow(
+      "Resolve the failed save",
+    );
+
+    repository.exportOptionalBranches = [
+      repository.revisions.values().next().value?.slice(0, 1) ?? [],
+    ];
+    const emergency = await controller.exportPendingSave();
+    expect(emergency.game.headRevisionId).toBe(pending?.revisionId);
+    expect(emergency.activeBranch).toHaveLength(2);
+    expect(emergency.optionalBranches).toHaveLength(1);
+    expect(emergency.integrity.documentHash).toBe(
+      await sha256({
+        ...emergency,
+        integrity: { algorithm: "SHA-256" },
+      }),
+    );
+    repository.exportOptionalBranches = undefined;
+    expect(
+      (await controller.exportPendingSave()).optionalBranches,
+    ).toBeUndefined();
+
+    await controller.retryPendingSave();
+
+    expect(controller.getSnapshot()).toMatchObject({
+      pendingSave: null,
+      error: null,
+    });
+    expect(controller.getSnapshot().activeState?.statistics.totalRolls).toBe(1);
+  });
+
+  it("reverts a failed save that committed before its response was lost", async () => {
+    const repository = new MemoryRepository();
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("ambiguous-save"),
+    );
+    await controller.initialize();
+    await controller.startGame(setup());
+    const durableRevisionId = controller.getSnapshot().activeState?.revisionId;
+    repository.nextCommitFailure = {
+      error: persistenceError("TRANSACTION_FAILED", "Response was lost."),
+      afterWrite: true,
+    };
+
+    await expect(
+      controller.dispatch({ type: "roll.draw" }),
+    ).rejects.toMatchObject({ code: "TRANSACTION_FAILED" });
+    expect(repository.games.values().next().value?.headRevisionId).not.toBe(
+      durableRevisionId,
+    );
+    const emergency = await controller.exportPendingSave();
+    expect(emergency.game.headRevisionId).toBe(
+      controller.getSnapshot().pendingSave?.revisionId,
+    );
+
+    await controller.revertPendingSave();
+
+    expect(controller.getSnapshot()).toMatchObject({
+      pendingSave: null,
+      error: null,
+      canRedo: true,
+    });
+    expect(controller.getSnapshot().activeState?.revisionId).toBe(
+      durableRevisionId,
+    );
+    expect(controller.getSnapshot().activeState?.statistics.totalRolls).toBe(0);
+  });
+
+  it("exports and retries a failed game completion as completed", async () => {
+    const repository = new MemoryRepository();
+    const winning = await winningActionFixture("completion-save");
+    repository.seed(winning.game, winning.revision);
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("completion-save"),
+    );
+    await controller.initialize();
+    repository.nextCommitFailure = {
+      error: persistenceError("TRANSACTION_FAILED", "Completion save failed."),
+      afterWrite: false,
+    };
+
+    await expect(
+      controller.dispatch({
+        type: "game.completed",
+        winnerId: winning.state.players[0]!.id,
+      }),
+    ).rejects.toMatchObject({ code: "TRANSACTION_FAILED" });
+
+    const emergency = await controller.exportPendingSave();
+    expect(emergency.game).toMatchObject({
+      lifecycle: "completed",
+      winnerId: winning.state.players[0]!.id,
+    });
+
+    await controller.retryPendingSave();
+    expect(controller.getSnapshot().activeState).toMatchObject({
+      status: "completed",
+      winnerId: winning.state.players[0]!.id,
+    });
+  });
+
+  it("rejects stale pending-save recovery and non-retriable conflicts", async () => {
+    const repository = new MemoryRepository();
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("save-conflicts"),
+    );
+    await controller.initialize();
+    await controller.startGame(setup());
+
+    repository.nextCommitFailure = {
+      error: persistenceError("REVISION_CONFLICT", "Head changed."),
+      afterWrite: false,
+    };
+    await expect(
+      controller.dispatch({ type: "roll.draw" }),
+    ).rejects.toMatchObject({ code: "REVISION_CONFLICT" });
+    expect(controller.getSnapshot().pendingSave).toBeNull();
+
+    repository.nextCommitFailure = {
+      error: persistenceError("TRANSACTION_FAILED", "Storage failed."),
+      afterWrite: false,
+    };
+    await expect(
+      controller.dispatch({ type: "roll.draw" }),
+    ).rejects.toMatchObject({ code: "TRANSACTION_FAILED" });
+    const game = repository.games.values().next().value;
+    if (!game) throw new Error("Expected a stored game.");
+    repository.missingLoads.add(game.id);
+    await expect(controller.revertPendingSave()).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    repository.missingLoads.delete(game.id);
+    repository.games.set(game.id, {
+      ...game,
+      headRevisionId: asRevisionId("unexpected-head"),
+    });
+
+    await expect(controller.exportPendingSave()).rejects.toMatchObject({
+      code: "REVISION_CONFLICT",
+    });
+    await controller.revertPendingSave();
+    expect(controller.getSnapshot()).toMatchObject({
+      pendingSave: null,
+      error: {
+        code: "REVISION_CONFLICT",
+      },
+    });
+  });
+
+  it("rejects pending-save actions when no failed save exists", async () => {
+    const controller = new GameController(
+      new MemoryRepository(),
+      { nextUint32: () => 0 },
+      runtime("no-pending-save"),
+    );
+    await controller.initialize();
+
+    await expect(controller.retryPendingSave()).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    await expect(controller.exportPendingSave()).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    await expect(controller.revertPendingSave()).rejects.toMatchObject({
+      code: "NOT_FOUND",
     });
   });
 
@@ -266,7 +519,13 @@ describe("GameController", () => {
     await controller.previewImport({ valid: true });
     await expect(controller.confirmImport()).resolves.toBe(imported.game.id);
     expect(controller.getSnapshot()).toMatchObject({
-      activeState: imported.state,
+      activeState: {
+        id: imported.state.id,
+        status: "active",
+        clock: {
+          pausedAt: null,
+        },
+      },
       importPreview: null,
     });
   });
@@ -330,6 +589,36 @@ describe("GameController", () => {
 
     await expect(controller.recoverActive()).rejects.toMatchObject({
       code: "CORRUPT_GAME",
+    });
+  });
+
+  it("loads corruption with no recoverable revision", async () => {
+    const repository = new MemoryRepository();
+    const corrupt = await fixture("unrecoverable");
+    repository.seed(corrupt.game, corrupt.revision);
+    repository.recoveries.set(corrupt.game.id, {
+      invalidHeadRevisionId: corrupt.revision.id,
+      validAncestorRevisionId: null,
+      invalidRevisionIds: [corrupt.revision.id],
+    });
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("unrecoverable"),
+    );
+
+    await controller.initialize();
+
+    expect(controller.getSnapshot()).toMatchObject({
+      activeState: null,
+      lastSavedAt: null,
+      recovery: {
+        validAncestorRevisionId: null,
+      },
+      error: {
+        code: "CORRUPT_GAME",
+        message: "The game is corrupt and has no valid recovery revision.",
+      },
     });
   });
 
@@ -409,6 +698,108 @@ describe("GameController", () => {
     });
   });
 
+  it("reports missing resumes and refresh failures", async () => {
+    const repository = new MemoryRepository();
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("refresh-errors"),
+    );
+    await controller.initialize();
+
+    await expect(
+      controller.resumeGame(asGameId("missing-resume")),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+    const archived = await fixture("refresh-game", "archived");
+    repository.seed(archived.game, archived.revision);
+    await controller.refreshList();
+    expect(controller.getSnapshot().games).toHaveLength(1);
+
+    vi.spyOn(repository, "listGames").mockRejectedValueOnce(
+      persistenceError("STORAGE_UNAVAILABLE", "List failed."),
+    );
+    await expect(controller.refreshList()).rejects.toMatchObject({
+      code: "STORAGE_UNAVAILABLE",
+    });
+  });
+
+  it("surfaces takeover errors and invalid game lifecycle mutations", async () => {
+    const repository = new MemoryRepository();
+    const active = await fixture("takeover-errors");
+    repository.seed(active.game, active.revision);
+    const control = new TestControl(false);
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("takeover-errors"),
+      undefined,
+      control,
+    );
+    await controller.initialize();
+    control.acquire.mockRejectedValueOnce(
+      persistenceError("STORAGE_UNAVAILABLE", "Control failed."),
+    );
+
+    await expect(controller.takeControl()).rejects.toMatchObject({
+      code: "STORAGE_UNAVAILABLE",
+    });
+    control.allowed = true;
+    await controller.takeControl();
+
+    const completed = await fixture("completed-mutation", "completed");
+    repository.seed(completed.game, completed.revision);
+    await controller.resumeGame(completed.game.id);
+    await expect(
+      controller.dispatch({ type: "roll.draw" }),
+    ).rejects.toMatchObject({ code: "CORRUPT_GAME" });
+  });
+
+  it("starts a new game after viewing a completed game", async () => {
+    const repository = new MemoryRepository();
+    const completed = await fixture("completed-replacement", "completed");
+    repository.seed(completed.game, completed.revision);
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("completed-replacement"),
+      undefined,
+      new TestControl(),
+    );
+    await controller.initialize();
+    await controller.resumeGame(completed.game.id);
+
+    await controller.startGame(setup());
+
+    expect(controller.getSnapshot().activeState).toMatchObject({
+      status: "active",
+      setup: {
+        title: "Controller test",
+      },
+    });
+  });
+
+  it("revokes writes when the underlying control lease is lost", async () => {
+    const repository = new MemoryRepository();
+    const active = await fixture("lost-control");
+    repository.seed(active.game, active.revision);
+    const control = new TestControl();
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("lost-control"),
+      undefined,
+      control,
+    );
+    await controller.initialize();
+    control.held = false;
+
+    await expect(
+      controller.dispatch({ type: "roll.draw" }),
+    ).rejects.toMatchObject({ code: "REVISION_CONFLICT" });
+    expect(controller.getSnapshot().readOnly).toBe(true);
+  });
+
   it("returns false without an active game and disposes channel, control, and listeners", async () => {
     const repository = new MemoryRepository();
     const channel = new TestChannel();
@@ -465,8 +856,16 @@ class TestChannel implements GameChannel {
 class TestControl implements GameControl {
   constructor(public allowed = true) {}
 
-  readonly acquire = vi.fn(() => Promise.resolve(this.allowed));
-  readonly release = vi.fn(() => Promise.resolve());
+  held = false;
+  readonly acquire = vi.fn(() => {
+    this.held = this.allowed;
+    return Promise.resolve(this.allowed);
+  });
+  readonly hasControl = vi.fn(() => this.held);
+  readonly release = vi.fn(() => {
+    this.held = false;
+    return Promise.resolve();
+  });
 }
 
 class MemoryRepository implements GameRepository {
@@ -476,6 +875,8 @@ class MemoryRepository implements GameRepository {
   readonly missingLoads = new Set<GameId>();
   previewFailure: Error | null = null;
   importCandidate: ValidatedImport | null = null;
+  nextCommitFailure: { error: Error; afterWrite: boolean } | null = null;
+  exportOptionalBranches: StoredRevision[][] | undefined;
 
   seed(game: StoredGame, ...revisions: StoredRevision[]): void {
     this.games.set(game.id, game);
@@ -500,7 +901,10 @@ class MemoryRepository implements GameRepository {
     if (!game) return Promise.resolve(null);
     const history = this.revisions.get(id) ?? [];
     const recovery = this.recoveries.get(id) ?? null;
-    const revisionId = recovery?.validAncestorRevisionId ?? game.headRevisionId;
+    const revisionId =
+      recovery === null
+        ? game.headRevisionId
+        : recovery.validAncestorRevisionId;
     return Promise.resolve({
       game,
       revision: history.find((revision) => revision.id === revisionId) ?? null,
@@ -511,6 +915,12 @@ class MemoryRepository implements GameRepository {
   async resumeGame(id: GameId, at: IsoTimestamp): Promise<LoadedGame> {
     const loaded = await this.loadGame(id);
     if (!loaded) throw persistenceError("NOT_FOUND", "Game was not found.");
+    if (
+      loaded.game.lifecycle === "completed" ||
+      loaded.game.lifecycle === "corrupt"
+    ) {
+      return loaded;
+    }
     for (const [gameId, game] of this.games) {
       if (game.lifecycle === "active" && gameId !== id) {
         this.games.set(gameId, {
@@ -544,18 +954,32 @@ class MemoryRepository implements GameRepository {
   }
 
   commitRevision(input: RevisionCommit): Promise<StoredRevision> {
+    const failure = this.nextCommitFailure;
+    this.nextCommitFailure = null;
+    if (failure !== null && !failure.afterWrite) {
+      throw failure.error;
+    }
     const game = this.games.get(input.gameId);
     if (!game) throw persistenceError("NOT_FOUND", "Game was not found.");
+    const history = this.revisions.get(input.gameId) ?? [];
+    const duplicate = history.find(
+      (revision) => revision.commandId === input.commandId,
+    );
+    if (duplicate) {
+      return Promise.resolve(duplicate);
+    }
     if (game.headRevisionId !== input.expectedHeadRevisionId) {
       throw persistenceError("REVISION_CONFLICT", "Head changed.");
     }
-    const history = this.revisions.get(input.gameId) ?? [];
     this.revisions.set(input.gameId, [...history, input.revision]);
     this.games.set(input.gameId, {
       ...storedGameFromState(input.revision.state),
       latestRevisionId: input.revision.id,
       redoStack: [],
     });
+    if (failure !== null) {
+      throw failure.error;
+    }
     return Promise.resolve(input.revision);
   }
 
@@ -636,6 +1060,9 @@ class MemoryRepository implements GameRepository {
       applicationVersion: APPLICATION_VERSION,
       game,
       activeBranch: this.revisions.get(id) ?? [],
+      ...(this.exportOptionalBranches === undefined
+        ? {}
+        : { optionalBranches: this.exportOptionalBranches }),
       integrity: {
         algorithm: "SHA-256",
         documentHash: "0".repeat(64),
@@ -712,6 +1139,40 @@ async function nextFixture(parent: Fixture, prefix: string): Promise<Fixture> {
       latestRevisionId: revision.id,
       redoStack: [],
     },
+  };
+}
+
+async function winningActionFixture(prefix: string): Promise<Fixture> {
+  const value = await fixture(prefix);
+  const winner = value.state.players[0];
+  if (!winner) throw new Error("Expected a winning player.");
+  const state: GameState = {
+    ...value.state,
+    turn: {
+      ...value.state.turn,
+      phase: "action-phase",
+    },
+    scoreLedger: [
+      ...value.state.scoreLedger,
+      {
+        id: asScoreEntryId(`${prefix}-winning-score`),
+        playerId: winner.id,
+        delta: value.state.setup.victoryTarget - 3,
+        reason: "manual",
+        createdAt: value.state.updatedAt,
+      },
+    ],
+  };
+  expect(validateGameState(state)).toEqual([]);
+  const revision = {
+    ...value.revision,
+    state,
+    stateHash: await sha256(state),
+  };
+  return {
+    state,
+    revision,
+    game: storedGameFromState(state),
   };
 }
 

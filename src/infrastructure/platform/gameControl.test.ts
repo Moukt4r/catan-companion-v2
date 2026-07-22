@@ -5,6 +5,7 @@ import { BrowserGameControl } from "./gameControl";
 const originalLocks = Object.getOwnPropertyDescriptor(navigator, "locks");
 
 afterEach(() => {
+  window.localStorage.clear();
   if (originalLocks) {
     Object.defineProperty(navigator, "locks", originalLocks);
   } else {
@@ -20,8 +21,27 @@ describe("BrowserGameControl", () => {
     await expect(control.acquire(asGameId("fallback-game"))).resolves.toBe(
       true,
     );
+    expect(control.hasControl(asGameId("fallback-game"))).toBe(true);
     await expect(control.release()).resolves.toBeUndefined();
+    expect(control.hasControl(asGameId("fallback-game"))).toBe(false);
     await expect(control.release()).resolves.toBeUndefined();
+  });
+
+  it("keeps fallback tabs read-only until the local lease is released", async () => {
+    Reflect.deleteProperty(navigator, "locks");
+    const first = new BrowserGameControl();
+    const second = new BrowserGameControl();
+    const gameId = asGameId("fallback-shared-game");
+
+    await expect(first.acquire(gameId)).resolves.toBe(true);
+    await expect(second.acquire(gameId)).resolves.toBe(false);
+    expect(first.hasControl(gameId)).toBe(true);
+    window.localStorage.removeItem(`catan-table-companion:control:${gameId}`);
+    expect(first.hasControl(gameId)).toBe(false);
+
+    await first.release();
+    await expect(second.acquire(gameId)).resolves.toBe(true);
+    await second.release();
   });
 
   it("allows one controlling tab and a later explicit takeover", async () => {

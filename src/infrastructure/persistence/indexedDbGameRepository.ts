@@ -77,25 +77,8 @@ export class IndexedDbGameRepository implements GameRepository {
     if (game === undefined) {
       return null;
     }
-    const invalidRevisionIds: RevisionId[] = [];
-    let revisionId: RevisionId | null = game.headRevisionId;
-    let validRevision: StoredRevision | null = null;
-    while (revisionId !== null) {
-      const revision: StoredRevision | undefined = await db.get(
-        "revisions",
-        revisionId,
-      );
-      if (revision === undefined) {
-        invalidRevisionIds.push(revisionId);
-        break;
-      }
-      if (await this.isRevisionValid(revision)) {
-        validRevision = revision;
-        break;
-      }
-      invalidRevisionIds.push(revision.id);
-      revisionId = revision.parentRevisionId;
-    }
+    const { invalidRevisionIds, validRevision } =
+      await this.inspectRevisionChain(db, game);
     if (invalidRevisionIds.length === 0) {
       return { game, revision: validRevision, recovery: null };
     }
@@ -653,6 +636,77 @@ export class IndexedDbGameRepository implements GameRepository {
       await abortTransaction(transaction);
       throw this.transactionError(error, "Could not import the game.");
     }
+  }
+
+  private async inspectRevisionChain(
+    db: IDBPDatabase<CatanDatabase>,
+    game: StoredGame,
+  ): Promise<{
+    validRevision: StoredRevision | null;
+    invalidRevisionIds: RevisionId[];
+  }> {
+    const chain: StoredRevision[] = [];
+    const invalidRevisionIds = new Set<RevisionId>();
+    const seen = new Set<RevisionId>();
+    let revisionId: RevisionId | null = game.headRevisionId;
+    let complete = false;
+
+    while (revisionId !== null) {
+      if (seen.has(revisionId)) {
+        invalidRevisionIds.add(revisionId);
+        break;
+      }
+      seen.add(revisionId);
+      const revision: StoredRevision | undefined = await db.get(
+        "revisions",
+        revisionId,
+      );
+      if (revision === undefined) {
+        invalidRevisionIds.add(revisionId);
+        break;
+      }
+      chain.push(revision);
+      revisionId = revision.parentRevisionId;
+    }
+    if (revisionId === null) {
+      complete = true;
+    }
+
+    let validRevision: StoredRevision | null = null;
+    let previous: StoredRevision | null = null;
+    let lineageValid = complete;
+    for (const revision of [...chain].reverse()) {
+      const linkValid =
+        revision.gameId === game.id &&
+        (previous === null
+          ? revision.parentRevisionId === null &&
+            revision.sequence === 1 &&
+            revision.command.type === "game.created"
+          : revision.parentRevisionId === previous.id &&
+            revision.sequence === previous.sequence + 1 &&
+            revision.command.type !== "game.created");
+      const revisionValid =
+        lineageValid && linkValid && (await this.isRevisionValid(revision));
+      if (revisionValid) {
+        validRevision = revision;
+        previous = revision;
+      } else {
+        lineageValid = false;
+        invalidRevisionIds.add(revision.id);
+      }
+    }
+
+    if (!complete) {
+      for (const revision of chain) {
+        invalidRevisionIds.add(revision.id);
+      }
+      validRevision = null;
+    }
+
+    return {
+      validRevision,
+      invalidRevisionIds: [...invalidRevisionIds],
+    };
   }
 
   private async database(): Promise<IDBPDatabase<CatanDatabase>> {

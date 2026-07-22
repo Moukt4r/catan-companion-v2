@@ -120,7 +120,7 @@ Runs on pull requests and pushes to `main`:
 - formatting, lint, type checking;
 - coverage-enforced Vitest suite;
 - production build;
-- desktop and mobile Chromium Playwright flows.
+- desktop/mobile Chromium, desktop Firefox, and mobile WebKit Playwright flows.
 
 Superseded runs on the same branch are cancelled.
 
@@ -129,7 +129,7 @@ Superseded runs on the same branch are cancelled.
 Runs on pushes to `main` and manual dispatch:
 
 - full local quality gate and coverage;
-- desktop and mobile Chromium Playwright flows;
+- desktop/mobile Chromium, desktop Firefox, and mobile WebKit Playwright flows;
 - repository-path production build;
 - Pages artifact upload;
 - deployment;

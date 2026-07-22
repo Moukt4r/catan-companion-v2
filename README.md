@@ -69,13 +69,14 @@ pnpm typecheck
 pnpm test
 pnpm test:coverage
 pnpm build
-pnpm exec playwright install chromium
+pnpm exec playwright install chromium firefox webkit
 pnpm test:e2e
 ```
 
 `pnpm check` runs formatting, linting, type checking, unit tests, and the
-production build. Playwright separately exercises desktop/mobile critical
-flows, axe accessibility checks, and offline service-worker loading.
+production build. Playwright separately exercises Chromium, Firefox, and
+mobile WebKit critical flows, axe accessibility checks, and offline
+service-worker loading.
 
 ## GitHub Pages
 

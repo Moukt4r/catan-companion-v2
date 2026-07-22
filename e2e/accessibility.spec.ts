@@ -6,6 +6,10 @@ test("home and setup have no detectable accessibility violations", async ({
 }) => {
   await page.goto("/");
 
+  await expect(
+    page.locator('meta[http-equiv="Content-Security-Policy"]'),
+  ).toHaveAttribute("content", /default-src 'self'/);
+
   const homeResults = await new AxeBuilder({ page }).analyze();
   expect(homeResults.violations).toEqual([]);
 

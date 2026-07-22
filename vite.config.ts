@@ -3,10 +3,28 @@ import { configDefaults, defineConfig } from "vitest/config";
 import { VitePWA } from "vite-plugin-pwa";
 
 const base = process.env.VITE_BASE_PATH ?? "/";
+const contentSecurityPolicy =
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'";
 
 export default defineConfig({
   base,
   plugins: [
+    {
+      name: "production-content-security-policy",
+      apply: "build",
+      transformIndexHtml() {
+        return [
+          {
+            tag: "meta",
+            attrs: {
+              "http-equiv": "Content-Security-Policy",
+              content: contentSecurityPolicy,
+            },
+            injectTo: "head-prepend",
+          },
+        ];
+      },
+    },
     react(),
     VitePWA({
       base,
@@ -69,6 +87,7 @@ export default defineConfig({
         "src/**/index.ts",
         "src/domain/types.ts",
         "src/application/control.ts",
+        "src/application/storage.ts",
         "src/app/App.tsx",
         "src/app/AppErrorBoundary.tsx",
         "src/app/gameController.ts",
@@ -81,6 +100,13 @@ export default defineConfig({
         branches: 85,
         functions: 85,
         lines: 85,
+        "src/domain/**": {
+          statements: 95,
+          branches: 95,
+        },
+        "src/application/**": {
+          branches: 90,
+        },
       },
     },
   },

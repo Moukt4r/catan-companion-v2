@@ -234,12 +234,26 @@ export function decide(
       return pauseClock(state, deps);
     case "clock.resumed":
       return resumeClock(state, deps);
-    default: {
+    case "roll.draw":
+    case "roll.alchemy":
+    case "resolution.progressAcknowledged":
+    case "resolution.productionAcknowledged":
+    case "player.publicStateAdjusted":
+    case "metropolis.assignmentProposed":
+    case "metropolis.correctionProposed":
+    case "metropolis.proposalConfirmed":
+    case "metropolis.proposalCancelled":
+    case "attack.confirmed":
+    case "event.acknowledged":
+    case "turn.ended":
+    case "game.completed": {
       const accrued = accrueGameClock(state, deps.at);
       return accrued.ok
         ? decideNormal(accrued.value, command, deps)
         : failure(accrued.error);
     }
+    default:
+      return exhaustiveCommand(command);
   }
 }
 

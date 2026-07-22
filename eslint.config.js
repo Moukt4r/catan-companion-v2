@@ -47,6 +47,7 @@ export default tseslint.config(
         },
       ],
       "@typescript-eslint/no-confusing-void-expression": "off",
+      "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": [
         "error",
         {
@@ -61,7 +62,107 @@ export default tseslint.config(
           allowNumber: true,
         },
       ],
+      "@typescript-eslint/switch-exhaustiveness-check": "error",
       "@typescript-eslint/no-unnecessary-condition": "off",
+    },
+  },
+  {
+    files: ["src/domain/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "react",
+              message: "The domain layer must remain framework independent.",
+            },
+            {
+              name: "react-dom",
+              message: "The domain layer must remain framework independent.",
+            },
+          ],
+          patterns: [
+            {
+              group: [
+                "../app/**",
+                "../application/**",
+                "../infrastructure/**",
+                "../ui/**",
+              ],
+              message: "The domain layer cannot depend on outer layers.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/application/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "react",
+              message:
+                "The application layer must remain framework independent.",
+            },
+            {
+              name: "react-dom",
+              message:
+                "The application layer must remain framework independent.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["../app/**", "../infrastructure/**", "../ui/**"],
+              message: "The application layer cannot depend on outer layers.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/infrastructure/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["../../app/**", "../../ui/**", "../app/**", "../ui/**"],
+              message: "Infrastructure cannot depend on app or UI layers.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/ui/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "../app/**",
+                "../../app/**",
+                "../../../app/**",
+                "../infrastructure/**",
+                "../../infrastructure/**",
+                "../../../infrastructure/**",
+              ],
+              message:
+                "UI components must use application ports and view models.",
+            },
+          ],
+        },
+      ],
     },
   },
   {

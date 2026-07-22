@@ -259,15 +259,19 @@ IndexedDB implementation details are specified in
 Only one tab may mutate an active game:
 
 1. Prefer the Web Locks API for an exclusive per-game lock.
-2. Use `BroadcastChannel` for presence, revision notifications, and takeover
-   requests.
-3. Where Web Locks is unavailable, rely on the atomic expected-head revision
-   check. The first commit wins; a conflicting tab reloads and becomes
-   read-only.
-4. Secondary tabs are read-only and identify the active controlling tab when
+2. Where Web Locks is unavailable, use an expiring per-game local-storage
+   lease with page-hide release and heartbeat renewal.
+3. Use `BroadcastChannel` for presence and revision notifications.
+4. Keep the atomic expected-head revision check as the final split-brain
+   safeguard when browser coordination APIs or storage are unavailable.
+5. Secondary tabs are read-only and identify the active controlling tab when
    presence APIs are available.
-5. Takeover requires confirmation and either a released Web Lock or an
-   unresponsive controlling tab.
+6. Takeover requires a released Web Lock, a released fallback lease, or an
+   expired lease from an unresponsive tab.
+
+The application revalidates ownership before each mutation and after external
+revision notifications, so a tab that loses its fallback lease becomes
+read-only before it can write again.
 
 Every commit includes an expected head revision, so split-brain writes fail
 rather than overwrite.
@@ -316,7 +320,8 @@ GitHub Actions performs:
 2. frozen dependency install;
 3. format, lint, type, unit/property/component, coverage, and production build
    gates;
-4. desktop and mobile Chromium Playwright flows against the built preview;
+4. desktop/mobile Chromium, desktop Firefox, and mobile WebKit Playwright
+   flows against the built preview;
 5. a repository-base-path production build;
 6. Pages configuration and immutable artifact upload;
 7. deployment through the `github-pages` environment;

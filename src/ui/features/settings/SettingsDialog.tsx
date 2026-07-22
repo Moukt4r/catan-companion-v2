@@ -1,5 +1,5 @@
-import type { DevicePreferences } from "../../../app/devicePreferences";
-import type { StorageStatus } from "../../../infrastructure/platform/storage";
+import type { DevicePreferences } from "../../../application/devicePreferences";
+import type { StorageStatus } from "../../../application/storage";
 import { Button, Dialog, StatusBanner } from "../../components";
 
 interface SettingsDialogProps {

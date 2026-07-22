@@ -68,8 +68,99 @@ function durationSeconds(value: string | null): number {
   return (hours ?? 0) * 3_600 + (minutes ?? 0) * 60 + (seconds ?? 0);
 }
 
+async function storedClock(page: Page) {
+  return page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("catan-table-companion");
+      request.onsuccess = () => {
+        resolve(request.result);
+      };
+      request.onerror = () => {
+        reject(request.error ?? new Error("Unable to open the game database."));
+      };
+    });
+    try {
+      const transaction = database.transaction(
+        ["games", "revisions"],
+        "readonly",
+      );
+      const games = await new Promise<Array<{ headRevisionId: string }>>(
+        (resolve, reject) => {
+          const request = transaction.objectStore("games").getAll();
+          request.onsuccess = () => {
+            resolve(request.result as Array<{ headRevisionId: string }>);
+          };
+          request.onerror = () => {
+            reject(request.error ?? new Error("Unable to read games."));
+          };
+        },
+      );
+      const game = games[0];
+      if (!game) {
+        throw new Error("No stored game was found.");
+      }
+      const revision = await new Promise<{
+        state: {
+          clock?: {
+            totalActiveMs: number;
+            runningSince: string | null;
+            pausedAt: string | null;
+          };
+        };
+      }>((resolve, reject) => {
+        const request = transaction
+          .objectStore("revisions")
+          .get(game.headRevisionId);
+        request.onsuccess = () => {
+          resolve(
+            request.result as {
+              state: {
+                clock?: {
+                  totalActiveMs: number;
+                  runningSince: string | null;
+                  pausedAt: string | null;
+                };
+              };
+            },
+          );
+        };
+        request.onerror = () => {
+          reject(request.error ?? new Error("Unable to read game clock."));
+        };
+      });
+      return revision.state.clock ?? null;
+    } finally {
+      database.close();
+    }
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   await resetBrowserState(page);
+});
+
+test("requests persistent storage when a game starts without wake lock", async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "storage", {
+      configurable: true,
+      value: {
+        persist: () => {
+          localStorage.setItem("persist-requested", "yes");
+          return Promise.resolve(true);
+        },
+        persisted: () => Promise.resolve(false),
+        estimate: () => Promise.resolve({ quota: 1_000_000, usage: 1_000 }),
+      },
+    });
+  });
+
+  await setupStandardGame(page);
+
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("persist-requested")))
+    .toBe("yes");
 });
 
 test("persists Alchemy, public state, turns, undo, and redo", async ({
@@ -84,7 +175,7 @@ test("persists Alchemy, public state, turns, undo, and redo", async ({
   await alchemy.getByRole("spinbutton", { name: "Yellow die" }).fill("1");
   await alchemy.getByRole("button", { name: "Roll event die" }).click();
   await resolveRoll(page);
-  await expect(page.locator(".cycle-progress")).toHaveText(
+  await expect(page.locator("main.game-layout .cycle-progress")).toHaveText(
     cycleBefore ?? "0 / 36",
   );
   await expect(page.locator(".roll-result-summary")).toContainText(
@@ -225,6 +316,37 @@ test("tracks per-player time and freezes every timer while paused", async ({
   await expect.poll(turnClock).toBeGreaterThan(beforeResumeTick);
 });
 
+test("does not count time while a game is archived", async ({ page }) => {
+  await setupStandardGame(page);
+  await page.waitForTimeout(1_100);
+  await page.reload();
+  await page.getByRole("button", { name: "Start another game" }).click();
+  await page.getByRole("button", { name: "Archive and continue" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Set up the table" }),
+  ).toBeVisible();
+
+  const archived = await storedClock(page);
+  expect(archived).toMatchObject({
+    runningSince: null,
+  });
+  await page.waitForTimeout(1_200);
+  await page.reload();
+
+  await page.getByRole("button", { name: /Saved games/ }).click();
+  await page.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Roll for Ada" }),
+  ).toBeVisible();
+
+  const resumed = await storedClock(page);
+  expect(resumed?.totalActiveMs).toBe(archived?.totalActiveMs);
+  expect(resumed).toMatchObject({
+    pausedAt: null,
+  });
+  expect(resumed?.runningSince).not.toBeNull();
+});
+
 test("keeps secondary tabs read-only until control is available", async ({
   context,
   page,
@@ -254,6 +376,7 @@ test("keeps secondary tabs read-only until control is available", async ({
 });
 
 test("loads the app shell offline after service-worker installation", async ({
+  browserName,
   context,
   page,
 }) => {
@@ -266,6 +389,22 @@ test("loads the app shell offline after service-worker installation", async ({
       page.evaluate(() => Boolean(navigator.serviceWorker.controller)),
     )
     .toBe(true);
+
+  if (browserName === "webkit") {
+    await context.route("**/*", async (route) => {
+      await route.abort();
+    });
+    try {
+      const html = await page.evaluate(async () => {
+        const response = await fetch(window.location.href);
+        return response.text();
+      });
+      expect(html).toContain("<title>Catan Table Companion</title>");
+    } finally {
+      await context.unroute("**/*");
+    }
+    return;
+  }
 
   await context.setOffline(true);
   try {

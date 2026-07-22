@@ -15,7 +15,7 @@ export default defineConfig({
   webServer: {
     command: "pnpm build && pnpm preview --port 4173",
     url: "http://127.0.0.1:4173",
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
   projects: [
@@ -29,6 +29,18 @@ export default defineConfig({
       name: "mobile-chromium",
       use: {
         ...devices["Pixel 7"],
+      },
+    },
+    {
+      name: "firefox",
+      use: {
+        ...devices["Desktop Firefox"],
+      },
+    },
+    {
+      name: "mobile-webkit",
+      use: {
+        ...devices["iPhone 15"],
       },
     },
   ],

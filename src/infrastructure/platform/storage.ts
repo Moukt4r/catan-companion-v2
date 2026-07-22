@@ -1,8 +1,6 @@
-export interface StorageStatus {
-  persisted: boolean | null;
-  quota: number | null;
-  usage: number | null;
-}
+import type { StorageStatus } from "../../application/storage";
+
+export type { StorageStatus } from "../../application/storage";
 
 export async function getStorageStatus(): Promise<StorageStatus> {
   const storage = navigator.storage;

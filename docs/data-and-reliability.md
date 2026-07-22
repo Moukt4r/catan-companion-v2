@@ -129,6 +129,10 @@ undo/redo selects a historical game timeline, it also restores that timeline's
 current player and clock anchor; total live time remains wall-clock continuous
 while per-player attribution follows the selected timeline.
 
+Archiving or replacing an active game first settles its elapsed time and writes
+a paused clock revision. Resuming an archived game writes a new resume revision,
+so time spent in the archive is never counted as active play.
+
 ### Player state
 
 ```ts

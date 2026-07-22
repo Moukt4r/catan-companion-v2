@@ -8,7 +8,11 @@ import type {
   RandomSource,
   RevisionId,
 } from "../domain";
-import { PersistenceError, persistenceError } from "./errors";
+import {
+  PersistenceError,
+  isPersistenceError,
+  persistenceError,
+} from "./errors";
 import type { GameChannel } from "./broadcast";
 import type { GameControl } from "./control";
 import type {
@@ -17,11 +21,17 @@ import type {
   ImportPreview,
   LoadedGame,
   RecoveryInformation,
+  RevisionCommit,
   StoredGame,
   StoredRevision,
   ValidatedImport,
 } from "./persistence";
-import { APPLICATION_VERSION, DATABASE_SCHEMA_VERSION } from "./persistence";
+import {
+  APPLICATION_VERSION,
+  DATABASE_SCHEMA_VERSION,
+  EXPORT_FORMAT,
+  EXPORT_VERSION,
+} from "./persistence";
 import type { RuntimeDependencies } from "./runtime";
 import { storedGameFromState } from "./records";
 import { sha256 } from "./integrity";
@@ -40,6 +50,14 @@ export interface ControllerSnapshot {
   importPreview: ImportPreview | null;
   recovery: RecoveryInformation | null;
   readOnly: boolean;
+  pendingSave: PendingSaveInformation | null;
+}
+
+export interface PendingSaveInformation {
+  revisionId: RevisionId;
+  commandType: StoredRevision["command"]["type"];
+  createdAt: string;
+  message: string;
 }
 
 export class GameController {
@@ -55,6 +73,7 @@ export class GameController {
     canRedo: false,
     recovery: null,
     readOnly: false,
+    pendingSave: null,
     lastSavedAt: null,
     importPreview: null,
   };
@@ -62,6 +81,7 @@ export class GameController {
   private mutationTail: Promise<void> = Promise.resolve();
   private activeGame: StoredGame | null = null;
   private pendingImport: ValidatedImport | null = null;
+  private pendingCommit: RevisionCommit | null = null;
   private readonly tabId: string;
   private readonly unsubscribeChannel: (() => void) | null;
 
@@ -138,6 +158,7 @@ export class GameController {
       const gameId = this.runtime.gameId();
       const revisionId = this.runtime.revisionId();
       const createdAt = this.runtime.now();
+      await this.archiveCurrentForReplacement(createdAt);
       const result = createGame({
         gameId,
         revisionId,
@@ -167,15 +188,31 @@ export class GameController {
   }
 
   async resumeGame(id: GameId): Promise<void> {
-    await this.enqueue(async () => {
+    await this.mutate(async () => {
       this.patch({ loading: true, error: null });
       try {
+        const target = await this.repository.loadGame(id);
+        if (target === null) {
+          throw persistenceError("NOT_FOUND", "Game was not found.");
+        }
+        const at = this.runtime.now();
+        if (this.activeGame !== null && this.activeGame.id !== id) {
+          await this.archiveCurrentForReplacement(at);
+        }
         await this.acquireControl(id);
-        const loaded = await this.repository.resumeGame(id, this.runtime.now());
+        const loaded = await this.repository.resumeGame(id, at);
         this.applyLoadedGame(
           loaded,
           await this.repository.getRevisionHistory(id),
         );
+        if (
+          target.game.lifecycle === "archived" &&
+          loaded.recovery === null &&
+          loaded.revision?.state.status === "active" &&
+          !this.snapshot.readOnly
+        ) {
+          await this.resumeArchivedClock(target.game.updatedAt, at);
+        }
         this.patch({ games: await this.repository.listGames() });
       } catch (error) {
         this.patch({ error: normalizeError(error) });
@@ -188,38 +225,7 @@ export class GameController {
 
   async dispatch(command: GameCommand): Promise<void> {
     await this.mutate(async () => {
-      this.requireWritable();
-      const state = this.requireActiveState();
-      const game = this.requireActiveGame();
-      const revisionId = this.runtime.revisionId();
-      const at = this.runtime.now();
-      const result = decide(state, command, {
-        at,
-        revisionId,
-        random: this.random,
-        ids: this.runtime.domainIds(),
-      });
-      if (!result.ok) {
-        throw new DomainApplicationError(
-          result.error.code,
-          result.error.message,
-        );
-      }
-      const commandId = this.runtime.commandId();
-      const revision = await this.makeRevision(
-        result.value.nextState,
-        state.revisionId,
-        commandId,
-        command,
-        result.value.summary,
-      );
-      await this.repository.commitRevision({
-        gameId: game.id,
-        expectedHeadRevisionId: state.revisionId,
-        commandId,
-        revision,
-      });
-      await this.refreshAfterDurableChange(game.id, revision.id);
+      await this.commitActiveCommand(command, this.runtime.now());
     });
   }
 
@@ -234,8 +240,10 @@ export class GameController {
   async archiveActive(): Promise<void> {
     await this.mutate(async () => {
       this.requireWritable();
+      const at = this.runtime.now();
+      await this.pauseActiveClock(at);
       const game = this.requireActiveGame();
-      await this.repository.archiveGame(game.id, this.runtime.now());
+      await this.repository.archiveGame(game.id, at);
       await this.releaseControl();
       this.activeGame = null;
       this.patch({
@@ -300,6 +308,9 @@ export class GameController {
           "No validated import is pending.",
         );
       }
+      const sourceGame = this.pendingImport.document.game;
+      const importedAt = this.runtime.now();
+      await this.archiveCurrentForReplacement(importedAt);
       const id = await this.repository.importGame(
         this.pendingImport,
         this.runtime,
@@ -307,7 +318,20 @@ export class GameController {
       await this.acquireControl(id);
       this.pendingImport = null;
       this.patch({ importPreview: null });
-      await this.loadIntoSnapshot(id);
+      const loaded = await this.repository.resumeGame(id, importedAt);
+      this.applyLoadedGame(
+        loaded,
+        await this.repository.getRevisionHistory(id),
+      );
+      if (
+        sourceGame.lifecycle === "archived" &&
+        loaded.recovery === null &&
+        loaded.revision?.state.status === "active" &&
+        !this.snapshot.readOnly
+      ) {
+        await this.resumeArchivedClock(sourceGame.updatedAt, importedAt);
+      }
+      this.patch({ games: await this.repository.listGames() });
       return id;
     });
   }
@@ -319,6 +343,108 @@ export class GameController {
 
   clearError(): void {
     this.patch({ error: null });
+  }
+
+  async retryPendingSave(): Promise<void> {
+    await this.mutate(async () => {
+      const pending = this.requirePendingCommit();
+      await this.repository.commitRevision(pending);
+      this.clearPendingCommit();
+      await this.refreshAfterDurableChange(pending.gameId, pending.revision.id);
+    }, true);
+  }
+
+  async exportPendingSave(): Promise<ExportDocument> {
+    return this.enqueue(async () => {
+      const pending = this.requirePendingCommit();
+      const exportedAt = this.runtime.now();
+      const durable = await this.repository.exportGame(
+        pending.gameId,
+        exportedAt,
+      );
+      if (durable.game.headRevisionId === pending.revision.id) {
+        return durable;
+      }
+      if (durable.game.headRevisionId !== pending.expectedHeadRevisionId) {
+        throw persistenceError(
+          "REVISION_CONFLICT",
+          "The game changed before the emergency backup was created.",
+        );
+      }
+
+      const candidateGame = {
+        ...storedGameFromState(
+          pending.revision.state,
+          pending.revision.state.status,
+        ),
+        createdAt: durable.game.createdAt,
+      };
+      const unsigned = {
+        format: EXPORT_FORMAT as typeof EXPORT_FORMAT,
+        exportVersion: EXPORT_VERSION as typeof EXPORT_VERSION,
+        exportedAt,
+        applicationVersion: APPLICATION_VERSION,
+        game: candidateGame,
+        activeBranch: [...durable.activeBranch, pending.revision],
+        ...(durable.optionalBranches === undefined
+          ? {}
+          : { optionalBranches: durable.optionalBranches }),
+        integrity: { algorithm: "SHA-256" as const },
+      };
+      return {
+        ...unsigned,
+        integrity: {
+          algorithm: "SHA-256",
+          documentHash: await sha256(unsigned),
+        },
+      };
+    });
+  }
+
+  async revertPendingSave(): Promise<void> {
+    await this.mutate(async () => {
+      const pending = this.requirePendingCommit();
+      const loaded = await this.repository.loadGame(pending.gameId);
+      if (loaded === null) {
+        throw persistenceError("NOT_FOUND", "Game was not found.");
+      }
+
+      let reverted = loaded;
+      if (loaded.game.headRevisionId === pending.revision.id) {
+        reverted = await this.repository.moveHead({
+          gameId: pending.gameId,
+          expectedHeadRevisionId: pending.revision.id,
+          direction: "undo",
+          updatedAt: this.runtime.now(),
+        });
+      } else if (
+        loaded.game.headRevisionId !== pending.expectedHeadRevisionId
+      ) {
+        this.clearPendingCommit();
+        this.applyLoadedGame(
+          loaded,
+          await this.repository.getRevisionHistory(pending.gameId),
+        );
+        this.patch({
+          games: await this.repository.listGames(),
+          error: persistenceError(
+            "REVISION_CONFLICT",
+            "The game changed in another tab; the failed action was discarded.",
+          ),
+        });
+        return;
+      }
+
+      this.clearPendingCommit();
+      this.applyLoadedGame(
+        reverted,
+        await this.repository.getRevisionHistory(pending.gameId),
+      );
+      this.patch({
+        games: await this.repository.listGames(),
+        error: null,
+      });
+    }, true);
   }
 
   async recoverActive(): Promise<void> {
@@ -418,10 +544,16 @@ export class GameController {
     });
   }
 
-  private async mutate<T>(operation: () => Promise<T>): Promise<T> {
+  private async mutate<T>(
+    operation: () => Promise<T>,
+    allowPendingSave = false,
+  ): Promise<T> {
     return this.enqueue(async () => {
       this.patch({ saving: true, error: null });
       try {
+        if (!allowPendingSave) {
+          this.requireNoPendingSave();
+        }
         return await operation();
       } catch (error) {
         this.patch({ error: normalizeError(error) });
@@ -430,6 +562,146 @@ export class GameController {
         this.patch({ saving: false });
       }
     });
+  }
+
+  private async commitActiveCommand(
+    command: GameCommand,
+    at: GameState["updatedAt"],
+  ): Promise<StoredRevision> {
+    this.requireWritable();
+    const state = this.requireActiveState();
+    const game = this.requireActiveGame();
+    const revisionId = this.runtime.revisionId();
+    const result = decide(state, command, {
+      at,
+      revisionId,
+      random: this.random,
+      ids: this.runtime.domainIds(),
+    });
+    if (!result.ok) {
+      throw new DomainApplicationError(result.error.code, result.error.message);
+    }
+    const commandId = this.runtime.commandId();
+    const revision = await this.makeRevision(
+      result.value.nextState,
+      state.revisionId,
+      commandId,
+      command,
+      result.value.summary,
+    );
+    const commit = {
+      gameId: game.id,
+      expectedHeadRevisionId: state.revisionId,
+      commandId,
+      revision,
+    };
+    try {
+      await this.repository.commitRevision(commit);
+    } catch (error) {
+      if (shouldRetainPendingSave(error)) {
+        this.pendingCommit = commit;
+        this.patch({
+          pendingSave: {
+            revisionId: revision.id,
+            commandType: command.type,
+            createdAt: revision.createdAt,
+            message: normalizeError(error).message,
+          },
+        });
+      }
+      throw error;
+    }
+    this.clearPendingCommit();
+    await this.refreshAfterDurableChange(game.id, revision.id);
+    return revision;
+  }
+
+  private async pauseActiveClock(at: GameState["updatedAt"]): Promise<void> {
+    const state = this.snapshot.activeState;
+    if (
+      state?.status === "active" &&
+      state.clock !== undefined &&
+      state.clock.runningSince !== null
+    ) {
+      await this.commitActiveCommand({ type: "clock.paused" }, at);
+    }
+  }
+
+  private async archiveCurrentForReplacement(
+    at: GameState["updatedAt"],
+  ): Promise<void> {
+    if (this.activeGame === null) {
+      return;
+    }
+    if (this.activeGame.lifecycle !== "active") {
+      await this.releaseControl();
+      this.activeGame = null;
+      this.patch({
+        activeState: null,
+        revisionHistory: [],
+        canUndo: false,
+        canRedo: false,
+        recovery: null,
+      });
+      return;
+    }
+    this.requireWritable();
+    await this.pauseActiveClock(at);
+    const game = this.requireActiveGame();
+    await this.repository.archiveGame(game.id, at);
+    await this.releaseControl();
+    this.activeGame = null;
+    this.patch({
+      activeState: null,
+      revisionHistory: [],
+      canUndo: false,
+      canRedo: false,
+      recovery: null,
+    });
+  }
+
+  private async resumeArchivedClock(
+    archivedAt: GameState["updatedAt"],
+    resumedAt: GameState["updatedAt"],
+  ): Promise<void> {
+    let state = this.snapshot.activeState;
+    if (state?.status !== "active" || state.clock === undefined) {
+      return;
+    }
+    if (state.clock.runningSince !== null) {
+      await this.commitActiveCommand({ type: "clock.paused" }, archivedAt);
+      state = this.snapshot.activeState;
+    }
+    if (
+      state?.clock?.pausedAt !== null &&
+      state?.clock?.pausedAt !== undefined
+    ) {
+      await this.commitActiveCommand({ type: "clock.resumed" }, resumedAt);
+    }
+  }
+
+  private requirePendingCommit(): RevisionCommit {
+    if (this.pendingCommit === null) {
+      throw persistenceError(
+        "NOT_FOUND",
+        "There is no failed save to resolve.",
+      );
+    }
+    return this.pendingCommit;
+  }
+
+  private requireNoPendingSave(): void {
+    if (this.pendingCommit !== null) {
+      throw persistenceError(
+        "TRANSACTION_FAILED",
+        "Resolve the failed save before making another change.",
+      );
+    }
+  }
+
+  private clearPendingCommit(): void {
+    this.pendingCommit = null;
+    this.patch({ pendingSave: null });
   }
 
   private enqueue<T>(operation: () => Promise<T>): Promise<T> {
@@ -461,6 +733,9 @@ export class GameController {
       return;
     }
     await this.loadIntoSnapshot(id);
+    if (this.control !== undefined && !this.control.hasControl(id)) {
+      this.patch({ readOnly: true });
+    }
     this.patch({ error });
   }
 
@@ -554,7 +829,14 @@ export class GameController {
   }
 
   private requireWritable(): void {
-    if (this.snapshot.readOnly) {
+    const lostControl =
+      this.control !== undefined &&
+      this.activeGame !== null &&
+      !this.control.hasControl(this.activeGame.id);
+    if (this.snapshot.readOnly || lostControl) {
+      if (lostControl) {
+        this.patch({ readOnly: true });
+      }
       throw persistenceError(
         "REVISION_CONFLICT",
         "This game is controlled by another tab.",
@@ -604,5 +886,13 @@ function normalizeError(error: unknown): Error {
   return new PersistenceError(
     "TRANSACTION_FAILED",
     "An unknown error occurred.",
+  );
+}
+
+function shouldRetainPendingSave(error: unknown): boolean {
+  return (
+    !isPersistenceError(error) ||
+    error.code === "STORAGE_UNAVAILABLE" ||
+    error.code === "TRANSACTION_FAILED"
   );
 }

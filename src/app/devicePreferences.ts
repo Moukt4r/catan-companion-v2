@@ -1,18 +1,22 @@
 import { z } from "zod";
+import {
+  defaultDevicePreferences,
+  type DevicePreferences,
+} from "../application/devicePreferences";
+
+export {
+  defaultDevicePreferences,
+  type DevicePreferences,
+} from "../application/devicePreferences";
 
 const storageKey = "catan-companion-device-preferences";
 
-export const devicePreferencesSchema = z.object({
+export const devicePreferencesSchema: z.ZodType<DevicePreferences> = z.object({
   theme: z.enum(["system", "light", "dark", "high-contrast"]).default("system"),
   soundEnabled: z.boolean().default(false),
   motion: z.enum(["system", "full", "reduced"]).default("system"),
   keepAwake: z.boolean().default(false),
 });
-
-export type DevicePreferences = z.infer<typeof devicePreferencesSchema>;
-
-export const defaultDevicePreferences: DevicePreferences =
-  devicePreferencesSchema.parse({});
 
 export function loadDevicePreferences(): DevicePreferences {
   try {

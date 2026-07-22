@@ -321,6 +321,8 @@ and vulnerable city count are derived rather than independently editable.
   updates.
 - Continue counting active time while the app is closed or on the Home screen
   unless Pause was selected first.
+- Settle and pause the clock before archiving or replacing a game, then resume
+  from the current time so archived intervals are excluded.
 - Allow Pause during normal play and roll resolution.
 - While paused, replace the game UI with a blocking Resume-only dialog so no
   other game action can run.

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { DevicePreferences } from "../../../app/devicePreferences";
+import type { DevicePreferences } from "../../../application/devicePreferences";
 import { Button, PlayerMarker, StatusBanner } from "../../components";
 
 const playerColors = [

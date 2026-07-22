@@ -17,6 +17,7 @@ import {
   asIsoTimestamp,
   asPlayerId,
   asRevisionId,
+  asScoreEntryId,
   createGame,
   decide,
 } from "../../domain";
@@ -772,6 +773,46 @@ describe("IndexedDbGameRepository", () => {
     expect(rolled.revision.sequence).toBe(2);
   });
 
+  it("rejects lifecycle metadata that contradicts a completed head", async () => {
+    const repo = repository();
+    const created = await initial(repo, "completed-summary");
+    const winner = created.state.players[0];
+    if (!winner) throw new Error("Expected a winning player.");
+    const winningState: GameState = {
+      ...created.state,
+      turn: {
+        ...created.state.turn,
+        phase: "action-phase",
+      },
+      scoreLedger: [
+        ...created.state.scoreLedger,
+        {
+          id: asScoreEntryId("completed-summary-score"),
+          playerId: winner.id,
+          delta: created.state.setup.victoryTarget - 3,
+          reason: "manual",
+          createdAt: created.state.updatedAt,
+        },
+      ],
+    };
+    await commit(
+      repo,
+      winningState,
+      { type: "game.completed", winnerId: winner.id },
+      "completed-summary-child",
+    );
+    const exported = await repo.exportGame(
+      created.state.id,
+      asIsoTimestamp("2026-07-12T15:00:00.000Z"),
+    );
+    exported.game.lifecycle = "active";
+    exported.integrity.documentHash = await documentHash(exported);
+
+    await expect(repo.previewImport(exported)).rejects.toMatchObject({
+      code: "INVALID_IMPORT",
+    });
+  });
+
   it("recovers to the newest valid ancestor and marks the game corrupt", async () => {
     const repo = repository();
     const created = await initial(repo);
@@ -811,6 +852,28 @@ describe("IndexedDbGameRepository", () => {
     expect((await repo.loadGame(created.state.id))?.revision?.state).toEqual(
       created.state,
     );
+  });
+
+  it("marks cyclic revision ancestry corrupt without hanging", async () => {
+    const repo = repository();
+    const created = await initial(repo, "cyclic-history");
+    await repo.close();
+    const dbName = databases[databases.length - 1] as string;
+    const db = await openDB<RevisionDatabase>(dbName, DATABASE_SCHEMA_VERSION);
+    await db.put("revisions", {
+      ...created.revision,
+      parentRevisionId: created.revision.id,
+    });
+    db.close();
+
+    const loaded = await repo.loadGame(created.state.id);
+
+    expect(loaded?.game.lifecycle).toBe("corrupt");
+    expect(loaded?.revision).toBeNull();
+    expect(loaded?.recovery).toMatchObject({
+      invalidHeadRevisionId: created.revision.id,
+      validAncestorRevisionId: null,
+    });
   });
 
   it("rejects stale, invalid, and non-ancestor recovery targets", async () => {

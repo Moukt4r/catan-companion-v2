@@ -135,6 +135,7 @@ Critical flows:
 14. freeze all timers while paused and resume without counting the break;
 15. attribute elapsed turn time to each player across next-player rolls;
 16. finish and archive a game.
+17. archive and resume without counting time spent in the archive.
 
 ### 2.6 Accessibility tests
 
@@ -245,7 +246,8 @@ One workflow runs:
 4. type check;
 5. unit/property/component tests with enforced coverage thresholds;
 6. production build;
-7. desktop and mobile Chromium Playwright critical smoke.
+7. desktop/mobile Chromium, desktop Firefox, and mobile WebKit Playwright
+   critical flows.
 
 Cancel superseded runs on the same branch.
 
@@ -253,12 +255,12 @@ Cancel superseded runs on the same branch.
 
 CI and Pages deployment run as separate workflows on each push to `main`. The
 deployment workflow repeats the quality gates independently, then runs
-desktop/mobile Chromium flows, the repository-path build, Pages artifact
-upload, deployment, and a public HTML smoke check. Pages deploys only after its
-build job succeeds.
+Chromium, Firefox, and mobile WebKit flows, the repository-path build, Pages
+artifact upload, deployment, and a public HTML smoke check. Pages deploys only
+after its build job succeeds.
 
-WebKit, Firefox, Lighthouse, and broader device checks remain manual release
-checks until dedicated automated projects are added.
+Lighthouse and broader physical-device checks remain manual release checks
+until dedicated automation is added.
 
 ### Planned scheduled checks
 

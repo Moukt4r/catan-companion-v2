@@ -69,6 +69,7 @@ import {
   RollResolutionDialog,
   type AttackProgressChoice,
 } from "../ui/features/game/RollResolutionDialog";
+import { SaveRecoveryDialog } from "../ui/features/game/SaveRecoveryDialog";
 import {
   toGameCompleteView,
   toGameTableView,
@@ -211,6 +212,7 @@ export function App() {
       : null;
   const safeToUpdate =
     !snapshot.saving &&
+    snapshot.pendingSave === null &&
     !rollResolutionPinned &&
     !resolutionBusy &&
     (!state ||
@@ -301,14 +303,12 @@ export function App() {
     if (started) {
       setScreen("game");
       playCue("confirm");
-      if (draft.preferences.keepAwake) {
-        void requestPersistentStorage()
-          .then(() => getStorageStatus())
-          .then(setStorageStatus)
-          .catch((error: unknown) => {
-            setNotice(errorMessage(error));
-          });
-      }
+      void requestPersistentStorage()
+        .then(() => getStorageStatus())
+        .then(setStorageStatus)
+        .catch((error: unknown) => {
+          setNotice(errorMessage(error));
+        });
     }
   }
 
@@ -535,14 +535,14 @@ export function App() {
     if (screen === "game" && state) {
       const savedLabel = snapshot.saving
         ? "Saving"
-        : snapshot.error
+        : snapshot.pendingSave || snapshot.error
           ? "Save failed"
           : snapshot.lastSavedAt
             ? "Saved"
             : "Ready";
       const saveTone = snapshot.saving
         ? "info"
-        : snapshot.error
+        : snapshot.pendingSave || snapshot.error
           ? "danger"
           : "success";
 
@@ -665,6 +665,7 @@ export function App() {
       {page}
 
       {(notice ?? snapshot.error?.message) &&
+      snapshot.pendingSave === null &&
       (screen !== "home" || snapshot.recovery !== null) ? (
         <aside
           className={`app-notice${snapshot.recovery ? " app-notice--danger" : ""}`}
@@ -1032,6 +1033,41 @@ export function App() {
           />
         </>
       ) : null}
+
+      <SaveRecoveryDialog
+        open={snapshot.pendingSave !== null}
+        message={
+          snapshot.pendingSave?.message ??
+          "The latest action could not be confirmed saved."
+        }
+        busy={snapshot.saving}
+        onRetry={() => {
+          void runOperation(async () => {
+            await gameController.retryPendingSave();
+            const retriedState = gameController.getSnapshot().activeState;
+            if (retriedState?.status === "completed") {
+              setWinnerOpen(false);
+              setRollResolutionPinned(false);
+              setScreen("complete");
+            }
+          });
+        }}
+        onExport={() => {
+          void runOperation(async () => {
+            const document = await gameController.exportPendingSave();
+            downloadJson(
+              document,
+              makeBackupFilename(`${document.game.title}-emergency`),
+            );
+            setNotice("Emergency backup exported.");
+          });
+        }}
+        onRevert={() => {
+          void runOperation(async () => {
+            await gameController.revertPendingSave();
+          });
+        }}
+      />
 
       {!clockPaused ? <PwaUpdate safeToUpdate={safeToUpdate} /> : null}
     </>
