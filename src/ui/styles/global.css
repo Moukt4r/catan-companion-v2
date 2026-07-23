@@ -104,6 +104,7 @@ select {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
+summary:focus-visible,
 textarea:focus-visible,
 [tabindex]:focus-visible {
   outline: none;

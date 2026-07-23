@@ -52,6 +52,12 @@ test("the inline roll result has no detectable accessibility violations", async 
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Start and save game" }).click();
+  const barbarianDetails = page.locator(".barbarian-details__body");
+  if ((page.viewportSize()?.width ?? 0) <= 600) {
+    await expect(barbarianDetails).toBeHidden();
+  } else {
+    await expect(barbarianDetails).toBeVisible();
+  }
   await page.getByRole("button", { name: "Roll", exact: true }).click();
 
   await expect(page.locator(".roll-result-summary")).toBeVisible();
@@ -81,6 +87,13 @@ test("the active four-player table remains accessible across visual themes", asy
 }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await setupFourPlayerGame(page);
+
+  const barbarianSummary = page.locator(".barbarian-summary");
+  const barbarianDetails = page.locator(".barbarian-details__body");
+  await expect(barbarianSummary).toBeVisible();
+  await expect(barbarianDetails).toBeHidden();
+  await barbarianSummary.click();
+  await expect(barbarianDetails).toBeVisible();
 
   for (const theme of ["light", "dark", "high-contrast"] as const) {
     await page.evaluate((value) => {

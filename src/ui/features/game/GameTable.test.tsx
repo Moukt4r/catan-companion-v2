@@ -64,7 +64,7 @@ describe("GameTable", () => {
     const onRoll = vi.fn();
     const onEditPlayer = vi.fn();
 
-    render(
+    const { container } = render(
       <GameTable
         view={view()}
         onRoll={onRoll}
@@ -93,6 +93,12 @@ describe("GameTable", () => {
         name: "7 spaces until the barbarian attack",
       }),
     ).toBeInTheDocument();
+    expect(container.querySelector(".barbarian-details")).toHaveAttribute(
+      "open",
+    );
+    expect(container.querySelector(".barbarian-summary")).toHaveTextContent(
+      "7 spaces until attack",
+    );
   });
 
   it("disables every state-changing table control in read-only mode", () => {

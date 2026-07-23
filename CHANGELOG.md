@@ -10,6 +10,8 @@
   and kept blocking dialogs only for barbarian attacks that require decisions.
 - Removed expensive setup-screen paint effects on touch devices for responsive
   typing and scrolling.
+- Collapsed the mobile barbarian panel to an always-visible risk summary while
+  keeping the full track one tap away.
 
 ## 0.1.4 - 2026-07-22
 

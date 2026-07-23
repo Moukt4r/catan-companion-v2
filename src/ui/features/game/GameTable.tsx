@@ -1,7 +1,18 @@
+import { useEffect, useState } from "react";
 import harborIllustration from "../../../assets/illustrations/harbor-watch.webp";
 import resourceIllustration from "../../../assets/illustrations/resource-landscape.webp";
 import { Button, DieFace, PlayerMarker, StatusBanner } from "../../components";
 import { formatDuration } from "./time";
+
+const MOBILE_BARBARIAN_QUERY = "(max-width: 600px)";
+
+function barbarianPanelStartsOpen(): boolean {
+  return (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function" ||
+    !window.matchMedia(MOBILE_BARBARIAN_QUERY).matches
+  );
+}
 
 export interface GamePlayerView {
   id: string;
@@ -177,10 +188,31 @@ export function GameTable({
     0,
     view.barbarian.trackLength - view.barbarian.position,
   );
+  const spacesLabel = `${spacesRemaining} ${
+    spacesRemaining === 1 ? "space" : "spaces"
+  }`;
   const risk = barbarianRisk(
     view.barbarian.strength,
     view.barbarian.defenderStrength,
   );
+  const [barbarianOpen, setBarbarianOpen] = useState(barbarianPanelStartsOpen);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return;
+    }
+    const query = window.matchMedia(MOBILE_BARBARIAN_QUERY);
+    const updateForViewport = () => {
+      setBarbarianOpen(!query.matches);
+    };
+    query.addEventListener("change", updateForViewport);
+    return () => {
+      query.removeEventListener("change", updateForViewport);
+    };
+  }, []);
 
   return (
     <main className="game-layout">
@@ -396,53 +428,76 @@ export function GameTable({
         )}
       </section>
 
-      <aside
-        className="surface barbarian-card"
-        aria-labelledby="barbarian-heading"
-      >
-        <div className="barbarian-card__visual" aria-hidden="true">
-          <img src={harborIllustration} alt="" />
-        </div>
-        <div className="barbarian-card__heading">
-          <div>
-            <p className="eyebrow">Cities &amp; Knights</p>
-            <h2 id="barbarian-heading">Barbarian track</h2>
-          </div>
-          <span className={`risk-badge risk-badge--${risk.tone}`}>
-            {risk.label}
-          </span>
-        </div>
-        <div
-          className="barbarian-track"
-          role="meter"
-          aria-label={`${spacesRemaining} spaces until the barbarian attack`}
-          aria-valuemin={0}
-          aria-valuemax={view.barbarian.trackLength}
-          aria-valuenow={view.barbarian.position}
+      <aside className="surface barbarian-card" aria-label="Barbarian track">
+        <details
+          className="barbarian-details"
+          open={barbarianOpen}
+          onToggle={(event) => {
+            if (
+              typeof window.matchMedia !== "function" ||
+              window.matchMedia(MOBILE_BARBARIAN_QUERY).matches
+            ) {
+              setBarbarianOpen(event.currentTarget.open);
+            }
+          }}
         >
-          {Array.from({ length: view.barbarian.trackLength }, (_, index) => (
-            <span
-              key={index}
-              className={
-                index < view.barbarian.position ? "barbarian-track__filled" : ""
-              }
-            />
-          ))}
-        </div>
-        <p className="barbarian-distance">
-          {spacesRemaining} {spacesRemaining === 1 ? "space" : "spaces"} until
-          attack
-        </p>
-        <dl className="definition-grid">
-          <div>
-            <dt>Barbarians</dt>
-            <dd>{view.barbarian.strength}</dd>
+          <summary className="barbarian-summary">
+            <span className="barbarian-summary__copy">
+              <span className="eyebrow">Cities &amp; Knights</span>
+              <strong>{spacesLabel} until attack</strong>
+            </span>
+            <span className={`risk-badge risk-badge--${risk.tone}`}>
+              {risk.label}
+            </span>
+          </summary>
+          <div className="barbarian-details__body">
+            <div className="barbarian-card__visual" aria-hidden="true">
+              <img src={harborIllustration} alt="" />
+            </div>
+            <div className="barbarian-card__heading">
+              <div>
+                <p className="eyebrow">Cities &amp; Knights</p>
+                <h2>Barbarian track</h2>
+              </div>
+              <span className={`risk-badge risk-badge--${risk.tone}`}>
+                {risk.label}
+              </span>
+            </div>
+            <div
+              className="barbarian-track"
+              role="meter"
+              aria-label={`${spacesLabel} until the barbarian attack`}
+              aria-valuemin={0}
+              aria-valuemax={view.barbarian.trackLength}
+              aria-valuenow={view.barbarian.position}
+            >
+              {Array.from(
+                { length: view.barbarian.trackLength },
+                (_, index) => (
+                  <span
+                    key={index}
+                    className={
+                      index < view.barbarian.position
+                        ? "barbarian-track__filled"
+                        : ""
+                    }
+                  />
+                ),
+              )}
+            </div>
+            <p className="barbarian-distance">{spacesLabel} until attack</p>
+            <dl className="definition-grid">
+              <div>
+                <dt>Barbarians</dt>
+                <dd>{view.barbarian.strength}</dd>
+              </div>
+              <div>
+                <dt>Active defense</dt>
+                <dd>{view.barbarian.defenderStrength}</dd>
+              </div>
+            </dl>
           </div>
-          <div>
-            <dt>Active defense</dt>
-            <dd>{view.barbarian.defenderStrength}</dd>
-          </div>
-        </dl>
+        </details>
       </aside>
 
       <section className="player-strip" aria-label="Players">
