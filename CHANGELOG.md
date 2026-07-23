@@ -6,6 +6,10 @@
   original locally generated frontier illustrations.
 - Improved active-game hierarchy, setup flow, responsive touch targets, and
   dark/high-contrast accessibility.
+- Removed the roll-result modal from ordinary turns in favor of inline guidance
+  and kept blocking dialogs only for barbarian attacks that require decisions.
+- Removed expensive setup-screen paint effects on touch devices for responsive
+  typing and scrolling.
 
 ## 0.1.4 - 2026-07-22
 

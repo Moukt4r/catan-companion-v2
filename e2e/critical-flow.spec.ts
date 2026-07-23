@@ -44,19 +44,17 @@ async function setupStandardGame(page: Page) {
   await expect(
     page.getByRole("heading", { name: "Roll for Ada" }),
   ).toBeVisible();
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
 }
 
 async function resolveRoll(page: Page) {
-  const dialog = page.getByRole("dialog", { name: /Roll result:/ });
-  await expect(dialog).toBeVisible();
-  const choices = dialog.locator("select");
-  for (let index = 0; index < (await choices.count()); index += 1) {
-    await choices
-      .nth(index)
-      .selectOption(index % 2 === 0 ? "science" : "trade");
+  await expect(page.locator(".roll-result-summary")).toBeVisible();
+  const houseEvent = page.getByRole("button", {
+    name: "Acknowledge house event",
+  });
+  if (await houseEvent.isVisible()) {
+    await houseEvent.click();
   }
-
-  await dialog.getByRole("button", { name: "Continue current turn" }).click();
   await expect(
     page.getByRole("button", { name: /^Next: .* & roll$/ }),
   ).toBeEnabled();
@@ -210,11 +208,7 @@ test("persists Alchemy, public state, turns, undo, and redo", async ({
   ).toHaveText("4");
 
   await page.getByRole("button", { name: "Next: Grace & roll" }).click();
-  const graceResult = page.getByRole("dialog", { name: /Roll result:/ });
-  await expect(graceResult).toContainText("Grace rolled");
-  await graceResult
-    .getByRole("button", { name: "Continue current turn" })
-    .click();
+  await resolveRoll(page);
   await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
 
   await page.reload();
@@ -244,21 +238,18 @@ test("supports the explicit two-player house mode", async ({ page }) => {
   await expect(page.getByText("Balanced house dice")).toBeVisible();
 });
 
-test("quick roll advances the turn and updates the same result modal", async ({
+test("next-player roll advances the turn and updates the inline result", async ({
   page,
 }) => {
   await setupStandardGame(page);
   await page.getByRole("button", { name: "Roll", exact: true }).click();
+  await resolveRoll(page);
+  await page.getByRole("button", { name: "Next: Grace & roll" }).click();
+  await resolveRoll(page);
 
-  let dialog = page.getByRole("dialog", { name: /Roll result:/ });
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("Ada rolled");
-  await dialog
-    .getByRole("button", { name: "Next: Grace & quick roll" })
-    .click();
-
-  dialog = page.getByRole("dialog", { name: /Roll result:/ });
-  await expect(dialog).toContainText("Grace rolled");
+  await expect(
+    page.getByRole("dialog", { name: /Roll result:/ }),
+  ).not.toBeVisible();
   await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
   await expect(page.locator(".game-meta")).toContainText("Turn 2");
 });
@@ -269,12 +260,9 @@ test("tracks per-player time and freezes every timer while paused", async ({
   await setupStandardGame(page);
   await page.waitForTimeout(1_100);
   await page.getByRole("button", { name: "Roll", exact: true }).click();
-  let dialog = page.getByRole("dialog", { name: /Roll result:/ });
-  await dialog.getByRole("button", { name: "Continue current turn" }).click();
+  await resolveRoll(page);
   await page.getByRole("button", { name: "Next: Grace & roll" }).click();
-
-  dialog = page.getByRole("dialog", { name: /Roll result:/ });
-  await expect(dialog).toContainText("Grace rolled");
+  await resolveRoll(page);
   const playerTime = (index: number) =>
     page
       .locator(".player-card")
@@ -286,7 +274,7 @@ test("tracks per-player time and freezes every timer while paused", async ({
   await expect.poll(() => playerTime(0)).toBeGreaterThan(0);
   await expect.poll(() => playerTime(1)).toBeGreaterThan(0);
 
-  await dialog.getByRole("button", { name: "Pause game" }).click();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
   const paused = page.getByRole("dialog", { name: "Game paused" });
   await expect(paused).toBeVisible();
   const pausedTimes = await paused
@@ -302,10 +290,8 @@ test("tracks per-player time and freezes every timer while paused", async ({
     await expect(underlyingButtons.nth(index)).toBeDisabled();
   }
   await expect(page.locator(".pwa-toast")).toHaveCount(0);
-
   await paused.getByRole("button", { name: "Resume game" }).click();
-  dialog = page.getByRole("dialog", { name: /Roll result:/ });
-  await expect(dialog).toBeVisible();
+  await expect(page.locator(".roll-result-summary")).toBeVisible();
   const turnClock = () =>
     page
       .locator(".game-clock-row strong")

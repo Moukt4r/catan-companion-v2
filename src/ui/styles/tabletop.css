@@ -715,6 +715,26 @@ h1 {
   background: var(--surface-muted);
 }
 
+.roll-guidance div {
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+}
+
+.roll-guidance dt {
+  color: var(--ink-muted);
+}
+
+.inline-house-event {
+  border-color: var(--warning-line);
+  background:
+    radial-gradient(
+      circle at 100% 0%,
+      rgb(211 154 57 / 20%),
+      transparent 14rem
+    ),
+    var(--warning-soft);
+}
+
 .die {
   border-color: var(--line-strong);
   border-radius: 22%;
@@ -1040,6 +1060,18 @@ h1 {
 
   .completed-hero__art {
     min-height: 260px;
+  }
+}
+
+@media (max-width: 900px), (pointer: coarse) {
+  .setup-layout .surface,
+  .setup-layout .player-setup-row,
+  .setup-layout .button {
+    box-shadow: none;
+  }
+
+  .setup-hero__art img {
+    filter: none;
   }
 }
 

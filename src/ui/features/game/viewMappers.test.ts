@@ -153,6 +153,7 @@ describe("toGameTableView", () => {
       readOnly: true,
       paused: false,
       canRoll: true,
+      canContinueRoll: false,
       showNextRoll: false,
       canRollNextTurn: false,
       canPause: true,
@@ -166,7 +167,9 @@ describe("toGameTableView", () => {
         trackLength: 7,
         strength: 4,
         defenderStrength: 6,
+        attackPending: false,
       },
+      houseEvent: null,
     });
     expect(view.players[0]).toMatchObject({
       name: "Ada",
@@ -216,6 +219,14 @@ describe("toGameTableView", () => {
       event: "science",
       total: 7,
       source: "alchemy",
+      progress: {
+        discipline: "science",
+        redValue: 3,
+        eligiblePlayers: [{ id: ADA, name: "Ada" }],
+      },
+      production: {
+        robberActivated: false,
+      },
     });
     expect(view.players[0]?.metropolisDisciplines).toEqual(["science"]);
     expect(view.winnerCandidateName).toBe("Ada");

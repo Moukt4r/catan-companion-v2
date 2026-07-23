@@ -18,6 +18,7 @@ function view(): GameTableView {
     readOnly: false,
     paused: false,
     canRoll: true,
+    canContinueRoll: false,
     showNextRoll: false,
     canRollNextTurn: false,
     canPause: true,
@@ -31,6 +32,7 @@ function view(): GameTableView {
       trackLength: 7,
       strength: 3,
       defenderStrength: 0,
+      attackPending: false,
     },
     players: [
       {
@@ -51,6 +53,7 @@ function view(): GameTableView {
       },
     ],
     houseEventPending: false,
+    houseEvent: null,
     winnerCandidateName: null,
   };
 }
@@ -66,6 +69,8 @@ describe("GameTable", () => {
         view={view()}
         onRoll={onRoll}
         onAlchemy={vi.fn()}
+        onAcknowledgeEvent={vi.fn()}
+        onContinueRoll={vi.fn()}
         onEditPlayer={onEditPlayer}
         onNextRoll={vi.fn()}
         onPause={vi.fn()}
@@ -102,6 +107,8 @@ describe("GameTable", () => {
         }}
         onRoll={vi.fn()}
         onAlchemy={vi.fn()}
+        onAcknowledgeEvent={vi.fn()}
+        onContinueRoll={vi.fn()}
         onEditPlayer={vi.fn()}
         onNextRoll={vi.fn()}
         onPause={vi.fn()}
@@ -143,6 +150,8 @@ describe("GameTable", () => {
         }}
         onRoll={vi.fn()}
         onAlchemy={vi.fn()}
+        onAcknowledgeEvent={vi.fn()}
+        onContinueRoll={vi.fn()}
         onEditPlayer={vi.fn()}
         onNextRoll={onNextRoll}
         onPause={vi.fn()}
@@ -174,6 +183,8 @@ describe("GameTable", () => {
         }}
         onRoll={vi.fn()}
         onAlchemy={vi.fn()}
+        onAcknowledgeEvent={vi.fn()}
+        onContinueRoll={vi.fn()}
         onEditPlayer={vi.fn()}
         onNextRoll={vi.fn()}
         onPause={vi.fn()}
@@ -188,5 +199,63 @@ describe("GameTable", () => {
     for (const button of screen.getAllByRole("button")) {
       expect(button).toBeDisabled();
     }
+  });
+
+  it("keeps ordinary roll guidance and house-event acknowledgement inline", async () => {
+    const user = userEvent.setup();
+    const onAcknowledgeEvent = vi.fn();
+
+    render(
+      <GameTable
+        view={{
+          ...view(),
+          phaseLabel: "Resolving house event",
+          canRoll: false,
+          lastRoll: {
+            red: 4,
+            yellow: 3,
+            total: 7,
+            event: "science",
+            source: "balanced",
+            progress: {
+              discipline: "science",
+              redValue: 4,
+              eligiblePlayers: [{ id: "ada", name: "Ada" }],
+            },
+            production: {
+              robberActivated: false,
+            },
+          },
+          houseEventPending: true,
+          houseEvent: {
+            title: "Harbor Festival",
+            instruction: "Announce every maritime trade.",
+          },
+        }}
+        onRoll={vi.fn()}
+        onAlchemy={vi.fn()}
+        onAcknowledgeEvent={onAcknowledgeEvent}
+        onContinueRoll={vi.fn()}
+        onEditPlayer={vi.fn()}
+        onNextRoll={vi.fn()}
+        onPause={vi.fn()}
+        onHistory={vi.fn()}
+        onSettings={vi.fn()}
+        onExport={vi.fn()}
+        onConfirmWinner={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText(/Science progress with red 4/)).toBeVisible();
+    expect(screen.getByText(/robber stays inactive/)).toBeVisible();
+    expect(screen.getByText("Harbor Festival")).toBeVisible();
+    expect(
+      screen.queryByRole("dialog", { name: /Roll result:/ }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Acknowledge house event" }),
+    );
+    expect(onAcknowledgeEvent).toHaveBeenCalledOnce();
   });
 });

@@ -99,6 +99,7 @@ export function App() {
   const { preferences, updatePreferences } = useDevicePreferences();
   const online = useOnlineStatus();
   const initialized = useRef(false);
+  const previousScreen = useRef<Screen>("home");
   const clockStartRequests = useRef(new Set<string>());
   const [screen, setScreen] = useState<Screen>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -111,7 +112,6 @@ export function App() {
   );
   const [metropolisCorrectionOpen, setMetropolisCorrectionOpen] =
     useState(false);
-  const [rollResolutionPinned, setRollResolutionPinned] = useState(false);
   const [resolutionBusy, setResolutionBusy] = useState(false);
   const [newGameConfirmation, setNewGameConfirmation] = useState(false);
   const [deleteGameId, setDeleteGameId] = useState<string | null>(null);
@@ -138,6 +138,14 @@ export function App() {
         setNotice(errorMessage(error));
       });
   }, []);
+
+  useEffect(() => {
+    if (previousScreen.current === screen) {
+      return;
+    }
+    previousScreen.current = screen;
+    window.scrollTo(0, 0);
+  }, [screen]);
 
   useEffect(() => {
     const shouldKeepAwake =
@@ -213,7 +221,6 @@ export function App() {
   const safeToUpdate =
     !snapshot.saving &&
     snapshot.pendingSave === null &&
-    !rollResolutionPinned &&
     !resolutionBusy &&
     (!state ||
       state.turn.phase === "awaiting-roll" ||
@@ -327,15 +334,79 @@ export function App() {
 
   async function roll(command: GameCommand): Promise<boolean> {
     setRolling(true);
-    const completed = await dispatch(command, "roll");
-    if (completed) {
-      setRollResolutionPinned(true);
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, preferences.motion === "reduced" ? 1 : 650);
-      });
+    let completed: boolean;
+    try {
+      completed = await dispatch(command, "roll");
+      if (completed) {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(
+            resolve,
+            preferences.motion === "reduced" ? 1 : 650,
+          );
+        });
+      }
+    } finally {
+      setRolling(false);
     }
-    setRolling(false);
-    return completed;
+
+    if (!completed) {
+      return false;
+    }
+
+    setResolutionBusy(true);
+    try {
+      return await acknowledgeOfficialRollSteps();
+    } finally {
+      setResolutionBusy(false);
+    }
+  }
+
+  async function acknowledgeOfficialRollSteps(): Promise<boolean> {
+    let current = gameController.getSnapshot().activeState;
+    if (current?.turn.phase !== "resolving-official-result") {
+      return true;
+    }
+
+    const official = current.resolution.official;
+    if (!official) {
+      setNotice("The current roll is missing its official resolution.");
+      return false;
+    }
+
+    if (official.progressPending) {
+      const acknowledged = await dispatch({
+        type: "resolution.progressAcknowledged",
+        rollId: official.rollId,
+      });
+      if (!acknowledged) {
+        return false;
+      }
+      current = gameController.getSnapshot().activeState;
+    }
+
+    if (
+      current?.turn.phase === "resolving-official-result" &&
+      current.resolution.official?.productionPending
+    ) {
+      const acknowledged = await dispatch({
+        type: "resolution.productionAcknowledged",
+        rollId: current.resolution.official.rollId,
+      });
+      if (!acknowledged) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  async function continueOfficialRoll(): Promise<void> {
+    setResolutionBusy(true);
+    try {
+      await acknowledgeOfficialRollSteps();
+    } finally {
+      setResolutionBusy(false);
+    }
   }
 
   async function resolveRollResult(
@@ -375,33 +446,11 @@ export function App() {
         current = gameController.getSnapshot().activeState;
       }
 
-      if (
-        current?.turn.phase === "resolving-official-result" &&
-        current.resolution.official?.progressPending
-      ) {
-        const acknowledged = await dispatch({
-          type: "resolution.progressAcknowledged",
-          rollId: current.resolution.official.rollId,
-        });
-        if (!acknowledged) {
-          return;
-        }
-        current = gameController.getSnapshot().activeState;
+      const officialAcknowledged = await acknowledgeOfficialRollSteps();
+      if (!officialAcknowledged) {
+        return;
       }
-
-      if (
-        current?.turn.phase === "resolving-official-result" &&
-        current.resolution.official?.productionPending
-      ) {
-        const acknowledged = await dispatch({
-          type: "resolution.productionAcknowledged",
-          rollId: current.resolution.official.rollId,
-        });
-        if (!acknowledged) {
-          return;
-        }
-        current = gameController.getSnapshot().activeState;
-      }
+      current = gameController.getSnapshot().activeState;
 
       if (
         current?.turn.phase === "resolving-thematic-event" &&
@@ -425,7 +474,6 @@ export function App() {
       }
 
       if (!quickRoll) {
-        setRollResolutionPinned(false);
         return;
       }
 
@@ -444,7 +492,6 @@ export function App() {
       return;
     }
     if (winnerCandidates(current).length > 0) {
-      setRollResolutionPinned(false);
       setWinnerOpen(true);
       return;
     }
@@ -452,10 +499,7 @@ export function App() {
     if (!ended) {
       return;
     }
-    const rolled = await roll({ type: "roll.draw" });
-    if (!rolled) {
-      setRollResolutionPinned(false);
-    }
+    await roll({ type: "roll.draw" });
   }
 
   async function exportStoredGame(game: StoredGame): Promise<void> {
@@ -587,6 +631,7 @@ export function App() {
               snapshot.readOnly,
               clockAt,
             )}
+            busy={rolling || resolutionBusy || snapshot.saving}
             onRoll={() => {
               void roll({ type: "roll.draw" });
             }}
@@ -598,6 +643,21 @@ export function App() {
             }}
             onNextRoll={() => {
               void rollNextTurn();
+            }}
+            onContinueRoll={() => {
+              void continueOfficialRoll();
+            }}
+            onAcknowledgeEvent={() => {
+              const event = state.thematicEvents.pendingEvent;
+              if (event) {
+                void dispatch(
+                  {
+                    type: "event.acknowledged",
+                    occurrenceId: event.occurrenceId,
+                  },
+                  "event",
+                );
+              }
             }}
             onPause={() => {
               void dispatch({ type: "clock.paused" }, "confirm");
@@ -855,10 +915,7 @@ export function App() {
           !rolling &&
           selectedPlayer === null &&
           state.lastRoll &&
-          (rollResolutionPinned ||
-            state.turn.phase === "resolving-barbarian-attack" ||
-            state.turn.phase === "resolving-official-result" ||
-            state.turn.phase === "resolving-thematic-event") ? (
+          state.turn.phase === "resolving-barbarian-attack" ? (
             <RollResolutionDialog
               key={`${state.lastRoll.id}-${state.barbarian.pendingAttack?.id ?? "no-attack"}`}
               open
@@ -1047,7 +1104,6 @@ export function App() {
             const retriedState = gameController.getSnapshot().activeState;
             if (retriedState?.status === "completed") {
               setWinnerOpen(false);
-              setRollResolutionPinned(false);
               setScreen("complete");
             }
           });

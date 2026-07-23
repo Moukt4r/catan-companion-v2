@@ -34,6 +34,7 @@ export interface GameTableView {
   readOnly: boolean;
   paused: boolean;
   canRoll: boolean;
+  canContinueRoll: boolean;
   showNextRoll: boolean;
   canRollNextTurn: boolean;
   canPause: boolean;
@@ -46,6 +47,17 @@ export interface GameTableView {
     event: "barbarian" | "science" | "trade" | "politics";
     total: number;
     source: "balanced" | "alchemy";
+    progress: {
+      discipline: "science" | "trade" | "politics";
+      redValue: number;
+      eligiblePlayers: {
+        id: string;
+        name: string;
+      }[];
+    } | null;
+    production: {
+      robberActivated: boolean;
+    };
   } | null;
   numberedCycleProgress: string;
   barbarian: {
@@ -53,24 +65,38 @@ export interface GameTableView {
     trackLength: number;
     strength: number;
     defenderStrength: number;
+    attackPending: boolean;
   };
   players: GamePlayerView[];
   houseEventPending: boolean;
+  houseEvent: {
+    title: string;
+    instruction: string;
+  } | null;
   winnerCandidateName: string | null;
 }
 
 interface GameTableProps {
   view: GameTableView;
+  busy?: boolean;
   onRoll: () => void;
   onAlchemy: () => void;
   onEditPlayer: (playerId: string) => void;
   onNextRoll: () => void;
+  onContinueRoll: () => void;
+  onAcknowledgeEvent: () => void;
   onPause: () => void;
   onHistory: () => void;
   onSettings: () => void;
   onExport: () => void;
   onConfirmWinner: () => void;
 }
+
+const disciplineNames = {
+  politics: "Politics",
+  science: "Science",
+  trade: "Trade",
+};
 
 function barbarianRisk(
   strength: number,
@@ -97,8 +123,46 @@ function barbarianRisk(
   };
 }
 
+function productionGuidance(
+  roll: NonNullable<GameTableView["lastRoll"]>,
+): string {
+  if (roll.total !== 7) {
+    return `Distribute resources and commodities for production ${roll.total}.`;
+  }
+
+  return roll.production.robberActivated
+    ? "Discard above the safe hand limit, then move the robber and steal."
+    : "Discard above the safe hand limit; the robber stays inactive until the first barbarian attack.";
+}
+
+function eventGuidance(
+  roll: NonNullable<GameTableView["lastRoll"]>,
+  barbarian: GameTableView["barbarian"],
+): string {
+  if (!roll.progress) {
+    return barbarian.attackPending
+      ? "The barbarian attack needs confirmation."
+      : `The barbarian ship advanced to ${barbarian.position} of ${barbarian.trackLength}.`;
+  }
+
+  const eligibleNames = roll.progress.eligiblePlayers.map(
+    (player) => player.name,
+  );
+  const eligibility =
+    eligibleNames.length === 0
+      ? "No recorded player is eligible."
+      : `${eligibleNames.join(", ")} ${
+          eligibleNames.length === 1 ? "is" : "are"
+        } eligible; draw in current-player order.`;
+
+  return `${disciplineNames[roll.progress.discipline]} progress with red ${roll.progress.redValue}. ${eligibility}`;
+}
+
 export function GameTable({
+  busy = false,
   onAlchemy,
+  onAcknowledgeEvent,
+  onContinueRoll,
   onConfirmWinner,
   onEditPlayer,
   onNextRoll,
@@ -270,16 +334,60 @@ export function GameTable({
           <div className="roll-result-summary">
             {view.lastRoll ? (
               <>
-                <strong>
-                  {view.lastRoll.red} + {view.lastRoll.yellow} ={" "}
-                  {view.lastRoll.total}
-                </strong>
-                <span>
-                  {view.lastRoll.event} event ·{" "}
-                  {view.lastRoll.source === "alchemy"
-                    ? "Chosen with Alchemy"
-                    : "Balanced draw"}
-                </span>
+                <div className="roll-result-summary__heading">
+                  <strong>
+                    {view.lastRoll.red} + {view.lastRoll.yellow} ={" "}
+                    {view.lastRoll.total}
+                  </strong>
+                  <span>
+                    {view.lastRoll.event} event ·{" "}
+                    {view.lastRoll.source === "alchemy"
+                      ? "Chosen with Alchemy"
+                      : "Balanced draw"}
+                  </span>
+                </div>
+                <dl className="roll-guidance">
+                  <div>
+                    <dt>Numbered dice</dt>
+                    <dd>{productionGuidance(view.lastRoll)}</dd>
+                  </div>
+                  <div>
+                    <dt>Event die</dt>
+                    <dd>{eventGuidance(view.lastRoll, view.barbarian)}</dd>
+                  </div>
+                </dl>
+                {view.canContinueRoll ? (
+                  <Button
+                    size="small"
+                    disabled={busy || view.readOnly || view.paused}
+                    onClick={onContinueRoll}
+                  >
+                    {busy ? "Saving..." : "Continue roll"}
+                  </Button>
+                ) : null}
+                {view.houseEvent ? (
+                  <section
+                    className="inline-house-event"
+                    aria-labelledby="inline-house-event-heading"
+                  >
+                    <div>
+                      <p className="rule-label rule-label--house">
+                        House event
+                      </p>
+                      <h2 id="inline-house-event-heading">
+                        {view.houseEvent.title}
+                      </h2>
+                      <p>{view.houseEvent.instruction}</p>
+                    </div>
+                    <Button
+                      size="small"
+                      disabled={busy || view.readOnly || view.paused}
+                      onClick={onAcknowledgeEvent}
+                    >
+                      Acknowledge house event
+                    </Button>
+                  </section>
+                ) : null}
               </>
             ) : (
               <span>Complete the current resolution to continue.</span>

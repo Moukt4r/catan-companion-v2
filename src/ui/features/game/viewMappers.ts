@@ -68,6 +68,7 @@ export function toGameTableView(
     paused:
       state.clock?.pausedAt !== null && state.clock?.pausedAt !== undefined,
     canRoll: state.turn.phase === "awaiting-roll",
+    canContinueRoll: state.turn.phase === "resolving-official-result",
     showNextRoll: state.turn.phase === "action-phase",
     canRollNextTurn:
       state.turn.phase === "action-phase" &&
@@ -83,6 +84,22 @@ export function toGameTableView(
           event: state.lastRoll.eventFace,
           total: state.lastRoll.total,
           source: state.lastRoll.alchemy ? "alchemy" : "balanced",
+          progress: state.lastRoll.progress
+            ? {
+                discipline: state.lastRoll.progress.discipline,
+                redValue: state.lastRoll.progress.red,
+                eligiblePlayers: toEligibleProgressPlayers(
+                  state,
+                  state.lastRoll.progress.discipline,
+                ).map((player) => ({
+                  id: player.id,
+                  name: player.name,
+                })),
+              }
+            : null,
+          production: {
+            robberActivated: state.barbarian.robberActivated,
+          },
         }
       : null,
     numberedCycleProgress: `${state.numberedDeck.cursor} / ${state.numberedDeck.order.length}`,
@@ -91,6 +108,7 @@ export function toGameTableView(
       trackLength: state.barbarian.rules.trackLength,
       strength: barbarianStrength(state),
       defenderStrength: defenderStrength(state),
+      attackPending: state.barbarian.pendingAttack !== null,
     },
     players: state.players.map((player) => ({
       id: player.id,
@@ -109,6 +127,14 @@ export function toGameTableView(
       current: player.id === active.id,
     })),
     houseEventPending: state.thematicEvents.pendingEvent !== null,
+    houseEvent:
+      state.turn.phase === "resolving-thematic-event" &&
+      state.thematicEvents.pendingEvent
+        ? {
+            title: state.thematicEvents.pendingEvent.title,
+            instruction: state.thematicEvents.pendingEvent.instruction,
+          }
+        : null,
     winnerCandidateName: candidate?.name ?? null,
   };
 }

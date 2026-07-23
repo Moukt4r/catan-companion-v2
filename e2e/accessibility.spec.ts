@@ -34,7 +34,7 @@ test("home and setup have no detectable accessibility violations", async ({
   expect(setupResults.violations).toEqual([]);
 });
 
-test("the consolidated roll result has no detectable accessibility violations", async ({
+test("the inline roll result has no detectable accessibility violations", async ({
   page,
 }) => {
   await page.goto("/");
@@ -54,14 +54,19 @@ test("the consolidated roll result has no detectable accessibility violations", 
   await page.getByRole("button", { name: "Start and save game" }).click();
   await page.getByRole("button", { name: "Roll", exact: true }).click();
 
-  const dialog = page.getByRole("dialog", { name: /Roll result:/ });
-  await expect(dialog).toBeVisible();
+  await expect(page.locator(".roll-result-summary")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /^Next: .* & roll$/ }),
+  ).toBeEnabled();
+  await expect(page.getByRole("dialog", { name: /Roll result:/ })).toHaveCount(
+    0,
+  );
   const results = await new AxeBuilder({ page })
-    .include("dialog[open]")
+    .include("main.game-layout")
     .analyze();
   expect(results.violations).toEqual([]);
 
-  await dialog.getByRole("button", { name: "Pause game" }).click();
+  await page.getByRole("button", { name: "Pause", exact: true }).click();
   const paused = page.getByRole("dialog", { name: "Game paused" });
   await expect(paused).toBeVisible();
   const pausedResults = await new AxeBuilder({ page })
