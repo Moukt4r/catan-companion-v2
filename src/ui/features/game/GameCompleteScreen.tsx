@@ -1,3 +1,4 @@
+import frontierIllustration from "../../../assets/illustrations/frontier-tabletop.webp";
 import { Button, PlayerMarker } from "../../components";
 import { formatDuration } from "./time";
 
@@ -37,23 +38,28 @@ export function GameCompleteScreen({
   return (
     <main className="app-shell completed-layout">
       <section className="surface completed-hero">
-        <p className="eyebrow">Game complete</p>
-        <h1>{view.winnerName} wins</h1>
-        <PlayerMarker color={view.winnerColor} label={view.title} />
-        <p className="lede">
-          Completed {new Date(view.completedAt).toLocaleString()} after{" "}
-          {view.rounds} rounds.
-        </p>
-        <div className="button-row">
-          <Button size="large" onClick={onExport}>
-            Export full game
-          </Button>
-          <Button size="large" variant="secondary" onClick={onNewGame}>
-            Start new game
-          </Button>
-          <Button size="large" variant="quiet" onClick={onHome}>
-            Home
-          </Button>
+        <div className="completed-hero__copy">
+          <p className="eyebrow">Game complete</p>
+          <h1>{view.winnerName} wins</h1>
+          <PlayerMarker color={view.winnerColor} label={view.title} />
+          <p className="lede">
+            Completed {new Date(view.completedAt).toLocaleString()} after{" "}
+            {view.rounds} rounds.
+          </p>
+          <div className="button-row">
+            <Button size="large" onClick={onExport}>
+              Export full game
+            </Button>
+            <Button size="large" variant="secondary" onClick={onNewGame}>
+              Start new game
+            </Button>
+            <Button size="large" variant="quiet" onClick={onHome}>
+              Home
+            </Button>
+          </div>
+        </div>
+        <div className="completed-hero__art" aria-hidden="true">
+          <img src={frontierIllustration} alt="" />
         </div>
       </section>
 

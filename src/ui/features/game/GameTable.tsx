@@ -1,3 +1,5 @@
+import harborIllustration from "../../../assets/illustrations/harbor-watch.webp";
+import resourceIllustration from "../../../assets/illustrations/resource-landscape.webp";
 import { Button, DieFace, PlayerMarker, StatusBanner } from "../../components";
 import { formatDuration } from "./time";
 
@@ -203,6 +205,12 @@ export function GameTable({
       ) : null}
 
       <section className="surface roll-stage" aria-labelledby="roll-heading">
+        <img
+          className="roll-stage__art"
+          src={resourceIllustration}
+          alt=""
+          aria-hidden="true"
+        />
         <div className="roll-stage__intro">
           <div>
             <p className="rule-label rule-label--house">Balanced house dice</p>
@@ -227,10 +235,7 @@ export function GameTable({
             value={view.lastRoll?.yellow ?? null}
             rolling={view.rolling}
           />
-          <span
-            className="dice-total"
-            aria-label={`Total ${view.lastRoll?.total ?? 0}`}
-          >
+          <span className="dice-total">
             {view.lastRoll ? `= ${view.lastRoll.total}` : ""}
           </span>
           <DieFace
@@ -287,6 +292,9 @@ export function GameTable({
         className="surface barbarian-card"
         aria-labelledby="barbarian-heading"
       >
+        <div className="barbarian-card__visual" aria-hidden="true">
+          <img src={harborIllustration} alt="" />
+        </div>
         <div className="barbarian-card__heading">
           <div>
             <p className="eyebrow">Cities &amp; Knights</p>

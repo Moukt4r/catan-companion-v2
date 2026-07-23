@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app/App";
 import { AppErrorBoundary } from "./app/AppErrorBoundary";
 import "./ui/styles/global.css";
+import "./ui/styles/tabletop.css";
 
 const root = document.querySelector<HTMLDivElement>("#root");
 

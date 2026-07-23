@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Refreshed the full interface with a cleaner warm-tabletop visual system and
+  original locally generated frontier illustrations.
+- Improved active-game hierarchy, setup flow, responsive touch targets, and
+  dark/high-contrast accessibility.
+
 ## 0.1.4 - 2026-07-22
 
 - Stopped archived and replaced games from accumulating active-play time, and

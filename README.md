@@ -40,6 +40,8 @@ this implementation.
 - Explicit single-tab control with read-only mirrored tabs and takeover.
 - Responsive mobile/tablet/desktop layouts, keyboard support, high contrast,
   reduced motion, synthesized sound cues, and sanitized diagnostics.
+- Original locally generated frontier illustrations with no official CATAN
+  artwork or trade dress.
 - Prompted PWA updates and complete offline operation after first load.
 
 Balanced decks, thematic events, two-player mode, and custom victory targets
@@ -142,8 +144,8 @@ moving devices, or deleting a saved game.
 ## Legal
 
 This is an independent, unofficial companion using original branding, icons,
-sounds, and event text. It does not include CATAN artwork, logos, rulebook text,
-or card text.
+sounds, event text, and locally generated illustrations. It does not include
+CATAN artwork, logos, rulebook text, card text, or copied trade dress.
 
 CATAN and Cities & Knights are trademarks of their respective owners. Official
 rule sources are linked in [rules and domain](docs/rules-and-domain.md).

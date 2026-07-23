@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import frontierIllustration from "../../../assets/illustrations/frontier-tabletop.webp";
 import { Button, PlayerMarker, StatusBanner } from "../../components";
 
 export interface HomeGameSummary {
@@ -38,18 +39,35 @@ export function HomeScreen({
 
   return (
     <main className="app-shell home-layout">
-      <header className="home-header">
-        <div>
-          <p className="eyebrow">One shared screen. No account required.</p>
+      <header className="surface home-header home-hero">
+        <div className="home-hero__copy">
+          <div className="home-hero__topline">
+            <p className="eyebrow">Gather the table</p>
+            <Button variant="quiet" onClick={onSettings}>
+              Device settings
+            </Button>
+          </div>
           <h1>Catan Table Companion</h1>
           <p className="lede">
-            Balanced dice, Cities &amp; Knights bookkeeping, and original table
-            events that keep the physical game moving.
+            A warm, shared command center for balanced rolls, Cities &amp;
+            Knights bookkeeping, and original events around the physical board.
           </p>
+          <ul className="home-hero__features" aria-label="Companion highlights">
+            <li>Offline-first</li>
+            <li>Saved every action</li>
+            <li>No account</li>
+          </ul>
         </div>
-        <Button variant="quiet" onClick={onSettings}>
-          Device settings
-        </Button>
+        <div className="home-hero__visual" aria-hidden="true">
+          <img src={frontierIllustration} alt="" />
+          <div className="home-hero__legend">
+            <span>Grain</span>
+            <span>Timber</span>
+            <span>Wool</span>
+            <span>Clay</span>
+            <span>Ore</span>
+          </div>
+        </div>
       </header>
 
       {error ? (
@@ -60,6 +78,7 @@ export function HomeScreen({
 
       {loading ? (
         <section className="surface home-card" aria-live="polite">
+          <p className="card-kicker">Local ledger</p>
           <h2>Loading saved games</h2>
           <p>Your game stays on this device and will be ready in a moment.</p>
         </section>
@@ -68,7 +87,7 @@ export function HomeScreen({
           className="surface home-card home-card--active"
           aria-labelledby="resume-heading"
         >
-          <p className="eyebrow">Current game</p>
+          <p className="card-kicker">Current game</p>
           <h2 id="resume-heading">{activeGame.title}</h2>
           <PlayerMarker
             color={activeGame.currentPlayerColor}
@@ -102,7 +121,7 @@ export function HomeScreen({
           className="surface home-card home-card--active"
           aria-labelledby="start-heading"
         >
-          <p className="eyebrow">Ready offline after first load</p>
+          <p className="card-kicker">Ready offline after first load</p>
           <h2 id="start-heading">Start a new table</h2>
           <p>
             Set up three or four players, review the house rules, and the game
@@ -122,6 +141,9 @@ export function HomeScreen({
             importRef.current?.click();
           }}
         >
+          <span className="home-action__index" aria-hidden="true">
+            01
+          </span>
           <strong>Import backup</strong>
           <span>Restore a validated JSON game export.</span>
         </button>
@@ -140,6 +162,9 @@ export function HomeScreen({
           }}
         />
         <button type="button" className="home-action" onClick={onViewArchive}>
+          <span className="home-action__index" aria-hidden="true">
+            02
+          </span>
           <strong>Saved games</strong>
           <span>
             {archivedCount} archived or completed games on this device.

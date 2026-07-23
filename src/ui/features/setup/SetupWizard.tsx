@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { DevicePreferences } from "../../../application/devicePreferences";
+import resourceIllustration from "../../../assets/illustrations/resource-landscape.webp";
 import { Button, PlayerMarker, StatusBanner } from "../../components";
 
 const playerColors = [
@@ -155,10 +156,14 @@ export function SetupWizard({
 
   return (
     <main className="app-shell setup-layout">
-      <header className="setup-header">
-        <div>
+      <header className="surface setup-header setup-hero">
+        <div className="setup-hero__copy">
           <p className="eyebrow">New shared-device game</p>
           <h1>Set up the table</h1>
+          <p>
+            Choose the players, tune the house rules, and prepare a clear shared
+            ledger before the first roll.
+          </p>
         </div>
         <ol className="step-list" aria-label="Setup progress">
           {steps.map((item, index) => (
@@ -168,6 +173,9 @@ export function SetupWizard({
             </li>
           ))}
         </ol>
+        <div className="setup-hero__art" aria-hidden="true">
+          <img src={resourceIllustration} alt="" />
+        </div>
       </header>
 
       <section className="surface setup-card">
@@ -264,64 +272,66 @@ export function SetupWizard({
                       ))}
                     </select>
                   </label>
-                  <label className="first-player-choice">
-                    <input
-                      type="radio"
-                      name="first-player"
-                      checked={firstPlayerDraftId === player.draftId}
-                      onChange={() => {
-                        setFirstPlayerDraftId(player.draftId);
-                      }}
-                    />
-                    Starts
-                  </label>
-                  <div
-                    className="order-controls"
-                    aria-label={`Move ${player.name || `Player ${index + 1}`}`}
-                  >
+                  <div className="player-setup-actions">
+                    <label className="first-player-choice">
+                      <input
+                        type="radio"
+                        name="first-player"
+                        checked={firstPlayerDraftId === player.draftId}
+                        onChange={() => {
+                          setFirstPlayerDraftId(player.draftId);
+                        }}
+                      />
+                      Starts
+                    </label>
+                    <div
+                      className="order-controls"
+                      aria-label={`Move ${player.name || `Player ${index + 1}`}`}
+                    >
+                      <Button
+                        variant="quiet"
+                        size="small"
+                        aria-label={`Move ${player.name || `Player ${index + 1}`} earlier`}
+                        disabled={index === 0}
+                        onClick={() => {
+                          movePlayer(index, -1);
+                        }}
+                      >
+                        Up
+                      </Button>
+                      <Button
+                        variant="quiet"
+                        size="small"
+                        aria-label={`Move ${player.name || `Player ${index + 1}`} later`}
+                        disabled={index === players.length - 1}
+                        onClick={() => {
+                          movePlayer(index, 1);
+                        }}
+                      >
+                        Down
+                      </Button>
+                    </div>
                     <Button
                       variant="quiet"
                       size="small"
-                      aria-label={`Move ${player.name || `Player ${index + 1}`} earlier`}
-                      disabled={index === 0}
+                      disabled={players.length <= (twoPlayerHouseMode ? 2 : 3)}
                       onClick={() => {
-                        movePlayer(index, -1);
+                        setPlayers((current) =>
+                          current.filter(
+                            (item) => item.draftId !== player.draftId,
+                          ),
+                        );
+                        if (firstPlayerDraftId === player.draftId) {
+                          const remaining = players.filter(
+                            (item) => item.draftId !== player.draftId,
+                          );
+                          setFirstPlayerDraftId(remaining[0]?.draftId ?? "");
+                        }
                       }}
                     >
-                      Up
-                    </Button>
-                    <Button
-                      variant="quiet"
-                      size="small"
-                      aria-label={`Move ${player.name || `Player ${index + 1}`} later`}
-                      disabled={index === players.length - 1}
-                      onClick={() => {
-                        movePlayer(index, 1);
-                      }}
-                    >
-                      Down
+                      Remove
                     </Button>
                   </div>
-                  <Button
-                    variant="quiet"
-                    size="small"
-                    disabled={players.length <= (twoPlayerHouseMode ? 2 : 3)}
-                    onClick={() => {
-                      setPlayers((current) =>
-                        current.filter(
-                          (item) => item.draftId !== player.draftId,
-                        ),
-                      );
-                      if (firstPlayerDraftId === player.draftId) {
-                        const remaining = players.filter(
-                          (item) => item.draftId !== player.draftId,
-                        );
-                        setFirstPlayerDraftId(remaining[0]?.draftId ?? "");
-                      }
-                    }}
-                  >
-                    Remove
-                  </Button>
                 </fieldset>
               ))}
             </div>
