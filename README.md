@@ -38,6 +38,10 @@ this implementation.
   Festivals & Progress), Off/Subtle/Standard/Lively cadence, tone/impact balance,
   five lifecycle durations, persistent active-event UI with manual resolution,
   and legacy v1 save compatibility.
+- **Seasons Mode v0.3.0:** An optional four-season house-rule layer with
+  2/3/4-round seasons, selectable starting season, round-boundary transitions,
+  and weighted-without-replacement World Event draws. Existing tone/impact and
+  compatibility guardrails remain authoritative.
 - Immutable IndexedDB revisions with undo, redo, branch retention, integrity
   hashes, and verified-ancestor recovery.
 - Versioned JSON export/import that never overwrites an existing game.
@@ -48,8 +52,8 @@ this implementation.
   artwork or trade dress.
 - Prompted PWA updates and complete offline operation after first load.
 
-Balanced decks, World Events, two-player mode, and custom victory targets are
-intentionally labeled house rules throughout the application.
+Balanced decks, World Events, Seasons Mode, two-player mode, and custom victory
+targets are intentionally labeled house rules throughout the application.
 
 ## Development
 
@@ -133,7 +137,7 @@ moving devices, or deleting a saved game.
 | [Testing and delivery](docs/testing-and-delivery.md) | Quality strategy, CI/CD, performance, security, and release gates         |
 | [Publishing runbook](docs/publishing.md)             | GitHub Pages setup, releases, verification, troubleshooting, and rollback |
 | [Implementation plan](docs/implementation-plan.md)   | Milestones and work packages                                              |
-| [Seasons Mode plan](docs/seasons-mode-plan.md)       | Design proposal for a four-season layer (not yet implemented)             |
+| [Seasons Mode](docs/seasons-mode-plan.md)            | Implemented v0.3.0 design and verification contract                       |
 | [Architecture decisions](docs/decisions/)            | Durable design decisions and tradeoffs                                    |
 
 ## Architecture

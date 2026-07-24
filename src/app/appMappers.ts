@@ -74,6 +74,9 @@ export function setupFromDraft(draft: SetupDraft): GameSetup {
     thematicCadence: cadence,
     thematicEventsEnabled: worldEventsEnabled,
     thematicEventCatalog: catalog,
+    ...(worldEventsEnabled && draft.seasonConfig?.enabled
+      ? { seasonConfig: draft.seasonConfig }
+      : {}),
     rulesDataVersion: "2025.1",
     gameDocumentVersion: 2,
   };

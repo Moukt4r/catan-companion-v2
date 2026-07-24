@@ -131,3 +131,33 @@ test("the active four-player table remains accessible across visual themes", asy
     );
   expect(undersizedButtons).toEqual([]);
 });
+
+test("Seasons setup and table indicator remain accessible", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start new game" }).click();
+  await page.locator('input[placeholder="Player 1"]').fill("Ada");
+  await page.locator('input[placeholder="Player 2"]').fill("Grace");
+  await page.locator('input[placeholder="Player 3"]').fill("Linus");
+  await page.locator('input[placeholder="Player 4"]').fill("Margaret");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("checkbox", { name: /Enable Seasons Mode/ }).check();
+
+  const setupResults = await new AxeBuilder({ page })
+    .include(".setup-card")
+    .analyze();
+  expect(setupResults.violations).toEqual([]);
+
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Start and save game" }).click();
+  await expect(
+    page.getByLabel("Current season: Spring, round 1 of 3"),
+  ).toBeVisible();
+
+  const tableResults = await new AxeBuilder({ page })
+    .include("main.game-layout")
+    .analyze();
+  expect(tableResults.violations).toEqual([]);
+});

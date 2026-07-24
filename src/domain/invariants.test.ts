@@ -267,6 +267,37 @@ describe("setup invariants", () => {
     );
   });
 
+  it("requires World Events when Seasons Mode is enabled", () => {
+    expect(
+      validateSetup(
+        setup({
+          thematicEventsEnabled: false,
+          thematicEventCatalog: [],
+          seasonConfig: {
+            enabled: true,
+            roundsPerSeason: 3,
+            startingSeason: "spring",
+          },
+        }),
+      ).map(({ code }) => code),
+    ).toContain("INVALID_SETUP");
+  });
+
+  it("rejects invalid persisted Seasons configuration", () => {
+    const invalid = setup({
+      seasonConfig: {
+        enabled: false,
+        roundsPerSeason: 3,
+        startingSeason: "spring",
+      },
+    });
+    invalid.seasonConfig!.roundsPerSeason = 5 as 3;
+    invalid.seasonConfig!.startingSeason = "monsoon" as "spring";
+    expect(validateSetup(invalid).map(({ code }) => code)).toContain(
+      "INVALID_SETUP",
+    );
+  });
+
   it("allows an empty event catalog when thematic events are disabled", () => {
     expect(
       validateSetup(

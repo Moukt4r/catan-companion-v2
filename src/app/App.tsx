@@ -10,6 +10,7 @@ import {
   asIsoTimestamp,
   asPlayerId,
   currentTurnActiveMilliseconds,
+  deriveSeason,
   totalActiveMilliseconds,
   winnerCandidates,
   type DieValue,
@@ -794,6 +795,21 @@ export function App() {
               activeRevision: state?.revisionId ?? null,
               lastSavedAt: snapshot.lastSavedAt,
               storage: storageStatus,
+              season:
+                state?.setup.seasonConfig?.enabled === true
+                  ? (() => {
+                      const info = deriveSeason(
+                        state.setup.seasonConfig,
+                        state.turn.round,
+                      );
+                      return {
+                        name: info.season,
+                        roundInSeason: info.roundInSeason,
+                        roundsPerSeason:
+                          state.setup.seasonConfig.roundsPerSeason,
+                      };
+                    })()
+                  : null,
             });
             await copyText(text);
             setNotice("Sanitized diagnostics copied.");

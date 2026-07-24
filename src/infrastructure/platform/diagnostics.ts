@@ -6,6 +6,11 @@ export interface DiagnosticInput {
   activeRevision: string | null;
   lastSavedAt: string | null;
   storage: StorageStatus | null;
+  season: {
+    name: string;
+    roundInSeason: number;
+    roundsPerSeason: number;
+  } | null;
 }
 
 export function buildSanitizedDiagnostics(input: DiagnosticInput): string {
@@ -17,6 +22,7 @@ export function buildSanitizedDiagnostics(input: DiagnosticInput): string {
       lastSavedAt: input.lastSavedAt,
       online: navigator.onLine,
       storage: input.storage,
+      season: input.season,
       capabilities: {
         broadcastChannel: "BroadcastChannel" in window,
         indexedDb: "indexedDB" in window,

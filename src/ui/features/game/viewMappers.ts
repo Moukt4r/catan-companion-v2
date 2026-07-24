@@ -12,6 +12,10 @@ import {
   winnerCandidates,
   WORLD_EVENTS_CATALOG,
   lookupWorldEvent,
+  deriveSeason,
+  isSeasonTransition,
+  SEASON_LABELS,
+  SEASON_ICONS,
   type BarbarianAttackProposal,
   type GamePhase,
   type GameState,
@@ -219,7 +223,29 @@ export function toGameTableView(
       state.thematicEvents.activeEvents,
       state.thematicEvents.pendingEvent?.occurrenceId ?? null,
     ),
+    season: toSeasonView(state),
     winnerCandidateName: candidate?.name ?? null,
+  };
+}
+
+function toSeasonView(state: GameState): GameTableView["season"] {
+  const config = state.setup.seasonConfig;
+  if (!config?.enabled) return null;
+  const info = deriveSeason(config, state.turn.round);
+  const firstPlayerIndex = state.players.findIndex(
+    (player) => player.id === state.setup.firstPlayerId,
+  );
+  const transitioned =
+    state.turn.round > 1 &&
+    state.turn.currentPlayerIndex === firstPlayerIndex &&
+    isSeasonTransition(config, state.turn.round - 1, state.turn.round);
+  return {
+    current: info.season,
+    label: SEASON_LABELS[info.season],
+    icon: SEASON_ICONS[info.season],
+    roundInSeason: info.roundInSeason,
+    roundsPerSeason: config.roundsPerSeason,
+    transitioned,
   };
 }
 

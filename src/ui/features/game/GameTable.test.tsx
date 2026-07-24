@@ -49,6 +49,7 @@ function view(): GameTableView {
     worldEventPending: false,
     worldEvent: null,
     activeEvents: [],
+    season: null,
     winnerCandidateName: null,
   };
 }

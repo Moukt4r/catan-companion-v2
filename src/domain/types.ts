@@ -130,6 +130,12 @@ export interface GameSetup {
   thematicCadence: ThematicCadence;
   thematicEventsEnabled: boolean;
   thematicEventCatalog: ThematicEventDefinition[];
+  /** Optional Seasons Mode config. Missing or `{ enabled: false }` means off. */
+  seasonConfig?: {
+    enabled: boolean;
+    roundsPerSeason: 2 | 3 | 4;
+    startingSeason: "spring" | "summer" | "autumn" | "winter";
+  };
   rulesDataVersion: string;
   gameDocumentVersion: number;
 }

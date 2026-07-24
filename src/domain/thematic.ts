@@ -9,6 +9,8 @@ import {
   pruneActiveEvents,
   type ActiveWorldEvent,
 } from "./worldEvents";
+import { deriveSeason, selectSeasonalWorldEvent } from "./seasons";
+import type { Season, SeasonConfig } from "./seasons";
 import type {
   ActiveWorldEventRecord,
   BoundedIntSource,
@@ -96,6 +98,104 @@ export function createThematicEventDeck(
   };
 }
 
+function drawSeasonalThematicEvent(
+  deck: DeckState<EventId>,
+  events: readonly ThematicEventDefinition[],
+  random: RandomSource | BoundedIntSource,
+  revisionId: RevisionId,
+  previousEventId: EventId | null,
+  season: Season,
+): DomainResult<{
+  value: EventId;
+  deck: DeckState<EventId>;
+  cycle: number;
+  index: number;
+}> {
+  if (
+    !Number.isInteger(deck.cursor) ||
+    deck.cursor < 0 ||
+    deck.cursor > deck.order.length ||
+    deck.order.length === 0
+  ) {
+    return failure(
+      domainError("DECK_STATE_CORRUPT", "Cannot draw from a corrupt deck.", {
+        cycle: deck.cycle,
+        cursor: deck.cursor,
+        length: deck.order.length,
+      }),
+    );
+  }
+
+  const startingNewCycle = deck.cursor === deck.order.length;
+  const activeDeck: DeckState<EventId> = startingNewCycle
+    ? {
+        cycle: deck.cycle + 1,
+        cursor: 0,
+        order: events.map((event) => event.id),
+        createdAtRevision: revisionId,
+      }
+    : deck;
+  const remainingIds = activeDeck.order.slice(activeDeck.cursor);
+  const definitionsById = new Map(
+    WORLD_EVENTS_CATALOG.map((event) => [event.id, event]),
+  );
+  const remainingDefinitions = remainingIds.flatMap((id) => {
+    const definition = definitionsById.get(id);
+    return definition === undefined ? [] : [definition];
+  });
+  if (remainingDefinitions.length !== remainingIds.length) {
+    return failure(
+      domainError(
+        "INVALID_THEMATIC_STATE",
+        "The seasonal event deck references unknown content.",
+      ),
+    );
+  }
+
+  const recentIds = startingNewCycle
+    ? deck.order.slice(-2)
+    : activeDeck.order.slice(
+        Math.max(0, activeDeck.cursor - 2),
+        activeDeck.cursor,
+      );
+  if (previousEventId !== null && recentIds.at(-1) !== previousEventId) {
+    recentIds.push(previousEventId);
+    if (recentIds.length > 2) recentIds.shift();
+  }
+  const recentDefinitions = recentIds.flatMap((id) => {
+    const definition = definitionsById.get(id);
+    return definition === undefined ? [] : [definition];
+  });
+  const selectedId = selectSeasonalWorldEvent(
+    remainingDefinitions,
+    random,
+    recentDefinitions,
+    season,
+  );
+  const selectedIndex = activeDeck.order.indexOf(selectedId, activeDeck.cursor);
+  if (selectedIndex < activeDeck.cursor) {
+    return failure(
+      domainError(
+        "INVALID_THEMATIC_STATE",
+        "The selected seasonal event is not available in this deck cycle.",
+        { eventId: selectedId },
+      ),
+    );
+  }
+
+  const order = [...activeDeck.order];
+  [order[activeDeck.cursor], order[selectedIndex]] = [
+    order[selectedIndex]!,
+    order[activeDeck.cursor]!,
+  ];
+  return success({
+    value: selectedId,
+    cycle: activeDeck.cycle,
+    index: activeDeck.cursor,
+    deck: { ...activeDeck, order, cursor: activeDeck.cursor + 1 },
+  });
+}
+
 export function createThematicState(
   enabled: boolean,
   cadence: ThematicCadence,
@@ -129,6 +229,8 @@ export function scheduleThematicEvent(
   random: RandomSource | BoundedIntSource,
   revisionId: RevisionId,
   occurrenceId: EventOccurrenceId,
+  seasonConfig?: SeasonConfig,
+  currentRound?: number,
 ): DomainResult<ThematicScheduleResult> {
   if (!state.enabled) {
     return success({ state, event: null });
@@ -182,15 +284,32 @@ export function scheduleThematicEvent(
     });
   }
 
-  const eventDraw = drawDeck(state.eventDeck, (cycle) =>
-    createThematicEventDeck(
-      state.enabledEvents,
-      random,
-      revisionId,
-      state.previousEventId,
-      cycle,
+  const enabledCategories = new Set(
+    state.enabledEvents.flatMap((event) =>
+      event.category === undefined ? [] : [event.category],
     ),
   );
+  const eventDraw =
+    seasonConfig?.enabled &&
+    currentRound !== undefined &&
+    enabledCategories.size > 1
+      ? drawSeasonalThematicEvent(
+          state.eventDeck,
+          state.enabledEvents,
+          random,
+          revisionId,
+          state.previousEventId,
+          deriveSeason(seasonConfig, currentRound).season,
+        )
+      : drawDeck(state.eventDeck, (cycle) =>
+          createThematicEventDeck(
+            state.enabledEvents,
+            random,
+            revisionId,
+            state.previousEventId,
+            cycle,
+          ),
+        );
   if (!eventDraw.ok) {
     return eventDraw;
   }

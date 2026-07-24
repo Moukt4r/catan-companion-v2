@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   asEventId,
   asEventOccurrenceId,
+  BUILT_IN_THEMATIC_EVENTS,
   asGameId,
   asIsoTimestamp,
   asPlayerId,
@@ -287,5 +288,54 @@ describe("legacy save backward compatibility", () => {
     const activeEvents = parsed.thematicEvents.activeEvents ?? [];
     expect(activeEvents).toHaveLength(1);
     expect(activeEvents[0]!.contentVersion).toBe(1);
+  });
+});
+
+describe("season config persistence", () => {
+  it("parses game state without seasonConfig (old saves)", () => {
+    const result = createGame({
+      gameId: asGameId("no-season-game"),
+      revisionId: asRevisionId("no-season-rev"),
+      createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
+      setup: setup(),
+      random: () => 0,
+      ids: sequentialIds(),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const state = structuredClone(result.value.nextState);
+
+    expect(state.setup.seasonConfig).toBeUndefined();
+    const parsed = parseGameState(state);
+    expect(parsed.setup.seasonConfig).toBeUndefined();
+  });
+
+  it("round-trips seasonConfig when present", () => {
+    const result = createGame({
+      gameId: asGameId("season-game"),
+      revisionId: asRevisionId("season-rev"),
+      createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
+      setup: {
+        ...setup(),
+        thematicEventsEnabled: true,
+        thematicEventCatalog: BUILT_IN_THEMATIC_EVENTS.map((event) => ({
+          ...event,
+        })),
+        seasonConfig: {
+          enabled: true,
+          roundsPerSeason: 4,
+          startingSeason: "winter",
+        },
+      },
+      random: () => 0,
+      ids: sequentialIds(),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const state = structuredClone(result.value.nextState);
+    const parsed = parseGameState(state);
+    expect(parsed.setup.seasonConfig).toEqual({
+      enabled: true,
+      roundsPerSeason: 4,
+      startingSeason: "winter",
+    });
   });
 });

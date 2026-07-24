@@ -7,7 +7,7 @@ import {
   THEMATIC_TRIGGER_BAG_SIZE,
 } from "./rules";
 import { metropolisCountForPlayer, scoreForPlayer } from "./selectors";
-import { validateActiveEvents } from "./worldEvents";
+import { validateActiveEvents, WORLD_EVENTS_CATALOG } from "./worldEvents";
 import type {
   DeckState,
   DomainError,
@@ -120,6 +120,45 @@ export function validateSetup(setup: GameSetup): DomainError[] {
       setup.thematicEventsEnabled,
     ),
   );
+  const seasonConfig = setup.seasonConfig;
+  if (seasonConfig !== undefined) {
+    const validRounds = [2, 3, 4].includes(seasonConfig.roundsPerSeason);
+    const validSeason = ["spring", "summer", "autumn", "winter"].includes(
+      seasonConfig.startingSeason,
+    );
+    if (!validRounds || !validSeason) {
+      errors.push(
+        domainError(
+          "INVALID_SETUP",
+          "Seasons require 2, 3, or 4 rounds and a valid starting season.",
+        ),
+      );
+    }
+    if (seasonConfig.enabled && !setup.thematicEventsEnabled) {
+      errors.push(
+        domainError(
+          "INVALID_SETUP",
+          "Seasons Mode requires World Events to be enabled.",
+        ),
+      );
+    }
+    if (
+      seasonConfig.enabled &&
+      setup.thematicEventCatalog.some(
+        (event) =>
+          !WORLD_EVENTS_CATALOG.some(
+            (definition) => definition.id === event.id,
+          ),
+      )
+    ) {
+      errors.push(
+        domainError(
+          "INVALID_SETUP",
+          "Seasons Mode only supports the built-in typed World Events catalog.",
+        ),
+      );
+    }
+  }
   return errors;
 }
 

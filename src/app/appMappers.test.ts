@@ -194,3 +194,56 @@ describe("setupFromDraft World Events", () => {
     ).toBe(true);
   });
 });
+
+describe("setupFromDraft Seasons Mode", () => {
+  it("omits seasonConfig when seasons are disabled", () => {
+    const setup = setupFromDraft(
+      worldEventDraft({
+        seasonConfig: {
+          enabled: false,
+          roundsPerSeason: 3,
+          startingSeason: "spring",
+        },
+      }),
+    );
+    expect(setup.seasonConfig).toBeUndefined();
+  });
+
+  it("omits seasonConfig when world events are off", () => {
+    const setup = setupFromDraft(
+      worldEventDraft({
+        eventCadence: "off",
+        seasonConfig: {
+          enabled: true,
+          roundsPerSeason: 3,
+          startingSeason: "spring",
+        },
+      }),
+    );
+    expect(setup.seasonConfig).toBeUndefined();
+  });
+
+  it("includes seasonConfig when enabled with world events on", () => {
+    const setup = setupFromDraft(
+      worldEventDraft({
+        seasonConfig: {
+          enabled: true,
+          roundsPerSeason: 4,
+          startingSeason: "winter",
+        },
+      }),
+    );
+    expect(setup.seasonConfig).toEqual({
+      enabled: true,
+      roundsPerSeason: 4,
+      startingSeason: "winter",
+    });
+  });
+
+  it("works without seasonConfig in draft (backward compat)", () => {
+    const draft = worldEventDraft();
+    delete draft.seasonConfig;
+    const setup = setupFromDraft(draft);
+    expect(setup.seasonConfig).toBeUndefined();
+  });
+});

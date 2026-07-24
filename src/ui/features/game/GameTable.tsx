@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import harborIllustration from "../../../assets/illustrations/harbor-watch.webp";
 import resourceIllustration from "../../../assets/illustrations/resource-landscape.webp";
 import type { ActiveEventView, PendingWorldEventView } from "./viewMappers";
+import type { Season } from "../../../domain";
 import { Button, DieFace, PlayerMarker, StatusBanner } from "../../components";
 import { formatDuration } from "./time";
 
@@ -76,6 +77,14 @@ export interface GameTableView {
   worldEventPending: boolean;
   worldEvent: PendingWorldEventView | null;
   activeEvents: ActiveEventView[];
+  season: {
+    current: Season;
+    label: string;
+    icon: string;
+    roundInSeason: number;
+    roundsPerSeason: number;
+    transitioned: boolean;
+  } | null;
   winnerCandidateName: string | null;
 }
 
@@ -226,6 +235,22 @@ export function GameTable({
           <p className="game-meta">
             Round {view.round} · Turn {view.turnNumber} · {view.phaseLabel}
           </p>
+          {view.season ? (
+            <p
+              className="season-indicator"
+              aria-label={`Current season: ${view.season.label}, round ${view.season.roundInSeason} of ${view.season.roundsPerSeason}`}
+            >
+              <span aria-hidden="true">{view.season.icon}</span>{" "}
+              {view.season.label} ({view.season.roundInSeason}/
+              {view.season.roundsPerSeason})
+            </p>
+          ) : null}
+          {view.season?.transitioned ? (
+            <div className="season-transition" role="status" aria-live="polite">
+              {view.season.icon} The season has changed to{" "}
+              <strong>{view.season.label}</strong>
+            </div>
+          ) : null}
           <div className="game-clock-row" aria-label="Game timers">
             <span>
               Turn <strong>{formatDuration(view.currentTurnMs)}</strong>

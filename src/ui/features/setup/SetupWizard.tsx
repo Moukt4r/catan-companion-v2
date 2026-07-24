@@ -1,6 +1,16 @@
 import { useMemo, useState } from "react";
 import type { DevicePreferences } from "../../../application/devicePreferences";
-import { WORLD_EVENTS_CATALOG, type WorldEventCategory } from "../../../domain";
+import {
+  WORLD_EVENTS_CATALOG,
+  SEASONS,
+  SEASON_LABELS,
+  SEASON_ICONS,
+  DEFAULT_SEASON_CONFIG,
+  type WorldEventCategory,
+  type Season,
+  type RoundsPerSeason,
+  type SeasonConfig,
+} from "../../../domain";
 import resourceIllustration from "../../../assets/illustrations/resource-landscape.webp";
 import { Button, PlayerMarker, StatusBanner } from "../../components";
 
@@ -59,6 +69,7 @@ export interface SetupDraft {
   victoryTarget: number;
   eventCadence: "off" | "subtle" | "standard" | "lively";
   worldEventPacks: WorldEventCategory[];
+  seasonConfig?: SeasonConfig;
   preferences: DevicePreferences;
 }
 
@@ -107,6 +118,9 @@ export function SetupWizard({
   const [worldEventPacks, setWorldEventPacks] = useState<WorldEventCategory[]>([
     ...allWorldEventPacks,
   ]);
+  const [seasonConfig, setSeasonConfig] = useState<SeasonConfig>({
+    ...DEFAULT_SEASON_CONFIG,
+  });
   const [preferences, setPreferences] = useState(initialPreferences);
   const [error, setError] = useState<string | null>(null);
 
@@ -530,6 +544,75 @@ export function SetupWizard({
                 ) : null}
               </fieldset>
             ) : null}
+
+            {eventCadence !== "off" ? (
+              <fieldset className="choice-group">
+                <legend>Seasons Mode</legend>
+                <p>
+                  Optional seasonal bias on World Events. Favored categories
+                  appear more often, reduced ones less — but nothing is
+                  impossible.
+                </p>
+                <label className="check-field">
+                  <input
+                    type="checkbox"
+                    checked={seasonConfig.enabled}
+                    onChange={(event) => {
+                      setSeasonConfig((current) => ({
+                        ...current,
+                        enabled: event.target.checked,
+                      }));
+                    }}
+                  />
+                  <span>
+                    <strong>Enable Seasons Mode</strong>
+                    <small>
+                      Categories shift with the seasons as rounds progress.
+                    </small>
+                  </span>
+                </label>
+                {seasonConfig.enabled ? (
+                  <>
+                    <label className="field">
+                      <span>Rounds per season</span>
+                      <select
+                        value={seasonConfig.roundsPerSeason}
+                        onChange={(event) => {
+                          setSeasonConfig((current) => ({
+                            ...current,
+                            roundsPerSeason: Number(
+                              event.target.value,
+                            ) as RoundsPerSeason,
+                          }));
+                        }}
+                      >
+                        <option value={2}>2 rounds</option>
+                        <option value={3}>3 rounds (default)</option>
+                        <option value={4}>4 rounds</option>
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>Starting season</span>
+                      <select
+                        value={seasonConfig.startingSeason}
+                        onChange={(event) => {
+                          setSeasonConfig((current) => ({
+                            ...current,
+                            startingSeason: event.target.value as Season,
+                          }));
+                        }}
+                      >
+                        {SEASONS.map((s) => (
+                          <option key={s} value={s}>
+                            {SEASON_ICONS[s]} {SEASON_LABELS[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </>
+                ) : null}
+              </fieldset>
+            ) : null}
           </div>
         ) : null}
 
@@ -649,6 +732,16 @@ export function SetupWizard({
                     : `${eventCadence.charAt(0).toUpperCase()}${eventCadence.slice(1)} · ${worldEventPacks.length} pack${worldEventPacks.length === 1 ? "" : "s"}`}
                 </dd>
               </div>
+              {eventCadence !== "off" && seasonConfig.enabled ? (
+                <div>
+                  <dt>Seasons</dt>
+                  <dd>
+                    {SEASON_ICONS[seasonConfig.startingSeason]}{" "}
+                    {SEASON_LABELS[seasonConfig.startingSeason]} start ·{" "}
+                    {seasonConfig.roundsPerSeason} rounds/season
+                  </dd>
+                </div>
+              ) : null}
               <div>
                 <dt>Mode</dt>
                 <dd>
@@ -687,6 +780,10 @@ export function SetupWizard({
                   eventCadence,
                   worldEventPacks:
                     eventCadence === "off" ? [] : worldEventPacks,
+                  seasonConfig:
+                    eventCadence === "off"
+                      ? { ...DEFAULT_SEASON_CONFIG }
+                      : seasonConfig,
                   preferences,
                 });
               }}

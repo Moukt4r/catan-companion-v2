@@ -261,7 +261,22 @@ and vulnerable city count are derived rather than independently editable.
 - Maintain backward compatibility with legacy v1 saves (metadata-less).
 - Record events and resolution in history.
 
-### FR-10: Turn management
+### FR-10: Seasons Mode (v0.3.0)
+
+- Offer Seasons only when World Events are enabled and label it as a house rule.
+- Support 2, 3, or 4 rounds per season and any of the four starting seasons.
+- Derive season from setup and round; do not persist mutable seasonal state.
+- Change seasons only at round boundaries and journal each transition.
+- Weight the next remaining World Event at trigger time without replacement;
+  existing compatibility and anti-clump constraints outrank seasonal bias.
+- Keep active World Events alive across transitions according to their own
+  lifecycle.
+- Show a text-plus-icon indicator and a polite transition announcement without
+  relying on color or motion.
+- Treat missing season configuration in old saves as Off and expose the active
+  season in sanitized diagnostics.
+
+### FR-11: Turn management
 
 - Do not expose a standalone End turn action.
 - The action-phase **Next: PLAYER & roll** control ends the current turn and
@@ -273,7 +288,7 @@ and vulnerable city count are derived rather than independently editable.
   rolls for the next player.
 - Announce the next player visually and through an accessible live region.
 
-### FR-11: History and undo
+### FR-12: History and undo
 
 - Record every state-changing action with actor, time, before/after revision,
   and a human-readable description.
@@ -285,7 +300,7 @@ and vulnerable city count are derived rather than independently editable.
 - Never silently discard future history after navigating to an earlier
   revision.
 
-### FR-12: Persistence and recovery
+### FR-13: Persistence and recovery
 
 - Save every accepted command in one IndexedDB transaction.
 - Resume without data loss after refresh, browser restart, or PWA update.
@@ -295,7 +310,7 @@ and vulnerable city count are derived rather than independently editable.
 - Validate imports before modifying local data.
 - Keep the previous valid snapshot if a migration or write fails.
 
-### FR-13: Offline PWA
+### FR-14: Offline PWA
 
 - Install on supported mobile and desktop browsers.
 - Load and run the complete active-game flow offline after the first visit.
@@ -303,7 +318,7 @@ and vulnerable city count are derived rather than independently editable.
 - Prompt for application updates and never force a reload during an unresolved
   turn.
 
-### FR-14: Accessibility
+### FR-15: Accessibility
 
 - Meet WCAG 2.2 AA for the complete critical flow.
 - Support keyboard-only and switch-input operation.
@@ -312,14 +327,14 @@ and vulnerable city count are derived rather than independently editable.
 - Provide reduced-motion behavior and a no-audio path.
 - Announce roll results, phase changes, errors, and save failures.
 
-### FR-15: Settings and diagnostics
+### FR-16: Settings and diagnostics
 
 - Expose animation, sound, wake lock, theme, and event cadence.
 - Show application version, schema version, storage status, and last save time.
 - Provide a safe "copy diagnostics" action that excludes player names and game
   content by default.
 
-### FR-16: Active-play timing and pause
+### FR-17: Active-play timing and pause
 
 - Track current-turn active time, accumulated active time per player, and total
   active game time.
@@ -358,6 +373,8 @@ The first release is acceptable only when all scenarios pass:
 11. Importing malformed or incompatible data leaves the current game intact.
 12. A keyboard-only user can complete setup, roll, resolve, adjust state, undo,
     and export.
+13. Seasons can be configured, survive reload/export, change only at a complete
+    round boundary, and announce the new season without color-only meaning.
 
 ## 10. Release success criteria
 
@@ -375,7 +392,7 @@ The first release is acceptable only when all scenarios pass:
 
 ## 11. Future extensions
 
-Future work may add Seasons Mode, custom World Events, alternative official
-expansions, game statistics, a board-facing display mode, or optional
+Future work may add custom World Events, alternative official expansions,
+game statistics, a board-facing display mode, or optional
 device-to-device sync. None may weaken local-first operation or require
 migration of private player information into the app.

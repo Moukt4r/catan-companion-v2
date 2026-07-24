@@ -440,3 +440,84 @@ describe("other view mappers", () => {
     });
   });
 });
+
+describe("season view mapping", () => {
+  const saveLabel = {
+    savedLabel: "Saved" as const,
+    saveTone: "success" as const,
+  };
+  it("returns null season when seasonConfig is absent", () => {
+    const state = game();
+    const view = toGameTableView(state, saveLabel);
+    expect(view.season).toBeNull();
+  });
+
+  it("returns null season when seasonConfig.enabled is false", () => {
+    const state = game();
+    state.setup.seasonConfig = {
+      enabled: false,
+      roundsPerSeason: 3,
+      startingSeason: "spring",
+    };
+    const view = toGameTableView(state, saveLabel);
+    expect(view.season).toBeNull();
+  });
+
+  it("returns season info when enabled", () => {
+    const state = game();
+    state.setup.seasonConfig = {
+      enabled: true,
+      roundsPerSeason: 3,
+      startingSeason: "spring",
+    };
+    state.turn.round = 4; // summer
+    const view = toGameTableView(state, saveLabel);
+    expect(view.season).toMatchObject({
+      current: "summer",
+      label: "Summer",
+      icon: "☀️",
+      roundInSeason: 1,
+      roundsPerSeason: 3,
+    });
+  });
+
+  it("detects season transition", () => {
+    const state = game();
+    state.setup.seasonConfig = {
+      enabled: true,
+      roundsPerSeason: 3,
+      startingSeason: "spring",
+    };
+    state.turn.round = 4; // first round of summer
+    const view = toGameTableView(state, saveLabel);
+    expect(view.season?.transitioned).toBe(true);
+  });
+
+  it("keeps the transition for the first player's turn, then hides it", () => {
+    const state = game();
+    state.setup.seasonConfig = {
+      enabled: true,
+      roundsPerSeason: 3,
+      startingSeason: "spring",
+    };
+    state.turn.round = 4;
+    state.turn.phase = "action-phase";
+    expect(toGameTableView(state, saveLabel).season?.transitioned).toBe(true);
+
+    state.turn.phase = "awaiting-roll";
+    state.turn.currentPlayerIndex = 1;
+    expect(toGameTableView(state, saveLabel).season?.transitioned).toBe(false);
+  });
+
+  it("no transition within season", () => {
+    const state = game();
+    state.setup.seasonConfig = {
+      enabled: true,
+      roundsPerSeason: 3,
+      startingSeason: "spring",
+    };
+    state.turn.round = 2; // still spring
+    const view = toGameTableView(state, saveLabel);
+    expect(view.season?.transitioned).toBe(false);
+  });
+});

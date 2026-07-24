@@ -94,6 +94,12 @@ const eventDefinitionSchema = z.strictObject({
   compatibility: worldEventCompatibility.optional(),
 });
 
+const seasonConfigSchema = z.strictObject({
+  enabled: z.boolean(),
+  roundsPerSeason: z.union([z.literal(2), z.literal(3), z.literal(4)]),
+  startingSeason: z.enum(["spring", "summer", "autumn", "winter"]),
+});
+
 const setupSchema = z.strictObject({
   title: z.string().min(1).max(200),
   mode: z.enum(["standard", "two-player-house-rule"]),
@@ -103,6 +109,7 @@ const setupSchema = z.strictObject({
   thematicCadence: z.enum(["subtle", "standard", "lively"]),
   thematicEventsEnabled: z.boolean(),
   thematicEventCatalog: z.array(eventDefinitionSchema).max(1_000),
+  seasonConfig: seasonConfigSchema.optional(),
   rulesDataVersion: id,
   gameDocumentVersion: integer.min(1),
 });

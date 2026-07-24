@@ -451,6 +451,27 @@ Engine integration tests cover:
 - Legacy-save parsing (v1 definitions without metadata)
 - Validation of active event invariants
 
+### 11.11 Seasons Mode (v0.3.0)
+
+Seasons Mode is an optional original house-rule layer over World Events. It is
+unavailable when World Events are Off and never changes event cadence, the
+numbered-production deck, or the official Cities & Knights event deck.
+
+- The current season is derived from immutable setup plus the round number; no
+  mutable season state is persisted.
+- Seasons last 2, 3, or 4 complete rounds and advance only at a round boundary.
+- The configured starting season may be Spring, Summer, Autumn, or Winter.
+- At each World Event trigger, the active season weights the IDs still
+  remaining in the current without-replacement cycle: favored `1.5`, neutral
+  `1.0`, reduced `0.5`, with no category made impossible.
+- Compatibility, immediate-repeat, tone-run, and impact-3 guardrails filter
+  candidates before seasonal weighting.
+- Active and deferred events retain their normal lifecycle across a season
+  transition.
+- The transition is included in the turn-boundary journal entry and announced
+  accessibly during the first player's turn of the new season.
+- Missing `seasonConfig` in older saves means Seasons Off.
+
 ## 12. Turn and victory rules
 
 - Turns advance clockwise from the configured first player.

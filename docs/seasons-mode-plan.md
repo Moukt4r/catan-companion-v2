@@ -1,10 +1,10 @@
-# Seasons Mode — Design Proposal
+# Seasons Mode — Implemented Design
 
-> **Status:** Design proposal only — not implemented.
+> **Status:** Implemented in application v0.3.0 on 2026-07-24.
 >
-> This proposes an original four-season house-rule layer that reuses World
-> Events v0.2.0. It does not reproduce CATAN: The Seasons, official event-card
-> mechanics, or published card text.
+> This is the canonical design and verification contract for an original
+> four-season house-rule layer over World Events. It does not reproduce CATAN:
+> The Seasons, official event-card mechanics, or published card text.
 
 ## 1. Recommendation
 
@@ -177,6 +177,14 @@ Seasons must be unavailable when World Events are Off.
 - Reduced-motion mode disables transition animation.
 - Season names and controls remain ordinary localized text, not decorative
   glyph-only buttons.
+
+## 11.1 Implementation record
+
+The v0.3.0 implementation includes phases 1–4 plus deterministic distribution
+coverage from phase 5. Selection is evaluated at each trigger against the IDs
+remaining in the persisted deck cycle, so a season transition affects the next
+event immediately. Unit, persistence, component, accessibility, and multi-browser
+E2E gates form the release contract.
 
 ## 12. Delivery phases
 

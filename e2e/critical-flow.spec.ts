@@ -70,6 +70,26 @@ async function resolveRoll(page: Page) {
   ).toBe(true);
 }
 
+async function resolveSeasonRoll(page: Page) {
+  await expect(page.locator(".roll-result-summary")).toBeVisible();
+  const worldEvent = page.getByRole("button", {
+    name: "Acknowledge world event",
+  });
+  const nextRoll = page.getByRole("button", { name: /^Next: .* & roll$/ });
+  await expect
+    .poll(
+      async () =>
+        (await worldEvent.count()) > 0 ||
+        ((await nextRoll.count()) > 0 && (await nextRoll.isEnabled())),
+    )
+    .toBe(true);
+  if ((await worldEvent.count()) > 0) {
+    await worldEvent.click();
+  }
+  await expect(nextRoll).toBeEnabled();
+  await nextRoll.scrollIntoViewIfNeeded();
+}
+
 function durationSeconds(value: string | null): number {
   if (!value) return 0;
   const [hours, minutes, seconds] = value.split(":").map(Number);
@@ -404,4 +424,63 @@ test("loads the app shell offline after service-worker installation", async ({
   } finally {
     await context.setOffline(false);
   }
+});
+
+test("configures Seasons Mode and announces a round-boundary transition", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Start new game" }).click();
+  await page.locator('input[placeholder="Player 1"]').fill("Ada");
+  await page.locator('input[placeholder="Player 2"]').fill("Grace");
+  await page.locator('input[placeholder="Player 3"]').fill("Linus");
+  await page.locator('input[placeholder="Player 4"]').fill("Margaret");
+  await page
+    .locator("fieldset")
+    .nth(3)
+    .getByRole("button", { name: "Remove" })
+    .click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await page.getByRole("checkbox", { name: /Enable Seasons Mode/ }).check();
+  await page
+    .getByRole("combobox", { name: "Rounds per season" })
+    .selectOption("2");
+  await page
+    .getByRole("combobox", { name: "Starting season" })
+    .selectOption("winter");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText(/Winter start · 2 rounds\/season/)).toBeVisible();
+  await page.getByRole("button", { name: "Start and save game" }).click();
+
+  await expect(
+    page.getByLabel("Current season: Winter, round 1 of 2"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Roll", exact: true }).click();
+  await resolveSeasonRoll(page);
+
+  for (let completedTurn = 0; completedTurn < 6; completedTurn += 1) {
+    await page.getByRole("button", { name: /^Next: .* & roll$/ }).click();
+    await expect(page.locator(".game-meta")).toContainText(
+      `Turn ${completedTurn + 2}`,
+    );
+    await resolveSeasonRoll(page);
+  }
+
+  await expect(
+    page.getByLabel("Current season: Spring, round 1 of 2"),
+  ).toBeVisible();
+  await expect(page.getByRole("status")).toContainText(
+    "The season has changed to Spring",
+  );
+
+  await page.getByRole("button", { name: "History" }).click();
+  const history = page.locator("dialog[open]");
+  await expect(history).toContainText("Spring began.");
+  await history.getByRole("button", { name: "Close" }).click();
+
+  await page.getByRole("button", { name: /^Next: .* & roll$/ }).click();
+  await expect(page.locator(".game-meta")).toContainText("Turn 8");
+  await resolveSeasonRoll(page);
+  await expect(page.locator(".season-transition")).toHaveCount(0);
 });

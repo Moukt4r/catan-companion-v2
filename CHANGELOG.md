@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## 0.3.0 - 2026-07-24
+
+- Added **Seasons Mode**: an optional house-rule layer over World Events that
+  biases category selection based on a four-season cycle tied to round
+  progression.
+- Setup configuration: enable/disable, rounds per season (2/3/4), starting
+  season (spring/summer/autumn/winter). Disabled when World Events are off.
+- Deterministic weighted-without-replacement event selection using seasonal
+  category weights (favored 1.5×, neutral 1.0×, reduced 0.5×, hard minimum
+  0.25×). Existing guardrails (tone-run, impact anti-clump, anti-repeat)
+  outrank seasonal weighting.
+- Compact in-game season indicator with current season icon, label, and
+  round-within-season counter.
+- Accessible polite live-region announcement when the season changes at a
+  round boundary.
+- Backward compatible: old saves without seasonConfig load as Seasons Off;
+  new saves round-trip correctly. No mid-game enabling.
+- Comprehensive test coverage for season derivation, transitions, weighted
+  selection determinism, persistence, and view mapping.
+
 ## 0.2.0 - 2026-07-24
 
 - Rebuilt thematic house events as **World Events**: 20 original typed events

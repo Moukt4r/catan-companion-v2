@@ -22,6 +22,7 @@ import {
   winnerCandidates,
 } from "./selectors";
 import { createThematicState, scheduleThematicEvent } from "./thematic";
+import { deriveSeason, isSeasonTransition, SEASON_LABELS } from "./seasons";
 import {
   pruneActiveEvents,
   activateDeferredEvents,
@@ -188,6 +189,7 @@ export function createGame(input: CreateGameInput): DomainResult<Decision> {
         "Balanced numbered deck",
         "Balanced event deck",
         ...(state.thematicEvents.enabled ? ["Thematic events"] : []),
+        ...(state.setup.seasonConfig?.enabled ? ["Seasons mode"] : []),
         ...(state.setup.mode === "two-player-house-rule"
           ? ["Two-player mode"]
           : []),
@@ -491,6 +493,8 @@ function roll(
     deps.random,
     deps.revisionId,
     nextEventOccurrenceId(deps.ids),
+    state.setup.seasonConfig,
+    state.turn.round,
   );
   if (!thematic.ok) {
     return failure(thematic.error);
@@ -1304,6 +1308,14 @@ function endTurn(state: GameState, deps: DomainDeps): DomainResult<Decision> {
   const completedRound = completedTurns % state.players.length === 0;
   const newRound = state.turn.round + (completedRound ? 1 : 0);
   const playerCount = state.players.length;
+  const seasonConfig = state.setup.seasonConfig;
+  const seasonChanged =
+    completedRound &&
+    seasonConfig?.enabled === true &&
+    isSeasonTransition(seasonConfig, state.turn.round, newRound);
+  const newSeason = seasonChanged
+    ? deriveSeason(seasonConfig, newRound).season
+    : null;
 
   // --- World event lifecycle: prune expired, activate deferred ---
   let activeEvents: ActiveWorldEventRecord[] =
@@ -1354,7 +1366,9 @@ function endTurn(state: GameState, deps: DomainDeps): DomainResult<Decision> {
     deps,
     {
       kind: "turn-ended",
-      text: `Ended the turn; ${currentPlayer(candidate).name} is next.`,
+      text: `Ended the turn; ${currentPlayer(candidate).name} is next.${
+        newSeason === null ? "" : ` ${SEASON_LABELS[newSeason]} began.`
+      }`,
       playerIds: [currentPlayer(candidate).id],
     },
     {

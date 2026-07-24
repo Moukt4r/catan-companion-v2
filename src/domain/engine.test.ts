@@ -588,6 +588,167 @@ describe("thematic cadence and cooldown", () => {
     };
   }
 
+  it("uses the active season for each World Event trigger", () => {
+    const nature = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "nature",
+    )!;
+    const military = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "military",
+    )!;
+    const base = newGame({
+      setup: setup({
+        thematicEventCatalog: [{ ...nature }, { ...military }],
+        seasonConfig: {
+          enabled: true,
+          roundsPerSeason: 2,
+          startingSeason: "spring",
+        },
+      }),
+    });
+    const thematic: ThematicEventState = {
+      ...base.thematicEvents,
+      enabledEvents: [{ ...nature }, { ...military }],
+      eventDeck: {
+        ...base.thematicEvents.eventDeck,
+        cursor: 0,
+        order: [nature.id, military.id],
+      },
+      deferredTrigger: true,
+    };
+    const middleRoll = (upperExclusive: number) =>
+      Math.floor(upperExclusive * 0.45);
+    const config = base.setup.seasonConfig!;
+
+    const spring = unwrap(
+      scheduleThematicEvent(
+        thematic,
+        3,
+        base.players.length,
+        middleRoll,
+        asRevisionId("season-spring"),
+        "season-spring-occurrence" as never,
+        config,
+        1,
+      ),
+    );
+    expect(spring.event?.eventId).toBe(nature.id);
+
+    const summer = unwrap(
+      scheduleThematicEvent(
+        thematic,
+        3,
+        base.players.length,
+        middleRoll,
+        asRevisionId("season-summer"),
+        "season-summer-occurrence" as never,
+        config,
+        3,
+      ),
+    );
+    expect(summer.event?.eventId).toBe(military.id);
+  });
+
+  it("starts a new seasonal deck cycle and preserves cross-cycle balance", () => {
+    const nature = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "nature",
+    )!;
+    const military = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "military",
+    )!;
+    const base = newGame();
+    const thematic: ThematicEventState = {
+      ...base.thematicEvents,
+      enabledEvents: [{ ...nature }, { ...military }],
+      eventDeck: {
+        ...base.thematicEvents.eventDeck,
+        cursor: 2,
+        order: [nature.id, military.id],
+      },
+      previousEventId: military.id,
+      deferredTrigger: true,
+    };
+    const result = unwrap(
+      scheduleThematicEvent(
+        thematic,
+        3,
+        base.players.length,
+        () => 0,
+        asRevisionId("season-cycle"),
+        "season-cycle-occurrence" as never,
+        { enabled: true, roundsPerSeason: 3, startingSeason: "spring" },
+        1,
+      ),
+    );
+    expect(result.event?.eventId).toBe(nature.id);
+    expect(result.state.eventDeck).toMatchObject({ cycle: 2, cursor: 1 });
+  });
+
+  it("tolerates missing previous-event metadata in a persisted deck", () => {
+    const nature = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "nature",
+    )!;
+    const military = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "military",
+    )!;
+    const base = newGame();
+    const result = unwrap(
+      scheduleThematicEvent(
+        {
+          ...base.thematicEvents,
+          enabledEvents: [{ ...nature }, { ...military }],
+          eventDeck: {
+            ...base.thematicEvents.eventDeck,
+            cursor: 0,
+            order: [military.id, nature.id],
+          },
+          previousEventId: asEventId("legacy-previous-event"),
+          deferredTrigger: true,
+        },
+        3,
+        base.players.length,
+        () => 0,
+        asRevisionId("season-prefix"),
+        "season-prefix-occurrence" as never,
+        { enabled: true, roundsPerSeason: 3, startingSeason: "spring" },
+        1,
+      ),
+    );
+    expect(result.event?.eventId).toBe(military.id);
+  });
+
+  it("rejects unknown content in a seasonal event deck", () => {
+    const nature = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "nature",
+    )!;
+    const military = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "military",
+    )!;
+    const base = newGame();
+    const result = scheduleThematicEvent(
+      {
+        ...base.thematicEvents,
+        enabledEvents: [{ ...nature }, { ...military }],
+        eventDeck: {
+          ...base.thematicEvents.eventDeck,
+          cursor: 0,
+          order: [asEventId("missing-season-event"), nature.id],
+        },
+        deferredTrigger: true,
+      },
+      3,
+      base.players.length,
+      () => 0,
+      asRevisionId("season-corrupt"),
+      "season-corrupt-occurrence" as never,
+      { enabled: true, roundsPerSeason: 3, startingSeason: "spring" },
+      1,
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_THEMATIC_STATE" },
+    });
+  });
+
   it("defers an early trigger and enforces two completed turns between events", () => {
     const game = newGame();
     let thematic = forcedTriggerState(game.thematicEvents, 1);
@@ -728,6 +889,30 @@ describe("turns, invariants, and completion", () => {
       turnNumber: 4,
     });
     expect(state.statistics.completedRounds).toBe(1);
+  });
+
+  it("journals a season transition at the round boundary", () => {
+    let state = actionPhase(
+      newGame({
+        setup: setup({
+          seasonConfig: {
+            enabled: true,
+            roundsPerSeason: 2,
+            startingSeason: "spring",
+          },
+        }),
+      }),
+    );
+    for (let index = 0; index < 5; index += 1) {
+      state = run(state, { type: "turn.ended" }, `season-turn-${index}`);
+      state = actionPhase(state);
+    }
+    const decision = unwrap(
+      decide(state, { type: "turn.ended" }, deps("season-transition")),
+    );
+    expect(decision.nextState.turn.round).toBe(3);
+    expect(decision.summary).toMatchObject({ kind: "turn-ended" });
+    expect(decision.summary.text).toContain("Summer began.");
   });
 
   it("rejects corrupt state before deciding and invalid edits without clamping", () => {
