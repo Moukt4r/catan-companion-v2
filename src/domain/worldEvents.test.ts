@@ -6,10 +6,11 @@ import {
   activateDeferredEvents,
   pruneActiveEvents,
   createActiveWorldEvent,
+  createActiveWorldEventFromDefinition,
   resolveActiveEvent,
   type ActiveWorldEvent,
 } from "./worldEvents";
-import type { EventId } from "./types";
+import type { EventId, ThematicEventDefinition } from "./types";
 
 // Deterministic RNG for tests
 function seededRng(seed: number) {
@@ -183,7 +184,7 @@ describe("isWorldEventExpired", () => {
     expect(isWorldEventExpired(event, 10, 4, 3)).toBe(false);
   });
 
-  it("until-resolved events never auto-expire", () => {
+  it("until-next-occurrence and until-resolved events do not expire by time", () => {
     const event: ActiveWorldEvent = {
       occurrenceId: "occ-1",
       contentVersion: 1,
@@ -201,6 +202,14 @@ describe("isWorldEventExpired", () => {
       activated: true,
     };
     expect(isWorldEventExpired(event, 100, 50, 3)).toBe(false);
+    expect(
+      isWorldEventExpired(
+        { ...event, duration: "until-next-occurrence" },
+        100,
+        50,
+        3,
+      ),
+    ).toBe(false);
   });
 });
 
@@ -331,6 +340,68 @@ describe("createActiveWorldEvent", () => {
     expect(result!.scope).toBe(event.scope);
     expect(result!.compatibility).toEqual(event.compatibility);
   });
+
+  it("uses persisted metadata and fills optional metadata defaults", () => {
+    const definition: ThematicEventDefinition = {
+      id: "custom-event" as EventId,
+      contentVersion: 3,
+      title: "Custom",
+      instruction: "Keep this active.",
+      tone: "mixed",
+      duration: "until-resolved",
+    };
+
+    const result = createActiveWorldEventFromDefinition(
+      "custom-occurrence",
+      definition,
+      WORLD_EVENTS_CATALOG,
+      4,
+      2,
+    );
+
+    expect(result).toMatchObject({
+      contentVersion: 3,
+      impact: 1,
+      category: "society",
+      scope: "all",
+      compatibility: { twoPlayer: true },
+    });
+  });
+
+  it("falls back to the catalog for legacy definitions and skips unknown ones", () => {
+    const catalogEvent = WORLD_EVENTS_CATALOG.find(
+      (event) => event.duration !== "immediate",
+    )!;
+    const legacy: ThematicEventDefinition = {
+      id: catalogEvent.id,
+      contentVersion: catalogEvent.contentVersion,
+      title: catalogEvent.title,
+      instruction: catalogEvent.instruction,
+    };
+    const unknown: ThematicEventDefinition = {
+      ...legacy,
+      id: "unknown-legacy-event" as EventId,
+    };
+
+    expect(
+      createActiveWorldEventFromDefinition(
+        "legacy-occurrence",
+        legacy,
+        WORLD_EVENTS_CATALOG,
+        4,
+        2,
+      ),
+    ).toMatchObject({ eventId: catalogEvent.id });
+    expect(
+      createActiveWorldEventFromDefinition(
+        "unknown-occurrence",
+        unknown,
+        WORLD_EVENTS_CATALOG,
+        4,
+        2,
+      ),
+    ).toBeNull();
+  });
 });
 
 describe("resolveActiveEvent", () => {
@@ -454,5 +525,30 @@ describe("validateActiveEvents", () => {
   it("rejects invalid contentVersion", () => {
     const errs = validateActiveEvents([{ ...valid, contentVersion: 0 }]);
     expect(errs.some((e) => e.includes("contentVersion"))).toBe(true);
+  });
+
+  it("reports every corrupted metadata field and a missing instruction", () => {
+    const corrupted = {
+      ...valid,
+      tone: "chaotic",
+      impact: 9,
+      category: "ocean",
+      scope: "nobody",
+      duration: "forever",
+      instruction: "",
+    } as unknown as ActiveWorldEvent;
+
+    const errors = validateActiveEvents([corrupted]);
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("invalid tone"),
+        expect.stringContaining("invalid impact"),
+        expect.stringContaining("invalid category"),
+        expect.stringContaining("invalid scope"),
+        expect.stringContaining("invalid duration"),
+        expect.stringContaining("missing instruction"),
+      ]),
+    );
   });
 });
