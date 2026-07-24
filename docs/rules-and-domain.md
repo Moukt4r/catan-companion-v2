@@ -17,7 +17,7 @@ The app combines official assistance with explicit house rules.
 
 - Balanced 36-outcome numbered-dice deck.
 - Balanced six-face event-die deck.
-- Original thematic event system.
+- Predecessor 30-event house-rule catalog with a balanced thematic scheduler.
 - Optional two-player and custom-victory-target modes.
 
 The UI must display a "House rule" label anywhere a required house system is
@@ -341,8 +341,10 @@ When an edit violates an invariant, the command fails without changing state.
 
 ## 11. Thematic event engine
 
-Thematic events are original house-rule content. They are intentionally
-separate from official event-die outcomes.
+Thematic events mirror the predecessor repository's canonical
+`utils/events.ts` house-rule catalog. They are intentionally separate from
+official event-die outcomes, and their scheduling and persistence are
+implemented by the v2 domain.
 
 ### 11.1 Trigger cadence
 

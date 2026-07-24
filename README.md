@@ -33,7 +33,8 @@ this implementation.
   pillaging, knight reset, and first-attack robber activation.
 - Public player scores, cities, metropolises, active knights, and city
   improvements.
-- Balanced original thematic events with cooldown and no immediate repeats.
+- The predecessor app's canonical 30-event house-rule catalog with balanced
+  cadence, cooldown, and no immediate repeats.
 - Immutable IndexedDB revisions with undo, redo, branch retention, integrity
   hashes, and verified-ancestor recovery.
 - Versioned JSON export/import that never overwrites an existing game.
@@ -144,8 +145,9 @@ moving devices, or deleting a saved game.
 ## Legal
 
 This is an independent, unofficial companion using original branding, icons,
-sounds, event text, and locally generated illustrations. It does not include
-CATAN artwork, logos, rulebook text, card text, or copied trade dress.
+sounds, project-authored event text, and locally generated illustrations. It
+does not include CATAN artwork, logos, rulebook text, card text, or copied trade
+dress.
 
 CATAN and Cities & Knights are trademarks of their respective owners. Official
 rule sources are linked in [rules and domain](docs/rules-and-domain.md).

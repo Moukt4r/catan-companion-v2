@@ -16,6 +16,9 @@
   changes, and a viewport-fixed next-turn action.
 - Moved public point adjustments to the top of the player editor and collapsed
   infrequent Cities & Knights bookkeeping behind an advanced disclosure.
+- Replaced the prompt-style thematic deck with the predecessor repository's
+  canonical 30-event catalog while retaining balanced cadence and durable
+  history.
 
 ## 0.1.4 - 2026-07-22
 

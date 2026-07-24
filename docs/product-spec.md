@@ -32,8 +32,9 @@ These decisions define the first release:
 6. Thematic events are part of the core experience and are enabled by default.
 7. The balanced decks and thematic events are house rules and must be labeled
    as such.
-8. The earlier prototype is a reference for intent only. Its code, structure,
-   assets, and implementation compromises are not inherited.
+8. The earlier prototype is a reference for intent and its canonical
+   `utils/events.ts` house-rule catalog only. Its code, structure, assets, and
+   implementation compromises are not inherited.
 
 ## 3. Goals
 
@@ -244,7 +245,7 @@ and vulnerable city count are derived rather than independently editable.
 
 ### FR-09: Thematic events
 
-- Enable the original built-in event deck by default.
+- Enable the predecessor app's canonical 30-event catalog by default.
 - Trigger events through a balanced cadence system, not independent percentage
   rolls.
 - Never interrupt unresolved official result or barbarian resolution.
