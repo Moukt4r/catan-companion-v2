@@ -173,7 +173,7 @@ export function HomeScreen({
       </section>
 
       <footer className="home-footer">
-        <span>Balanced rolls and thematic events are house rules.</span>
+        <span>Balanced rolls and World Events are house rules.</span>
         <span>Unofficial and not affiliated with CATAN GmbH.</span>
       </footer>
     </main>

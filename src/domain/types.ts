@@ -28,6 +28,63 @@ export type GamePhase =
   | "turn-complete"
   | "completed";
 
+// ---------------------------------------------------------------------------
+// World Event metadata types (shared across domain, persistence, UI)
+// ---------------------------------------------------------------------------
+
+/** Tone describes the net effect on the table. */
+export type WorldEventTone = "boon" | "mixed" | "setback";
+
+/** Impact 1–3: how game-altering the event is. */
+export type WorldEventImpact = 1 | 2 | 3;
+
+/** Category groups events thematically for filtering / pack selection. */
+export type WorldEventCategory =
+  "economy" | "military" | "diplomacy" | "nature" | "society";
+
+/** Which players are affected. */
+export type WorldEventScope = "all" | "active-player" | "conditional";
+
+/**
+ * Duration describes how long the effect lasts:
+ * - immediate:              resolve once, done
+ * - rest-of-turn:           active until the current player ends their turn
+ * - full-round:             activates at the next round boundary, lasts one full round
+ * - until-next-occurrence:  persists until the same event (or any event) fires again
+ * - until-resolved:         requires explicit manual dismissal
+ */
+export type WorldEventDuration =
+  | "immediate"
+  | "rest-of-turn"
+  | "full-round"
+  | "until-next-occurrence"
+  | "until-resolved";
+
+/**
+ * Compatibility & prerequisite metadata.
+ * Pragmatic: covers two-player suitability and explicit C&K feature requirements
+ * for pack/setup filtering.
+ */
+export interface WorldEventCompatibility {
+  /** If true the event is safe with two-player house rules. */
+  twoPlayer: boolean;
+  /** C&K features the event interacts with; empty = no special requirements. */
+  requires?: WorldEventPrerequisite[];
+}
+
+/** Named prerequisites that an event may depend on. */
+export type WorldEventPrerequisite =
+  | "knights"
+  | "cities"
+  | "improvements"
+  | "progress-cards"
+  | "robber"
+  | "maritime-trade";
+
+// ---------------------------------------------------------------------------
+// Thematic event types
+// ---------------------------------------------------------------------------
+
 export interface PlayerColor {
   id: string;
   label: string;
@@ -45,11 +102,23 @@ export interface PlayerSetup {
   initialScore?: number;
 }
 
+/**
+ * Thematic event definition — the shape stored in game setup catalogs.
+ * V1 (legacy) saves carry only id/contentVersion/title/instruction.
+ * V2+ saves include full metadata for catalog-independent operation.
+ */
 export interface ThematicEventDefinition {
   id: EventId;
   contentVersion: number;
   title: string;
   instruction: string;
+  /** Present on v2+ definitions; absent on legacy saves. */
+  tone?: WorldEventTone;
+  impact?: WorldEventImpact;
+  category?: WorldEventCategory;
+  scope?: WorldEventScope;
+  duration?: WorldEventDuration;
+  compatibility?: WorldEventCompatibility;
 }
 
 export interface GameSetup {
@@ -156,6 +225,10 @@ export interface TriggerToken {
   trigger: boolean;
 }
 
+/**
+ * Snapshot of a thematic event as it was when triggered.
+ * History records carry this shape; metadata is optional for legacy compat.
+ */
 export interface ThematicEventSnapshot {
   occurrenceId: EventOccurrenceId;
   eventId: EventId;
@@ -164,6 +237,33 @@ export interface ThematicEventSnapshot {
   instruction: string;
   triggeredAtCompletedTurn: number;
   acknowledged: boolean;
+  /** Present on v2+ snapshots; absent on legacy saves. */
+  tone?: WorldEventTone;
+  impact?: WorldEventImpact;
+  category?: WorldEventCategory;
+  scope?: WorldEventScope;
+  duration?: WorldEventDuration;
+}
+
+/**
+ * A lifecycle-tracked active world event.
+ * Content snapshot — stable, no catalog lookup needed at read time.
+ */
+export interface ActiveWorldEventRecord {
+  occurrenceId: string;
+  eventId: EventId;
+  contentVersion: number;
+  title: string;
+  instruction: string;
+  tone: WorldEventTone;
+  impact: WorldEventImpact;
+  category: WorldEventCategory;
+  scope: WorldEventScope;
+  duration: WorldEventDuration;
+  compatibility: WorldEventCompatibility;
+  activeRound: number | null;
+  triggeredAtCompletedTurn: number;
+  activated: boolean;
 }
 
 export interface ThematicEventState {
@@ -176,6 +276,8 @@ export interface ThematicEventState {
   lastTriggeredAtCompletedTurn: number | null;
   previousEventId: EventId | null;
   pendingEvent: ThematicEventSnapshot | null;
+  /** Active lifecycle-tracked events (v2+). Absent in legacy saves. */
+  activeEvents?: ActiveWorldEventRecord[];
 }
 
 export interface BarbarianRules {
@@ -378,6 +480,10 @@ export type GameCommand =
       type: "event.acknowledged";
       occurrenceId: EventOccurrenceId;
     }
+  | {
+      type: "event.resolved";
+      occurrenceId: EventOccurrenceId;
+    }
   | { type: "turn.ended" }
   | { type: "game.completed"; winnerId: PlayerId };
 
@@ -425,6 +531,7 @@ export type JournalSummaryKind =
   | "metropolis-cancelled"
   | "attack-confirmed"
   | "thematic-event-acknowledged"
+  | "thematic-event-resolved"
   | "turn-ended"
   | "game-completed";
 

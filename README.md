@@ -20,9 +20,9 @@ this implementation.
 - Independently shuffled event-die cycles with 3 barbarian, 1 science, 1
   trade, and 1 politics face.
 - Alchemy rolls that preserve the numbered-deck cursor.
-- One consolidated roll-result modal containing event, progress, production,
-  barbarian, and house-event guidance.
-- **Next player & quick roll** directly from the result modal.
+- Inline roll guidance for ordinary results, with a blocking modal only when a
+  barbarian attack requires verification or choices.
+- **Next player & quick roll** directly from the active table flow.
 - No standalone end-turn button: the next-player roll action records the turn
   boundary and immediately rolls.
 - Live current-turn, per-player accumulated, and total active game timers.
@@ -33,8 +33,11 @@ this implementation.
   pillaging, knight reset, and first-attack robber activation.
 - Public player scores, cities, metropolises, active knights, and city
   improvements.
-- The predecessor app's canonical 30-event house-rule catalog with balanced
-  cadence, cooldown, and no immediate repeats.
+- **World Events v0.2.0:** A typed 20-event engine with five selectable packs
+  (Weather & Harvest, Trade & Markets, Conflict & Defense, Diplomacy & Intrigue,
+  Festivals & Progress), Off/Subtle/Standard/Lively cadence, tone/impact balance,
+  five lifecycle durations, persistent active-event UI with manual resolution,
+  and legacy v1 save compatibility.
 - Immutable IndexedDB revisions with undo, redo, branch retention, integrity
   hashes, and verified-ancestor recovery.
 - Versioned JSON export/import that never overwrites an existing game.
@@ -45,8 +48,8 @@ this implementation.
   artwork or trade dress.
 - Prompted PWA updates and complete offline operation after first load.
 
-Balanced decks, thematic events, two-player mode, and custom victory targets
-are intentionally labeled house rules throughout the application.
+Balanced decks, World Events, two-player mode, and custom victory targets are
+intentionally labeled house rules throughout the application.
 
 ## Development
 
@@ -130,6 +133,7 @@ moving devices, or deleting a saved game.
 | [Testing and delivery](docs/testing-and-delivery.md) | Quality strategy, CI/CD, performance, security, and release gates         |
 | [Publishing runbook](docs/publishing.md)             | GitHub Pages setup, releases, verification, troubleshooting, and rollback |
 | [Implementation plan](docs/implementation-plan.md)   | Milestones and work packages                                              |
+| [Seasons Mode plan](docs/seasons-mode-plan.md)       | Design proposal for a four-season layer (not yet implemented)             |
 | [Architecture decisions](docs/decisions/)            | Durable design decisions and tradeoffs                                    |
 
 ## Architecture

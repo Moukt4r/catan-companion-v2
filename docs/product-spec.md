@@ -29,12 +29,12 @@ These decisions define the first release:
    random rolls.
 5. The event die uses a shuffled six-face deck rather than independent random
    rolls.
-6. Thematic events are part of the core experience and are enabled by default.
-7. The balanced decks and thematic events are house rules and must be labeled
-   as such.
-8. The earlier prototype is a reference for intent and its canonical
-   `utils/events.ts` house-rule catalog only. Its code, structure, assets, and
-   implementation compromises are not inherited.
+6. World Events are an optional house-rule module, enabled at Standard cadence
+   with all five packs by default and switchable Off during setup.
+7. Balanced decks and World Events are house rules and must remain visibly
+   separate from official Cities & Knights assistance.
+8. The earlier prototype is historical reference only. Its event catalog,
+   code, structure, assets, and implementation compromises are not inherited.
 
 ## 3. Goals
 
@@ -89,7 +89,7 @@ clear prompts that can be read aloud to the table.
 
 1. **Result first:** persist the authoritative result before any animation.
 2. **Official before optional:** resolve official Cities & Knights steps before
-   displaying a thematic event.
+   displaying a World Event.
 3. **Public state only:** do not require players to enter private information.
 4. **No hidden mutation:** every automatic state change appears in the result
    summary and history.
@@ -122,7 +122,7 @@ The setup wizard collects:
 - first player;
 - official or two-player house mode;
 - 13-point or custom victory target;
-- thematic event frequency;
+- World Event Off/Subtle/Standard/Lively cadence and selected packs;
 - sound and animation preferences;
 - optional initial public-state adjustments.
 
@@ -162,7 +162,7 @@ the winner rather than ending automatically. Confirmation archives:
 - winner and final public scores;
 - duration, turns, rounds, and roll statistics;
 - barbarian attack outcomes;
-- triggered thematic events;
+- triggered and resolved World Events;
 - active house-rule configuration;
 - an exportable game record.
 
@@ -243,17 +243,23 @@ and vulnerable city count are derived rather than independently editable.
 - Reset the ship and deactivate all active knights after confirmed resolution.
 - Keep attack resolution atomic and undoable.
 
-### FR-09: Thematic events
+### FR-09: World Events (v0.2.0)
 
-- Enable the predecessor app's canonical 30-event catalog by default.
-- Trigger events through a balanced cadence system, not independent percentage
-  rolls.
+- Provide a typed 20-event catalog across five selectable packs (Weather &
+  Harvest, Trade & Markets, Conflict & Defense, Diplomacy & Intrigue, and
+  Festivals & Progress).
+- Trigger events through a balanced cadence system with Off/Subtle/Standard/Lively
+  options; standard is the default.
 - Never interrupt unresolved official result or barbarian resolution.
-- Avoid immediate event repetition.
-- Present each event as an instruction that the table acknowledges.
-- Record the event and acknowledgement in history.
-- Allow event frequency to be changed only through a confirmed settings action
-  that is recorded in history.
+- Avoid immediate event repetition; deterministic anti-clump guardrails for
+  tone and impact.
+- Support five lifecycle durations: immediate, rest-of-turn, full-round,
+  until-next-occurrence, until-resolved.
+- Persist active non-immediate events in game state; display them in the UI
+  with a "Mark resolved" action for until-resolved events.
+- Filter incompatible events in two-player mode automatically.
+- Maintain backward compatibility with legacy v1 saves (metadata-less).
+- Record events and resolution in history.
 
 ### FR-10: Turn management
 
@@ -347,7 +353,7 @@ The first release is acceptable only when all scenarios pass:
    and can be undone.
 7. An Alchemy result leaves the numbered-deck cursor unchanged.
 8. A progress icon lists eligible players in current turn order.
-9. A thematic event never appears before an unresolved barbarian attack.
+9. A World Event never appears before an unresolved barbarian attack.
 10. The current game resumes offline after closing and reopening the PWA.
 11. Importing malformed or incompatible data leaves the current game intact.
 12. A keyboard-only user can complete setup, roll, resolve, adjust state, undo,
@@ -369,7 +375,7 @@ The first release is acceptable only when all scenarios pass:
 
 ## 11. Future extensions
 
-Future work may add custom thematic events, alternative official expansions,
-game statistics, a board-facing display mode, or optional device-to-device
-sync. None may weaken local-first operation or require migration of private
-player information into the app.
+Future work may add Seasons Mode, custom World Events, alternative official
+expansions, game statistics, a board-facing display mode, or optional
+device-to-device sync. None may weaken local-first operation or require
+migration of private player information into the app.

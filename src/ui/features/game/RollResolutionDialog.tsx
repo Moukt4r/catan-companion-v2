@@ -64,10 +64,6 @@ export interface RollResolutionView {
     trackLength: number;
   };
   attack: BarbarianAttackView | null;
-  thematicEvent: {
-    title: string;
-    instruction: string;
-  } | null;
 }
 
 export interface AttackProgressChoice {
@@ -365,17 +361,6 @@ export function RollResolutionDialog({
             </StatusBanner>
           )}
         </section>
-
-        {view.thematicEvent ? (
-          <section
-            className="resolution-section thematic-event"
-            aria-labelledby="house-event-heading"
-          >
-            <span className="rule-label rule-label--house">House event</span>
-            <h3 id="house-event-heading">{view.thematicEvent.title}</h3>
-            <p>{view.thematicEvent.instruction}</p>
-          </section>
-        ) : null}
 
         <footer className="roll-resolution__actions">
           <p className="fine-print">

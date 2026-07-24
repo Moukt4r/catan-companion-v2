@@ -229,4 +229,83 @@ describe("SetupWizard", () => {
       players: [{ name: "Ada" }, { name: "Grace" }],
     });
   });
+
+  it("can disable World Events entirely", async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+
+    render(
+      <SetupWizard
+        initialPreferences={defaultDevicePreferences}
+        onCancel={vi.fn()}
+        onStart={onStart}
+      />,
+    );
+
+    for (const [index, input] of screen
+      .getAllByPlaceholderText(/Player \d/)
+      .entries()) {
+      await user.type(input, ["A", "B", "C", "D"][index] ?? "");
+    }
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByLabelText(/Off/));
+
+    expect(
+      screen.queryByRole("group", { name: "Category packs" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(
+      screen.getByRole("button", { name: "Start and save game" }),
+    );
+
+    expect(onStart.mock.calls[0]?.[0]).toMatchObject({
+      eventCadence: "off",
+      worldEventPacks: [],
+    });
+  });
+
+  it("requires a pack when World Events are enabled", async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+
+    render(
+      <SetupWizard
+        initialPreferences={defaultDevicePreferences}
+        onCancel={vi.fn()}
+        onStart={onStart}
+      />,
+    );
+
+    for (const [index, input] of screen
+      .getAllByPlaceholderText(/Player \d/)
+      .entries()) {
+      await user.type(input, ["A", "B", "C", "D"][index] ?? "");
+    }
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    const packCheckboxes = screen.getAllByRole("checkbox");
+    for (const checkbox of packCheckboxes) {
+      await user.click(checkbox);
+    }
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Select at least one category pack",
+    );
+
+    await user.click(
+      screen.getByRole("checkbox", { name: /Weather & Harvest/ }),
+    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(
+      screen.getByRole("button", { name: "Start and save game" }),
+    );
+
+    expect(onStart.mock.calls[0]?.[0]).toMatchObject({
+      eventCadence: "standard",
+      worldEventPacks: ["nature"],
+    });
+  });
 });

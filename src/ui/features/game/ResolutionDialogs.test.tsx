@@ -42,10 +42,6 @@ function baseView(): RollResolutionView {
       trackLength: 7,
     },
     attack: null,
-    thematicEvent: {
-      title: "Harbor Festival",
-      instruction: "Announce every maritime trade.",
-    },
   };
 }
 
@@ -101,7 +97,6 @@ describe("RollResolutionDialog", () => {
     expect(screen.getByText("Science", { selector: "h3" })).toBeVisible();
     expect(screen.getByText("Ada", { exact: true })).toBeVisible();
     expect(screen.getByText("Resolve the 7")).toBeVisible();
-    expect(screen.getByText("Harbor Festival")).toBeVisible();
     expect(screen.getByText("00:01:05")).toBeVisible();
     expect(screen.getByText("01:01:01")).toBeVisible();
     expect(

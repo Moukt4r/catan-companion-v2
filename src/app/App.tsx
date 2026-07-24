@@ -5,6 +5,7 @@ import {
   type StoredGame,
 } from "../application";
 import {
+  asEventOccurrenceId,
   asGameId,
   asIsoTimestamp,
   asPlayerId,
@@ -657,6 +658,15 @@ export function App() {
                   "event",
                 );
               }
+            }}
+            onResolveEvent={(occurrenceId) => {
+              void dispatch(
+                {
+                  type: "event.resolved",
+                  occurrenceId: asEventOccurrenceId(occurrenceId),
+                },
+                "confirm",
+              );
             }}
             onPause={() => {
               void dispatch({ type: "clock.paused" }, "confirm");

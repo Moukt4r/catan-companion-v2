@@ -35,6 +35,20 @@ export function setupFromDraft(draft: SetupDraft): GameSetup {
     throw new Error("First player is missing from setup.");
   }
 
+  const worldEventsEnabled = draft.eventCadence !== "off";
+  const cadence =
+    draft.eventCadence === "off" ? "standard" : draft.eventCadence;
+  const selectedPacks = new Set(draft.worldEventPacks);
+  const catalog = worldEventsEnabled
+    ? BUILT_IN_THEMATIC_EVENTS.filter(
+        (event) =>
+          event.category !== undefined &&
+          selectedPacks.has(event.category) &&
+          (!draft.twoPlayerHouseMode ||
+            event.compatibility?.twoPlayer !== false),
+      ).map((event) => ({ ...event }))
+    : [];
+
   return {
     title: draft.title,
     mode: draft.twoPlayerHouseMode ? "two-player-house-rule" : "standard",
@@ -57,13 +71,11 @@ export function setupFromDraft(draft: SetupDraft): GameSetup {
     }),
     firstPlayerId,
     victoryTarget: draft.victoryTarget,
-    thematicCadence: draft.eventCadence,
-    thematicEventsEnabled: true,
-    thematicEventCatalog: BUILT_IN_THEMATIC_EVENTS.map((event) => ({
-      ...event,
-    })),
+    thematicCadence: cadence,
+    thematicEventsEnabled: worldEventsEnabled,
+    thematicEventCatalog: catalog,
     rulesDataVersion: "2025.1",
-    gameDocumentVersion: 1,
+    gameDocumentVersion: 2,
   };
 }
 
@@ -144,7 +156,8 @@ export function toHistoryEntries(
       houseRule:
         revision.summary.kind === "roll-drawn" ||
         revision.summary.kind === "alchemy-used" ||
-        revision.summary.kind === "thematic-event-acknowledged",
+        revision.summary.kind === "thematic-event-acknowledged" ||
+        revision.summary.kind === "thematic-event-resolved",
       active: revision.id === activeRevisionId,
     };
   });
@@ -165,7 +178,8 @@ export function historyTitle(revision: StoredRevision): string {
     "player-adjusted": "Public state updated",
     "resolution-acknowledged": "Resolution acknowledged",
     "roll-drawn": "Balanced roll",
-    "thematic-event-acknowledged": "House event",
+    "thematic-event-acknowledged": "World event",
+    "thematic-event-resolved": "World event resolved",
     "turn-ended": "Turn ended",
   };
   return titles[revision.summary.kind];

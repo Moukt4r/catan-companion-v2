@@ -31,7 +31,7 @@ Use table-driven tests for:
 - first-attack robber activation;
 - public-state invariant enforcement;
 - winner confirmation;
-- thematic event cooldown and ordering;
+- World Event cadence, balanced ordering, lifecycle, and legacy-save fallback;
 - Alchemy behavior.
 
 Domain tests use no DOM, fake timers only where necessary, and deterministic
@@ -97,7 +97,7 @@ Testing Library covers user-observable behavior:
 - progress eligibility presentation;
 - attack verification and confirmation;
 - public-state editing;
-- thematic event acknowledgement;
+- World Event setup, acknowledgement, persistent display, and manual resolution;
 - history, undo, redo, and branch warning;
 - save failure and recovery;
 - update prompt;
@@ -125,7 +125,7 @@ Critical flows:
 4. complete progress-card guidance;
 5. complete barbarian defense, tie, and defeat paths;
 6. use Alchemy and verify deck cursor behavior;
-7. trigger and acknowledge a thematic event;
+7. trigger, acknowledge, persist, resume, and resolve a World Event;
 8. undo and redo a roll and an attack;
 9. close and resume an active game;
 10. export, delete, and import;

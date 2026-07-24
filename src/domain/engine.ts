@@ -22,7 +22,13 @@ import {
   winnerCandidates,
 } from "./selectors";
 import { createThematicState, scheduleThematicEvent } from "./thematic";
+import {
+  pruneActiveEvents,
+  activateDeferredEvents,
+  resolveActiveEvent,
+} from "./worldEvents";
 import type {
+  ActiveWorldEventRecord,
   BarbarianAttackOutcome,
   BarbarianAttackRecord,
   CreateGameInput,
@@ -245,6 +251,7 @@ export function decide(
     case "metropolis.proposalCancelled":
     case "attack.confirmed":
     case "event.acknowledged":
+    case "event.resolved":
     case "turn.ended":
     case "game.completed": {
       const accrued = accrueGameClock(state, deps.at);
@@ -309,6 +316,8 @@ function decideNormal(
       );
     case "event.acknowledged":
       return acknowledgeThematicEvent(state, command.occurrenceId, deps);
+    case "event.resolved":
+      return resolveThematicEvent(state, command.occurrenceId, deps);
     case "turn.ended":
       return endTurn(state, deps);
     case "game.completed":
@@ -1219,6 +1228,63 @@ function acknowledgeThematicEvent(
   );
 }
 
+function resolveThematicEvent(
+  state: GameState,
+  occurrenceId: EventOccurrenceId,
+  deps: DomainDeps,
+): DomainResult<Decision> {
+  const phaseError = requirePhase(state, "action-phase");
+  if (phaseError !== null) {
+    return failure(phaseError);
+  }
+  const activeEvents: ActiveWorldEventRecord[] =
+    state.thematicEvents.activeEvents ?? [];
+  const result = resolveActiveEvent(activeEvents, occurrenceId);
+  if (result === null) {
+    return failure(
+      domainError(
+        "INVALID_COMMAND",
+        "No active until-resolved event with this occurrence ID.",
+        { occurrenceId },
+      ),
+    );
+  }
+  const candidate: GameState = {
+    ...state,
+    thematicEvents: {
+      ...state.thematicEvents,
+      activeEvents: result.remaining,
+    },
+  };
+  return commit(
+    candidate,
+    deps,
+    {
+      kind: "thematic-event-resolved",
+      text: `Resolved ${result.resolved.title}.`,
+      playerIds: [currentPlayer(state).id],
+    },
+    {
+      type: "thematic-event",
+      event: {
+        occurrenceId: result.resolved.occurrenceId as EventOccurrenceId,
+        eventId: result.resolved.eventId,
+        contentVersion: result.resolved.contentVersion,
+        title: result.resolved.title,
+        instruction: result.resolved.instruction,
+        triggeredAtCompletedTurn: result.resolved.triggeredAtCompletedTurn,
+        acknowledged: true,
+        tone: result.resolved.tone,
+        impact: result.resolved.impact,
+        category: result.resolved.category,
+        scope: result.resolved.scope,
+        duration: result.resolved.duration,
+      },
+      phase: "action-phase",
+    },
+  );
+}
+
 function endTurn(state: GameState, deps: DomainDeps): DomainResult<Decision> {
   const phaseError = requirePhase(state, "action-phase");
   if (phaseError !== null) {
@@ -1236,14 +1302,35 @@ function endTurn(state: GameState, deps: DomainDeps): DomainResult<Decision> {
   const nextPlayerIndex =
     (state.turn.currentPlayerIndex + 1) % state.players.length;
   const completedRound = completedTurns % state.players.length === 0;
+  const newRound = state.turn.round + (completedRound ? 1 : 0);
+  const playerCount = state.players.length;
+
+  // --- World event lifecycle: prune expired, activate deferred ---
+  let activeEvents: ActiveWorldEventRecord[] =
+    state.thematicEvents.activeEvents ?? [];
+  activeEvents = pruneActiveEvents(
+    activeEvents,
+    completedTurns,
+    newRound,
+    playerCount,
+    false,
+  );
+  if (completedRound) {
+    activeEvents = activateDeferredEvents(activeEvents, newRound);
+  }
+
   const candidate: GameState = {
     ...state,
     turn: {
       phase: "awaiting-roll",
       currentPlayerIndex: nextPlayerIndex,
       completedTurns,
-      round: state.turn.round + (completedRound ? 1 : 0),
+      round: newRound,
       turnNumber: state.turn.turnNumber + 1,
+    },
+    thematicEvents: {
+      ...state.thematicEvents,
+      activeEvents,
     },
     ...(state.clock === undefined
       ? {}

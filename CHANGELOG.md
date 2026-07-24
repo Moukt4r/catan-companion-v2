@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.2.0 - 2026-07-24
+
+- Rebuilt thematic house events as **World Events**: 20 original typed events
+  across five selectable packs, with Off/Subtle/Standard/Lively cadence.
+- Added tone/impact balancing, prerequisite metadata, deterministic anti-clump
+  ordering, and five explicit effect lifecycles.
+- Added persistent active-event cards, fair next-round activation for global
+  effects, manual resolution for durable effects, and durable event history.
+- Preserved version-1 saves with optional metadata and schema defaults; new
+  games use document version 2.
+- Added a documented, original Seasons Mode proposal without implementing it.
 - Refreshed the full interface with a cleaner warm-tabletop visual system and
   original locally generated frontier illustrations.
 - Improved active-game hierarchy, setup flow, responsive touch targets, and
@@ -16,9 +27,6 @@
   changes, and a viewport-fixed next-turn action.
 - Moved public point adjustments to the top of the player editor and collapsed
   infrequent Cities & Knights bookkeeping behind an advanced disclosure.
-- Replaced the prompt-style thematic deck with the predecessor repository's
-  canonical 30-event catalog while retaining balanced cadence and durable
-  history.
 
 ## 0.1.4 - 2026-07-22
 

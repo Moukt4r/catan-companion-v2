@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import harborIllustration from "../../../assets/illustrations/harbor-watch.webp";
 import resourceIllustration from "../../../assets/illustrations/resource-landscape.webp";
+import type { ActiveEventView, PendingWorldEventView } from "./viewMappers";
 import { Button, DieFace, PlayerMarker, StatusBanner } from "../../components";
 import { formatDuration } from "./time";
 
@@ -72,11 +73,9 @@ export interface GameTableView {
     attackPending: boolean;
   };
   players: GamePlayerView[];
-  houseEventPending: boolean;
-  houseEvent: {
-    title: string;
-    instruction: string;
-  } | null;
+  worldEventPending: boolean;
+  worldEvent: PendingWorldEventView | null;
+  activeEvents: ActiveEventView[];
   winnerCandidateName: string | null;
 }
 
@@ -90,6 +89,7 @@ interface GameTableProps {
   onNextRoll: () => void;
   onContinueRoll: () => void;
   onAcknowledgeEvent: () => void;
+  onResolveEvent?: (occurrenceId: string) => void;
   onPause: () => void;
   onHistory: () => void;
   onSettings: () => void;
@@ -168,6 +168,7 @@ export function GameTable({
   onAlchemy,
   onAdjustScore,
   onAcknowledgeEvent,
+  onResolveEvent,
   onContinueRoll,
   onConfirmWinner,
   onEditPlayer,
@@ -396,26 +397,40 @@ export function GameTable({
                     {busy ? "Saving..." : "Continue roll"}
                   </Button>
                 ) : null}
-                {view.houseEvent ? (
+                {view.worldEvent ? (
                   <section
-                    className="inline-house-event"
-                    aria-labelledby="inline-house-event-heading"
+                    className="inline-world-event"
+                    aria-labelledby="inline-world-event-heading"
                   >
                     <div>
-                      <p className="rule-label rule-label--house">
-                        House event
+                      <p className="rule-label rule-label--world-event">
+                        World Event (house rule)
                       </p>
-                      <h2 id="inline-house-event-heading">
-                        {view.houseEvent.title}
+                      <h2 id="inline-world-event-heading">
+                        {view.worldEvent.title}
                       </h2>
-                      <p>{view.houseEvent.instruction}</p>
+                      <p>{view.worldEvent.instruction}</p>
+                      <dl className="world-event-meta">
+                        <div>
+                          <dt>Tone</dt>
+                          <dd>{view.worldEvent.toneLabel}</dd>
+                        </div>
+                        <div>
+                          <dt>Impact</dt>
+                          <dd>{view.worldEvent.impact} / 3</dd>
+                        </div>
+                        <div>
+                          <dt>Timing</dt>
+                          <dd>{view.worldEvent.timingCopy}</dd>
+                        </div>
+                      </dl>
                     </div>
                     <Button
                       size="small"
                       disabled={busy || view.readOnly || view.paused}
                       onClick={onAcknowledgeEvent}
                     >
-                      Acknowledge house event
+                      Acknowledge world event
                     </Button>
                   </section>
                 ) : null}
@@ -519,6 +534,45 @@ export function GameTable({
           </aside>
         ) : null}
       </div>
+
+      {view.activeEvents.length > 0 ? (
+        <section
+          className="active-events-strip"
+          aria-label="Active world events"
+        >
+          <h2 className="active-events-strip__heading">Active World Events</h2>
+          <ul className="active-events-list">
+            {view.activeEvents.map((event) => (
+              <li
+                key={event.occurrenceId}
+                className={`surface active-event-card active-event-card--${event.tone}`}
+              >
+                <div className="active-event-card__header">
+                  <span className="rule-label rule-label--world-event">
+                    World Event (house rule)
+                  </span>
+                  <span className="active-event-card__timing">
+                    {event.timingCopy}
+                  </span>
+                </div>
+                <strong>{event.title}</strong>
+                <p>{event.instruction}</p>
+                {event.canResolve && onResolveEvent ? (
+                  <Button
+                    size="small"
+                    disabled={busy || view.readOnly || view.paused}
+                    onClick={() => {
+                      onResolveEvent(event.occurrenceId);
+                    }}
+                  >
+                    Mark resolved
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section
         className="player-strip"

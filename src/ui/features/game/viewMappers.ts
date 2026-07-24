@@ -10,12 +10,18 @@ import {
   scoreForPlayer,
   totalActiveMilliseconds,
   winnerCandidates,
+  WORLD_EVENTS_CATALOG,
+  lookupWorldEvent,
   type BarbarianAttackProposal,
   type GamePhase,
   type GameState,
   type IsoTimestamp,
   type PlayerId,
   type ProgressDiscipline,
+  type ActiveWorldEventRecord,
+  type WorldEventCategory,
+  type WorldEventDuration,
+  type WorldEventTone,
 } from "../../../domain";
 import type { GameCompleteView } from "./GameCompleteScreen";
 import type { GameTableView } from "./GameTable";
@@ -32,9 +38,90 @@ const phaseLabels: Record<GamePhase, string> = {
   completed: "Completed",
   "resolving-barbarian-attack": "Resolving barbarian attack",
   "resolving-official-result": "Resolving official result",
-  "resolving-thematic-event": "Resolving house event",
+  "resolving-thematic-event": "Resolving world event",
   "turn-complete": "Turn complete",
 };
+
+export interface ActiveEventView {
+  occurrenceId: string;
+  title: string;
+  instruction: string;
+  tone: WorldEventTone;
+  impact: number;
+  category: WorldEventCategory;
+  duration: WorldEventDuration;
+  timingCopy: string;
+  canResolve: boolean;
+}
+
+export interface PendingWorldEventView {
+  title: string;
+  instruction: string;
+  tone: WorldEventTone;
+  toneLabel: string;
+  impact: number;
+  category: WorldEventCategory;
+  duration: WorldEventDuration;
+  timingCopy: string;
+}
+
+function timingCopyForDuration(
+  duration: WorldEventDuration,
+  activated: boolean,
+): string {
+  switch (duration) {
+    case "immediate":
+      return "Immediate effect";
+    case "rest-of-turn":
+      return "Active until end of this turn";
+    case "full-round":
+      return activated ? "Active this round" : "Activates next round";
+    case "until-next-occurrence":
+      return "Active until the next world event";
+    case "until-resolved":
+      return "Active until resolved";
+  }
+}
+
+function toActiveEventViews(
+  activeEvents: readonly ActiveWorldEventRecord[] | undefined,
+  pendingOccurrenceId: string | null,
+): ActiveEventView[] {
+  if (!activeEvents || activeEvents.length === 0) return [];
+  return [...activeEvents]
+    .filter((event) => event.occurrenceId !== pendingOccurrenceId)
+    .sort((a, b) => b.triggeredAtCompletedTurn - a.triggeredAtCompletedTurn)
+    .map((event) => ({
+      occurrenceId: event.occurrenceId,
+      title: event.title,
+      instruction: event.instruction,
+      tone: event.tone,
+      impact: event.impact,
+      category: event.category,
+      duration: event.duration,
+      timingCopy: timingCopyForDuration(event.duration, event.activated),
+      canResolve: event.duration === "until-resolved",
+    }));
+}
+
+function toPendingWorldEventView(
+  pendingEvent: GameState["thematicEvents"]["pendingEvent"],
+): PendingWorldEventView | null {
+  if (!pendingEvent) return null;
+  const worldDef = lookupWorldEvent(WORLD_EVENTS_CATALOG, pendingEvent.eventId);
+  const tone = pendingEvent.tone ?? worldDef?.tone ?? "mixed";
+  const duration = pendingEvent.duration ?? worldDef?.duration ?? "immediate";
+  return {
+    title: pendingEvent.title,
+    instruction: pendingEvent.instruction,
+    tone,
+    toneLabel: tone.charAt(0).toUpperCase() + tone.slice(1),
+    impact: pendingEvent.impact ?? worldDef?.impact ?? 1,
+    category: pendingEvent.category ?? worldDef?.category ?? "society",
+    duration,
+    timingCopy: timingCopyForDuration(duration, duration !== "full-round"),
+  };
+}
 
 export function toGameTableView(
   state: GameState,
@@ -122,15 +209,16 @@ export function toGameTableView(
       activeTimeMs: playerActiveMilliseconds(state, player.id, clockAt),
       current: player.id === active.id,
     })),
-    houseEventPending: state.thematicEvents.pendingEvent !== null,
-    houseEvent:
+    worldEventPending: state.thematicEvents.pendingEvent !== null,
+    worldEvent:
       state.turn.phase === "resolving-thematic-event" &&
       state.thematicEvents.pendingEvent
-        ? {
-            title: state.thematicEvents.pendingEvent.title,
-            instruction: state.thematicEvents.pendingEvent.instruction,
-          }
+        ? toPendingWorldEventView(state.thematicEvents.pendingEvent)
         : null,
+    activeEvents: toActiveEventViews(
+      state.thematicEvents.activeEvents,
+      state.thematicEvents.pendingEvent?.occurrenceId ?? null,
+    ),
     winnerCandidateName: candidate?.name ?? null,
   };
 }
@@ -235,12 +323,6 @@ export function toRollResolutionView(
     },
     attack: state.barbarian.pendingAttack
       ? toBarbarianAttackView(state, state.barbarian.pendingAttack)
-      : null,
-    thematicEvent: state.thematicEvents.pendingEvent
-      ? {
-          title: state.thematicEvents.pendingEvent.title,
-          instruction: state.thematicEvents.pendingEvent.instruction,
-        }
       : null,
   };
 }

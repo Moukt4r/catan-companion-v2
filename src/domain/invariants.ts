@@ -7,6 +7,7 @@ import {
   THEMATIC_TRIGGER_BAG_SIZE,
 } from "./rules";
 import { metropolisCountForPlayer, scoreForPlayer } from "./selectors";
+import { validateActiveEvents } from "./worldEvents";
 import type {
   DeckState,
   DomainError,
@@ -429,6 +430,14 @@ function validateThematicState(state: GameState): DomainError[] {
         "Pending thematic event is not enabled.",
       ),
     );
+  }
+  // Validate active events if present
+  const activeEvents = thematic.activeEvents;
+  if (activeEvents !== undefined) {
+    const activeErrors = validateActiveEvents(activeEvents);
+    for (const msg of activeErrors) {
+      errors.push(domainError("INVALID_THEMATIC_STATE", msg));
+    }
   }
   return errors;
 }

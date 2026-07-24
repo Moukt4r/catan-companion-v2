@@ -532,6 +532,12 @@ h1 {
   color: var(--warning);
 }
 
+.rule-label--world-event {
+  border-color: var(--accent-line, var(--warning-line));
+  background: var(--accent-soft, var(--warning-soft));
+  color: var(--accent, var(--warning));
+}
+
 .choice-card:has(input:checked) {
   border-color: var(--accent-strong);
   background: var(--accent-soft);
@@ -724,7 +730,8 @@ h1 {
   color: var(--ink-muted);
 }
 
-.inline-house-event {
+.inline-house-event,
+.inline-world-event {
   border-color: var(--warning-line);
   background:
     radial-gradient(
@@ -733,6 +740,77 @@ h1 {
       transparent 14rem
     ),
     var(--warning-soft);
+}
+
+.world-event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin-block-start: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.world-event-meta div {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.world-event-meta dt {
+  font-weight: 600;
+}
+
+/* ── Active events strip ─────────────────────────────────────────────── */
+
+.active-events-strip {
+  grid-column: 1 / -1;
+  padding: 0.75rem 1rem;
+}
+
+.active-events-strip__heading {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-block-end: 0.5rem;
+}
+
+.active-events-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.active-event-card {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border-left: 4px solid var(--warning-line);
+}
+
+.active-event-card--boon {
+  border-left-color: var(--success, #2f7551);
+}
+
+.active-event-card--setback {
+  border-left-color: var(--danger, #b43e3e);
+}
+
+.active-event-card--mixed {
+  border-left-color: var(--warning, #b66a1f);
+}
+
+.active-event-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-block-end: 0.25rem;
+}
+
+.active-event-card__timing {
+  font-size: 0.8rem;
+  opacity: 0.8;
 }
 
 .die {
@@ -1281,5 +1359,9 @@ h1 {
 
   .player-card--current {
     outline: 3px solid Highlight;
+  }
+
+  .active-event-card {
+    border-left-color: CanvasText;
   }
 }

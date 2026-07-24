@@ -49,11 +49,11 @@ async function setupStandardGame(page: Page) {
 
 async function resolveRoll(page: Page) {
   await expect(page.locator(".roll-result-summary")).toBeVisible();
-  const houseEvent = page.getByRole("button", {
-    name: "Acknowledge house event",
+  const worldEvent = page.getByRole("button", {
+    name: "Acknowledge world event",
   });
-  if (await houseEvent.isVisible()) {
-    await houseEvent.click();
+  if (await worldEvent.isVisible()) {
+    await worldEvent.click();
   }
   const nextRoll = page.getByRole("button", { name: /^Next: .* & roll$/ });
   await expect(nextRoll).toBeEnabled();

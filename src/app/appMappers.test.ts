@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   colorNames,
   errorMessage,
+  setupFromDraft,
   toHomeSummary,
   toImportPreview,
   toSavedGameSummary,
 } from "./appMappers";
 import type { StoredGame } from "../application";
+import { defaultDevicePreferences } from "../application/devicePreferences";
+import type { SetupDraft } from "../ui/features/setup/SetupWizard";
 import { asGameId, asPlayerId, type IsoTimestamp } from "../domain";
 
 function fakeStoredGame(overrides?: Partial<StoredGame>): StoredGame {
@@ -122,5 +125,72 @@ describe("appMappers", () => {
         status: "Validated backup",
       });
     });
+  });
+});
+
+function worldEventDraft(overrides: Partial<SetupDraft> = {}): SetupDraft {
+  return {
+    title: "World Event table",
+    players: [
+      { draftId: "p1", name: "Ada", color: "#b66a1f" },
+      { draftId: "p2", name: "Grace", color: "#286b9b" },
+      { draftId: "p3", name: "Linus", color: "#b43e3e" },
+      { draftId: "p4", name: "Margaret", color: "#2f7551" },
+    ],
+    firstPlayerDraftId: "p1",
+    twoPlayerHouseMode: false,
+    victoryTarget: 13,
+    eventCadence: "standard",
+    worldEventPacks: ["economy", "military", "diplomacy", "nature", "society"],
+    preferences: defaultDevicePreferences,
+    ...overrides,
+  };
+}
+
+describe("setupFromDraft World Events", () => {
+  it("stores a disabled empty event module when cadence is off", () => {
+    const setup = setupFromDraft(
+      worldEventDraft({ eventCadence: "off", worldEventPacks: [] }),
+    );
+
+    expect(setup.thematicEventsEnabled).toBe(false);
+    expect(setup.thematicEventCatalog).toEqual([]);
+    expect(setup.thematicCadence).toBe("standard");
+    expect(setup.gameDocumentVersion).toBe(2);
+  });
+
+  it("persists only events from selected packs with full metadata", () => {
+    const setup = setupFromDraft(
+      worldEventDraft({ worldEventPacks: ["nature"] }),
+    );
+
+    expect(setup.thematicEventsEnabled).toBe(true);
+    expect(setup.thematicEventCatalog).toHaveLength(4);
+    expect(
+      setup.thematicEventCatalog.every(
+        (event) =>
+          event.category === "nature" &&
+          event.tone !== undefined &&
+          event.duration !== undefined &&
+          event.compatibility !== undefined,
+      ),
+    ).toBe(true);
+  });
+
+  it("filters packs that are unsafe in two-player mode", () => {
+    const setup = setupFromDraft(
+      worldEventDraft({
+        players: worldEventDraft().players.slice(0, 2),
+        twoPlayerHouseMode: true,
+        worldEventPacks: ["diplomacy"],
+      }),
+    );
+
+    expect(setup.thematicEventCatalog.length).toBeGreaterThan(0);
+    expect(
+      setup.thematicEventCatalog.every(
+        (event) => event.compatibility?.twoPlayer !== false,
+      ),
+    ).toBe(true);
   });
 });

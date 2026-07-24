@@ -1,67 +1,106 @@
 import { describe, expect, it } from "vitest";
 import { BUILT_IN_THEMATIC_EVENTS } from "./rules";
+import { WORLD_EVENTS_CATALOG, type WorldEventTone } from "./worldEvents";
 
-const canonicalCatalog = [
-  ["Earthquake!", "All players must remove one road from their network."],
-  ["Good Harvest", "Each player receives one resource of their choice."],
-  ["Trade Winds", "Maritime trade costs are reduced by 1 for the next round."],
-  ["Pirates!", "Players with more than 7 cards must discard one resource."],
-  ["Market Day", "All players may make one 2:1 trade with the bank."],
-  ["Storm", "No maritime trade allowed for one round."],
-  ["Discovery", "Draw one development card at half cost."],
-  [
-    "Rebellion",
-    "Longest road is temporarily broken - no bonus points this round.",
-  ],
-  ["Festival", "Each player with a city receives one free resource."],
-  ["Drought", "Fields produce no grain this round."],
-  ["Time of Abundance", "All resource production is doubled this round."],
-  ["Peace Treaty", "Robber cannot be moved this round."],
-  ["Innovation", "First city upgrade this round costs 1 less resource."],
-  ["Epidemic", "Cities produce resources as settlements this round."],
-  ["Progress", "Each player may upgrade one road for free."],
-  ["Dense Fog", "No robber movement allowed this round."],
-  ["Resource Windfall", "Roll one die - all players get that resource."],
-  [
-    "Tax Collection",
-    "Players with more than 5 victory points must give away 1 resource.",
-  ],
-  ["Good Fortune", "Next 7 rolled does not trigger robber."],
-  ["Sabotage", "Each player must disable one production hex for one round."],
-  ["Celebration", "Development cards cost 1 less resource this round."],
-  ["Diplomacy", "Players cannot play soldier cards this round."],
-  [
-    "Creative Solutions",
-    "Players may use any resource as a wildcard once this round.",
-  ],
-  ["Raider Attack", "Players with settlements on 6 or 8 lose one resource."],
-  ["Cooperation", "All trades between players cost no resources this round."],
-  ["Competition", "No trades between players allowed this round."],
-  [
-    "Ancient Wisdom",
-    "Development cards can be played immediately after purchase.",
-  ],
-  ["Mystical Event", "Reshuffle all unplayed development cards."],
-  ["Investment", "Players may buy victory points for 5 resources each."],
-  ["Isolation", "No new roads can be built this round."],
-] as const;
-
-describe("built-in thematic event catalog", () => {
-  it("mirrors the canonical predecessor utils/events.ts catalog", () => {
-    expect(
-      BUILT_IN_THEMATIC_EVENTS.map(({ title, instruction }) => [
-        title,
-        instruction,
-      ]),
-    ).toEqual(canonicalCatalog);
-    expect(
-      new Set(BUILT_IN_THEMATIC_EVENTS.map((event) => event.id)).size,
-    ).toBe(canonicalCatalog.length);
+describe("world events catalog", () => {
+  it("has between 18 and 24 events", () => {
+    expect(WORLD_EVENTS_CATALOG.length).toBeGreaterThanOrEqual(18);
+    expect(WORLD_EVENTS_CATALOG.length).toBeLessThanOrEqual(24);
   });
 
-  it("versions the changed Market Day definition", () => {
-    expect(
-      BUILT_IN_THEMATIC_EVENTS.find((event) => event.id === "event-market-day"),
-    ).toMatchObject({ contentVersion: 2 });
+  it("has unique IDs", () => {
+    const ids = WORLD_EVENTS_CATALOG.map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("has non-empty titles and instructions", () => {
+    for (const event of WORLD_EVENTS_CATALOG) {
+      expect(event.title.trim()).not.toBe("");
+      expect(event.instruction.trim()).not.toBe("");
+    }
+  });
+
+  it("has valid metadata on every event", () => {
+    const validTones: WorldEventTone[] = ["boon", "mixed", "setback"];
+    const validImpacts = [1, 2, 3];
+    const validCategories = [
+      "economy",
+      "military",
+      "diplomacy",
+      "nature",
+      "society",
+    ];
+    const validScopes = ["all", "active-player", "conditional"];
+    const validDurations = [
+      "immediate",
+      "rest-of-turn",
+      "full-round",
+      "until-next-occurrence",
+      "until-resolved",
+    ];
+
+    for (const event of WORLD_EVENTS_CATALOG) {
+      expect(validTones).toContain(event.tone);
+      expect(validImpacts).toContain(event.impact);
+      expect(validCategories).toContain(event.category);
+      expect(validScopes).toContain(event.scope);
+      expect(validDurations).toContain(event.duration);
+      expect(event.compatibility).toHaveProperty("twoPlayer");
+    }
+  });
+
+  it("has roughly balanced tone distribution", () => {
+    const counts: Record<WorldEventTone, number> = {
+      boon: 0,
+      mixed: 0,
+      setback: 0,
+    };
+    for (const event of WORLD_EVENTS_CATALOG) {
+      counts[event.tone]++;
+    }
+    // Each tone should have at least 4 and no more than 10
+    for (const tone of ["boon", "mixed", "setback"] as const) {
+      expect(counts[tone]).toBeGreaterThanOrEqual(4);
+      expect(counts[tone]).toBeLessThanOrEqual(10);
+    }
+  });
+
+  it("has pyramid impact distribution (more low than high)", () => {
+    const counts = { 1: 0, 2: 0, 3: 0 };
+    for (const event of WORLD_EVENTS_CATALOG) {
+      counts[event.impact]++;
+    }
+    expect(counts[1] + counts[2]).toBeGreaterThan(counts[3]);
+  });
+
+  it("all IDs start with we- prefix", () => {
+    for (const event of WORLD_EVENTS_CATALOG) {
+      expect(event.id).toMatch(/^we-/);
+    }
+  });
+});
+
+describe("built-in thematic events (projected)", () => {
+  it("maps world events to ThematicEventDefinition shape", () => {
+    expect(BUILT_IN_THEMATIC_EVENTS.length).toBe(WORLD_EVENTS_CATALOG.length);
+    for (const def of BUILT_IN_THEMATIC_EVENTS) {
+      expect(def).toHaveProperty("id");
+      expect(def).toHaveProperty("contentVersion");
+      expect(def).toHaveProperty("title");
+      expect(def).toHaveProperty("instruction");
+      // v2+: should carry metadata through to persistence
+      expect(def).toHaveProperty("tone");
+      expect(def).toHaveProperty("impact");
+      expect(def).toHaveProperty("category");
+      expect(def).toHaveProperty("scope");
+      expect(def).toHaveProperty("duration");
+      expect(def).toHaveProperty("compatibility");
+    }
+  });
+
+  it("has unique IDs matching the world catalog", () => {
+    const worldIds = WORLD_EVENTS_CATALOG.map((e) => e.id);
+    const thematicIds = BUILT_IN_THEMATIC_EVENTS.map((e) => e.id);
+    expect(thematicIds).toEqual(worldIds);
   });
 });

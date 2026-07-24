@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { DevicePreferences } from "../../../application/devicePreferences";
+import { WORLD_EVENTS_CATALOG, type WorldEventCategory } from "../../../domain";
 import resourceIllustration from "../../../assets/illustrations/resource-landscape.webp";
 import { Button, PlayerMarker, StatusBanner } from "../../components";
 
@@ -9,6 +10,40 @@ const playerColors = [
   { name: "Crimson", value: "#b43e3e" },
   { name: "Forest green", value: "#2f7551" },
 ];
+
+const worldEventPackOptions: ReadonlyArray<{
+  id: WorldEventCategory;
+  name: string;
+  description: string;
+}> = [
+  {
+    id: "nature",
+    name: "Weather & Harvest",
+    description: "Storms, droughts, harvests, and changing production.",
+  },
+  {
+    id: "economy",
+    name: "Trade & Markets",
+    description: "Bank trades, maritime commerce, and table-wide resources.",
+  },
+  {
+    id: "military",
+    name: "Conflict & Defense",
+    description: "Knights, raiders, the robber, and fortification.",
+  },
+  {
+    id: "diplomacy",
+    name: "Diplomacy & Intrigue",
+    description: "Player trade, embargoes, catch-up, and negotiation.",
+  },
+  {
+    id: "society",
+    name: "Festivals & Progress",
+    description: "Cities, improvements, celebrations, and epidemics.",
+  },
+];
+
+const allWorldEventPacks = worldEventPackOptions.map((pack) => pack.id);
 
 export interface SetupPlayerDraft {
   draftId: string;
@@ -22,7 +57,8 @@ export interface SetupDraft {
   firstPlayerDraftId: string;
   twoPlayerHouseMode: boolean;
   victoryTarget: number;
-  eventCadence: "subtle" | "standard" | "lively";
+  eventCadence: "off" | "subtle" | "standard" | "lively";
+  worldEventPacks: WorldEventCategory[];
   preferences: DevicePreferences;
 }
 
@@ -67,6 +103,10 @@ export function SetupWizard({
   const [victoryTarget, setVictoryTarget] = useState(13);
   const [eventCadence, setEventCadence] =
     useState<SetupDraft["eventCadence"]>("standard");
+
+  const [worldEventPacks, setWorldEventPacks] = useState<WorldEventCategory[]>([
+    ...allWorldEventPacks,
+  ]);
   const [preferences, setPreferences] = useState(initialPreferences);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,6 +149,14 @@ export function SetupWizard({
   const goNext = () => {
     if (step === "players" && playerError) {
       setError(playerError);
+      return;
+    }
+    if (
+      step === "rules" &&
+      eventCadence !== "off" &&
+      worldEventPacks.length === 0
+    ) {
+      setError("Select at least one category pack for World Events.");
       return;
     }
     setError(null);
@@ -399,9 +447,14 @@ export function SetupWizard({
               />
             </label>
             <fieldset className="choice-group">
-              <legend>Thematic house-event cadence</legend>
+              <legend>World Events</legend>
+              <p>
+                World Events are thematic house-rule events — entirely separate
+                from the official Cities &amp; Knights event die.
+              </p>
               {(
                 [
+                  ["off", "Off", "No world events."],
                   [
                     "subtle",
                     "Subtle",
@@ -436,6 +489,47 @@ export function SetupWizard({
                 </label>
               ))}
             </fieldset>
+
+            {eventCadence !== "off" ? (
+              <fieldset className="choice-group">
+                <legend>Category packs</legend>
+                <p>
+                  Select at least one category pack to include in the world
+                  event deck.
+                </p>
+                {worldEventPackOptions.map((pack) => {
+                  const eventCount = WORLD_EVENTS_CATALOG.filter(
+                    (event) => event.category === pack.id,
+                  ).length;
+                  return (
+                    <label key={pack.id} className="check-field">
+                      <input
+                        type="checkbox"
+                        checked={worldEventPacks.includes(pack.id)}
+                        onChange={(event) => {
+                          setWorldEventPacks((current) =>
+                            event.target.checked
+                              ? [...current, pack.id]
+                              : current.filter((id) => id !== pack.id),
+                          );
+                        }}
+                      />
+                      <span>
+                        <strong>{pack.name}</strong>
+                        <small>
+                          {pack.description} {eventCount} events.
+                        </small>
+                      </span>
+                    </label>
+                  );
+                })}
+                {worldEventPacks.length === 0 ? (
+                  <StatusBanner tone="danger">
+                    Select at least one category pack.
+                  </StatusBanner>
+                ) : null}
+              </fieldset>
+            ) : null}
           </div>
         ) : null}
 
@@ -548,8 +642,12 @@ export function SetupWizard({
                 <dd>{victoryTarget}</dd>
               </div>
               <div>
-                <dt>Events</dt>
-                <dd>{eventCadence}</dd>
+                <dt>World Events</dt>
+                <dd>
+                  {eventCadence === "off"
+                    ? "Off"
+                    : `${eventCadence.charAt(0).toUpperCase()}${eventCadence.slice(1)} · ${worldEventPacks.length} pack${worldEventPacks.length === 1 ? "" : "s"}`}
+                </dd>
               </div>
               <div>
                 <dt>Mode</dt>
@@ -561,8 +659,8 @@ export function SetupWizard({
               </div>
             </dl>
             <StatusBanner tone="warning">
-              Balanced dice and thematic events are house rules. The app will
-              identify them throughout play.
+              Balanced dice and World Events are house rules. The app keeps them
+              visibly separate from official Cities & Knights guidance.
             </StatusBanner>
           </div>
         ) : null}
@@ -587,6 +685,8 @@ export function SetupWizard({
                   twoPlayerHouseMode,
                   victoryTarget,
                   eventCadence,
+                  worldEventPacks:
+                    eventCadence === "off" ? [] : worldEventPacks,
                   preferences,
                 });
               }}

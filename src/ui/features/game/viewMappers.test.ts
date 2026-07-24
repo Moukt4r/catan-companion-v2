@@ -170,7 +170,9 @@ describe("toGameTableView", () => {
         defenderStrength: 6,
         attackPending: false,
       },
-      houseEvent: null,
+      worldEventPending: false,
+      worldEvent: null,
+      activeEvents: [],
     });
     expect(view.players[0]).toMatchObject({
       name: "Ada",
@@ -336,9 +338,6 @@ describe("other view mappers", () => {
         robberActivated: false,
       },
       attack: null,
-      thematicEvent: {
-        title: event.title,
-      },
     });
   });
 

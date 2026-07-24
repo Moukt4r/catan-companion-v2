@@ -46,8 +46,9 @@ function view(): GameTableView {
         current: true,
       },
     ],
-    houseEventPending: false,
-    houseEvent: null,
+    worldEventPending: false,
+    worldEvent: null,
+    activeEvents: [],
     winnerCandidateName: null,
   };
 }
@@ -64,6 +65,9 @@ function renderTable(
     onAlchemy: callbacks.onAlchemy ?? vi.fn(),
     onAdjustScore: callbacks.onAdjustScore ?? vi.fn(),
     onAcknowledgeEvent: callbacks.onAcknowledgeEvent ?? vi.fn(),
+    ...(callbacks.onResolveEvent
+      ? { onResolveEvent: callbacks.onResolveEvent }
+      : {}),
     onContinueRoll: callbacks.onContinueRoll ?? vi.fn(),
     onEditPlayer: callbacks.onEditPlayer ?? vi.fn(),
     onNextRoll: callbacks.onNextRoll ?? vi.fn(),
@@ -280,7 +284,7 @@ describe("GameTable", () => {
     }
   });
 
-  it("keeps ordinary roll guidance and house-event acknowledgement inline", async () => {
+  it("keeps ordinary roll guidance and World Event acknowledgement inline", async () => {
     const user = userEvent.setup();
     const onAcknowledgeEvent = vi.fn();
 
@@ -288,7 +292,7 @@ describe("GameTable", () => {
       <GameTable
         view={{
           ...view(),
-          phaseLabel: "Resolving house event",
+          phaseLabel: "Resolving world event",
           canRoll: false,
           lastRoll: {
             red: 4,
@@ -305,11 +309,18 @@ describe("GameTable", () => {
               robberActivated: false,
             },
           },
-          houseEventPending: true,
-          houseEvent: {
+          worldEventPending: true,
+          worldEvent: {
             title: "Harbor Festival",
             instruction: "Announce every maritime trade.",
+            tone: "boon",
+            toneLabel: "Boon",
+            impact: 1,
+            category: "society",
+            duration: "immediate",
+            timingCopy: "Immediate effect",
           },
+          activeEvents: [],
         }}
         onRoll={vi.fn()}
         onAlchemy={vi.fn()}
@@ -334,7 +345,7 @@ describe("GameTable", () => {
     ).not.toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("button", { name: "Acknowledge house event" }),
+      screen.getByRole("button", { name: "Acknowledge world event" }),
     );
     expect(onAcknowledgeEvent).toHaveBeenCalledOnce();
   });
@@ -475,5 +486,121 @@ describe("GameTable", () => {
     expect(btn).toBeEnabled();
     await user.click(btn);
     expect(onContinueRoll).toHaveBeenCalledOnce();
+  });
+
+  it("presents pending World Event metadata and acknowledgement", async () => {
+    const user = userEvent.setup();
+    const onAcknowledgeEvent = vi.fn();
+
+    renderTable(
+      {
+        canRoll: false,
+        lastRoll: {
+          red: 4,
+          yellow: 2,
+          total: 6,
+          event: "trade",
+          source: "balanced",
+          progress: {
+            discipline: "trade",
+            redValue: 4,
+            eligiblePlayers: [],
+          },
+          production: { robberActivated: false },
+        },
+        worldEventPending: true,
+        worldEvent: {
+          title: "Trade Winds",
+          instruction: "Maritime trade is cheaper.",
+          tone: "boon",
+          toneLabel: "Boon",
+          impact: 2,
+          category: "economy",
+          duration: "full-round",
+          timingCopy: "Activates next round",
+        },
+      },
+      { onAcknowledgeEvent },
+    );
+
+    expect(screen.getByText("World Event (house rule)")).toBeVisible();
+    expect(screen.getByText("Trade Winds")).toBeVisible();
+    expect(screen.getByText("Activates next round")).toBeVisible();
+    expect(screen.getByText("2 / 3")).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Acknowledge world event" }),
+    );
+    expect(onAcknowledgeEvent).toHaveBeenCalledOnce();
+  });
+
+  it("keeps persistent events visible and resolves only manual events", async () => {
+    const user = userEvent.setup();
+    const onResolveEvent = vi.fn();
+
+    renderTable(
+      {
+        activeEvents: [
+          {
+            occurrenceId: "earthquake-1",
+            title: "Earthquake",
+            instruction: "Repair every damaged road.",
+            tone: "setback",
+            impact: 2,
+            category: "nature",
+            duration: "until-resolved",
+            timingCopy: "Active until resolved",
+            canResolve: true,
+          },
+          {
+            occurrenceId: "storm-1",
+            title: "Storm at Sea",
+            instruction: "No maritime trade.",
+            tone: "setback",
+            impact: 1,
+            category: "nature",
+            duration: "full-round",
+            timingCopy: "Active this round",
+            canResolve: false,
+          },
+        ],
+      },
+      { onResolveEvent },
+    );
+
+    expect(
+      screen.getByRole("region", { name: "Active world events" }),
+    ).toBeVisible();
+    expect(screen.getByText("Storm at Sea")).toBeVisible();
+    expect(
+      screen.getAllByRole("button", { name: "Mark resolved" }),
+    ).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Mark resolved" }));
+    expect(onResolveEvent).toHaveBeenCalledWith("earthquake-1");
+  });
+
+  it("disables manual event resolution in read-only mode", () => {
+    renderTable(
+      {
+        readOnly: true,
+        activeEvents: [
+          {
+            occurrenceId: "earthquake-1",
+            title: "Earthquake",
+            instruction: "Repair every damaged road.",
+            tone: "setback",
+            impact: 2,
+            category: "nature",
+            duration: "until-resolved",
+            timingCopy: "Active until resolved",
+            canResolve: true,
+          },
+        ],
+      },
+      { onResolveEvent: vi.fn() },
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Mark resolved" }),
+    ).toBeDisabled();
   });
 });

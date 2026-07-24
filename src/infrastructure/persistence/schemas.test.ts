@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  asEventId,
+  asEventOccurrenceId,
   asGameId,
   asIsoTimestamp,
   asPlayerId,
   asRevisionId,
   createGame,
 } from "../../domain";
-import type { GameSetup } from "../../domain";
+import type {
+  ActiveWorldEventRecord,
+  GameSetup,
+  GameState,
+  ThematicEventState,
+} from "../../domain";
 import { commandSchema, journalSchema, parseGameState } from "./schemas";
 
 describe("persistence schemas", () => {
@@ -141,3 +148,144 @@ function setup(): GameSetup {
     gameDocumentVersion: 1,
   };
 }
+
+describe("legacy save backward compatibility", () => {
+  it("parses v1 event definitions without metadata fields", () => {
+    const result = createGame({
+      gameId: asGameId("legacy-game"),
+      revisionId: asRevisionId("legacy-rev"),
+      createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
+      setup: {
+        ...setup(),
+        thematicEventsEnabled: true,
+        thematicEventCatalog: [
+          {
+            id: asEventId("legacy-event-1"),
+            contentVersion: 1,
+            title: "Old Event",
+            instruction: "Do something",
+            // No tone/impact/category/scope/duration/compatibility
+          },
+        ],
+      },
+      random: () => 0,
+      ids: sequentialIds(),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const state = result.value.nextState;
+
+    // Clone and re-parse — the v1 definition should survive
+    const parsed = parseGameState(structuredClone(state));
+    expect(parsed.thematicEvents.enabledEvents[0]!.title).toBe("Old Event");
+    // Metadata should be absent (undefined)
+    expect(parsed.thematicEvents.enabledEvents[0]!.tone).toBeUndefined();
+  });
+
+  it("parses v1 thematic snapshots without metadata in history", () => {
+    const result = createGame({
+      gameId: asGameId("legacy-snap"),
+      revisionId: asRevisionId("legacy-snap-rev"),
+      createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
+      setup: setup(),
+      random: () => 0,
+      ids: sequentialIds(),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const state = structuredClone(result.value.nextState);
+
+    // Inject a v1-style snapshot (no tone/impact/etc.)
+    state.history.thematicEvents = [
+      {
+        occurrenceId: asEventOccurrenceId("snap-1"),
+        eventId: asEventId("old-event"),
+        contentVersion: 1,
+        title: "Old Snap",
+        instruction: "Legacy instruction",
+        triggeredAtCompletedTurn: 3,
+        acknowledged: true,
+      },
+    ];
+
+    const parsed = parseGameState(structuredClone(state));
+    expect(parsed.history.thematicEvents[0]!.title).toBe("Old Snap");
+  });
+
+  it("parses thematic state without activeEvents field", () => {
+    const result = createGame({
+      gameId: asGameId("legacy-no-active"),
+      revisionId: asRevisionId("legacy-no-active-rev"),
+      createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
+      setup: setup(),
+      random: () => 0,
+      ids: sequentialIds(),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const state = structuredClone(result.value.nextState);
+
+    // Remove activeEvents to simulate v1 save
+    const { activeEvents: removedActiveEvents, ...thematicWithoutActive } =
+      state.thematicEvents;
+    void removedActiveEvents;
+    const legacyState: GameState = {
+      ...state,
+      thematicEvents: thematicWithoutActive,
+    };
+
+    const parsed = parseGameState(legacyState);
+    // Should parse successfully with activeEvents as undefined
+    expect(parsed.thematicEvents.activeEvents).toBeUndefined();
+  });
+
+  it("parses active events with contentVersion defaulting to 1", () => {
+    const result = createGame({
+      gameId: asGameId("legacy-active"),
+      revisionId: asRevisionId("legacy-active-rev"),
+      createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
+      setup: setup(),
+      random: () => 0,
+      ids: sequentialIds(),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const state = structuredClone(result.value.nextState);
+
+    // Inject an active event without contentVersion (simulating an early v2 save)
+    type LegacyActiveEvent = Omit<ActiveWorldEventRecord, "contentVersion">;
+    type LegacyThematicState = Omit<ThematicEventState, "activeEvents"> & {
+      activeEvents: LegacyActiveEvent[];
+    };
+    const { activeEvents: removedActiveEvents, ...thematicWithoutActive } =
+      state.thematicEvents;
+    void removedActiveEvents;
+    const legacyState: Omit<GameState, "thematicEvents"> & {
+      thematicEvents: LegacyThematicState;
+    } = {
+      ...state,
+      thematicEvents: {
+        ...thematicWithoutActive,
+        activeEvents: [
+          {
+            occurrenceId: asEventOccurrenceId("active-1"),
+            eventId: asEventId("we-earthquake"),
+            title: "Earthquake",
+            instruction: "Shake",
+            tone: "setback",
+            impact: 2,
+            category: "nature",
+            scope: "all",
+            duration: "until-resolved",
+            compatibility: { twoPlayer: true },
+            activeRound: null,
+            triggeredAtCompletedTurn: 3,
+            activated: true,
+            // No contentVersion — should default to 1
+          },
+        ],
+      },
+    };
+
+    const parsed = parseGameState(legacyState);
+    const activeEvents = parsed.thematicEvents.activeEvents ?? [];
+    expect(activeEvents).toHaveLength(1);
+    expect(activeEvents[0]!.contentVersion).toBe(1);
+  });
+});

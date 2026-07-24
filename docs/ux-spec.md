@@ -88,13 +88,13 @@ and saves locally. The main action is Start new game.
 
 Display a comparison panel:
 
-| Setting         | Default                               |
-| --------------- | ------------------------------------- |
-| Ruleset         | Base game + Cities & Knights          |
-| Numbered dice   | Balanced 36-outcome deck (house rule) |
-| Event die       | Balanced six-face deck (house rule)   |
-| Thematic events | Standard cadence (house rule)         |
-| Victory target  | 13                                    |
+| Setting        | Default                               |
+| -------------- | ------------------------------------- |
+| Ruleset        | Base game + Cities & Knights          |
+| Numbered dice  | Balanced 36-outcome deck (house rule) |
+| Event die      | Balanced six-face deck (house rule)   |
+| World Events   | Standard, all five packs (house rule) |
+| Victory target | 13                                    |
 
 The balanced modes are fixed for this release and explained rather than
 toggleable.
@@ -202,32 +202,21 @@ for keyboard and assistive-technology users.
 
 ## 6. Roll result flow
 
-Each roll opens one consolidated modal. It contains all applicable sections at
-once rather than opening a sequence of progress, production, attack, and
-thematic-event dialogs:
+Ordinary rolls resolve inline on the game table:
 
-1. **Event result**
-   - Barbarian: animate one track step.
-   - Progress discipline: show icon and discipline name.
-2. **Official consequence**
-   - Attack resolution, or eligible progress-card players.
-3. **Numbered result**
-   - Production total or 7 guidance.
-4. **House event**
-   - Show only when scheduled, with an unmistakable House event label.
+1. Show numbered dice, official event-die result, production/7 guidance, and
+   progress eligibility.
+2. If a barbarian attack requires verification or choices, open the blocking
+   attack dialog. Do not reveal a pending World Event inside that dialog.
+3. After official resolution completes, show a scheduled World Event inline
+   with an unmistakable **World Event (house rule)** label.
+4. The table acknowledges the World Event before entering the action phase.
+5. The viewport-fixed **Next: PLAYER & roll** action records the turn boundary
+   and rolls for the next player.
 
-The footer has two actions:
-
-- **Continue current turn** acknowledges the displayed information and enters
-  the current player's action phase.
-- **Next: PLAYER & quick roll** acknowledges the displayed information, ends
-  the current turn, and immediately rolls for the next player. Its helper text
-  makes clear that the current player should first finish physical-board
-  actions.
-
-The modal stays open while attack choices or persistence are incomplete. A
-quick roll replaces its content with the next player's result instead of
-opening another modal.
+Controls remain disabled while persistence is incomplete. A blocking dialog is
+reserved for barbarian attacks or other decisions that cannot safely resolve
+inline.
 
 ## 7. Progress eligibility sheet
 
@@ -286,20 +275,24 @@ The footer action summarizes and commits every mutation:
 The operator may temporarily open the public-state editor from an attack row;
 closing it returns to the same recalculated result modal.
 
-## 9. Thematic event experience
+## 9. World Event experience
 
-The house-event section inside the consolidated modal must look visually
-distinct from official resolution:
+A pending World Event appears inline only after official resolution:
 
-- persistent House event label;
-- original title and concise instruction;
-- optional category and intensity marker;
-- no countdown or auto-dismiss;
-- acknowledgement through the same modal footer as the official result.
+- persistent **World Event (house rule)** label;
+- original title and precise physical-table instruction;
+- tone, impact, and timing/expiry copy;
+- explicit acknowledgement; no countdown or auto-dismiss.
 
-The event must fit without scrolling at 320 CSS pixels wide when text is at
-200 percent zoom, or provide a clear internal scroll region with focus
-management.
+After acknowledgement, non-immediate events move to the persistent **Active
+World Events** section. Deferred full-round events say when they activate;
+automatic durations show their expiry; `until-resolved` events alone expose a
+**Mark resolved** action. Read-only, paused, and saving states disable that
+action.
+
+The pending card and active-event list must remain readable at 320 CSS pixels
+and 200 percent zoom without viewport overflow. High-contrast presentation
+must not rely on tone color alone.
 
 ## 10. History and undo
 
