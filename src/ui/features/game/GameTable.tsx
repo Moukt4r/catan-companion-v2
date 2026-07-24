@@ -4,6 +4,11 @@ import resourceIllustration from "../../../assets/illustrations/resource-landsca
 import type { ActiveEventView, PendingWorldEventView } from "./viewMappers";
 import type { Season } from "../../../domain";
 import { Button, DieFace, PlayerMarker, StatusBanner } from "../../components";
+import {
+  EVENT_DIE_ART,
+  SEASON_ART,
+  WORLD_EVENT_ART,
+} from "../../illustrationCatalog";
 import { formatDuration } from "./time";
 
 const MOBILE_BARBARIAN_QUERY = "(max-width: 600px)";
@@ -203,6 +208,18 @@ export function GameTable({
   const playerControlsDisabled =
     busy || !view.canEditPublicState || view.readOnly || view.paused;
   const [barbarianOpen, setBarbarianOpen] = useState(barbarianPanelStartsOpen);
+  const rollStageArt =
+    view.canRoll && view.season
+      ? SEASON_ART[view.season.current]
+      : view.lastRoll
+        ? EVENT_DIE_ART[view.lastRoll.event]
+        : resourceIllustration;
+  const rollStageArtKey =
+    view.canRoll && view.season
+      ? `season-${view.season.current}`
+      : view.lastRoll
+        ? `event-${view.lastRoll.event}`
+        : "neutral";
 
   useEffect(() => {
     if (
@@ -247,8 +264,17 @@ export function GameTable({
           ) : null}
           {view.season?.transitioned ? (
             <div className="season-transition" role="status" aria-live="polite">
-              {view.season.icon} The season has changed to{" "}
-              <strong>{view.season.label}</strong>
+              <img
+                className="season-transition__art"
+                src={SEASON_ART[view.season.current]}
+                alt=""
+                aria-hidden="true"
+                decoding="async"
+              />
+              <span>
+                {view.season.icon} The season has changed to{" "}
+                <strong>{view.season.label}</strong>
+              </span>
             </div>
           ) : null}
           <div className="game-clock-row" aria-label="Game timers">
@@ -326,12 +352,20 @@ export function GameTable({
       ) : null}
 
       <section className="surface roll-stage" aria-labelledby="roll-heading">
-        <img
-          className="roll-stage__art"
-          src={resourceIllustration}
-          alt=""
+        <div
+          className={`roll-stage__art roll-stage__art--${rollStageArtKey}`}
           aria-hidden="true"
-        />
+        >
+          <img src={rollStageArt} alt="" decoding="async" />
+          <span className="roll-stage__art-scrim" />
+          <span className="roll-stage__art-label">
+            {view.canRoll && view.season
+              ? `${view.season.label} at the frontier`
+              : view.lastRoll
+                ? `${view.lastRoll.event} event`
+                : "The frontier table"}
+          </span>
+        </div>
         <div className="roll-stage__intro">
           <div>
             <p className="rule-label rule-label--house">Balanced house dice</p>
@@ -342,29 +376,31 @@ export function GameTable({
 
         <div className="dice-row">
           <DieFace
-            kind="red"
-            label="Red die"
-            value={view.lastRoll?.red ?? null}
-            rolling={view.rolling}
-          />
-          <span className="dice-operator" aria-hidden>
-            +
-          </span>
-          <DieFace
             kind="yellow"
             label="Yellow die"
             value={view.lastRoll?.yellow ?? null}
             rolling={view.rolling}
           />
-          <span className="dice-total">
-            {view.lastRoll ? `= ${view.lastRoll.total}` : ""}
+          <span className="dice-operator" aria-hidden>
+            +
           </span>
-          <DieFace
-            kind="event"
-            label="Event die"
-            value={view.lastRoll?.event ?? null}
-            rolling={view.rolling}
-          />
+          <div className="event-dice-pair">
+            <DieFace
+              kind="red"
+              label="Red die"
+              value={view.lastRoll?.red ?? null}
+              rolling={view.rolling}
+            />
+            <DieFace
+              kind="event"
+              label="Event die"
+              value={view.lastRoll?.event ?? null}
+              rolling={view.rolling}
+            />
+          </div>
+          <span className="dice-total">
+            {view.lastRoll ? `Production ${view.lastRoll.total}` : ""}
+          </span>
         </div>
 
         {view.canRoll ? (
@@ -427,7 +463,14 @@ export function GameTable({
                     className="inline-world-event"
                     aria-labelledby="inline-world-event-heading"
                   >
-                    <div>
+                    <img
+                      className="inline-world-event__art"
+                      src={WORLD_EVENT_ART[view.worldEvent.category]}
+                      alt=""
+                      aria-hidden="true"
+                      decoding="async"
+                    />
+                    <div className="inline-world-event__copy">
                       <p className="rule-label rule-label--world-event">
                         World Event (house rule)
                       </p>
@@ -572,27 +615,37 @@ export function GameTable({
                 key={event.occurrenceId}
                 className={`surface active-event-card active-event-card--${event.tone}`}
               >
-                <div className="active-event-card__header">
-                  <span className="rule-label rule-label--world-event">
-                    World Event (house rule)
-                  </span>
-                  <span className="active-event-card__timing">
-                    {event.timingCopy}
-                  </span>
+                <img
+                  className="active-event-card__art"
+                  src={WORLD_EVENT_ART[event.category]}
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                  decoding="async"
+                />
+                <div className="active-event-card__body">
+                  <div className="active-event-card__header">
+                    <span className="rule-label rule-label--world-event">
+                      World Event (house rule)
+                    </span>
+                    <span className="active-event-card__timing">
+                      {event.timingCopy}
+                    </span>
+                  </div>
+                  <strong>{event.title}</strong>
+                  <p>{event.instruction}</p>
+                  {event.canResolve && onResolveEvent ? (
+                    <Button
+                      size="small"
+                      disabled={busy || view.readOnly || view.paused}
+                      onClick={() => {
+                        onResolveEvent(event.occurrenceId);
+                      }}
+                    >
+                      Mark resolved
+                    </Button>
+                  ) : null}
                 </div>
-                <strong>{event.title}</strong>
-                <p>{event.instruction}</p>
-                {event.canResolve && onResolveEvent ? (
-                  <Button
-                    size="small"
-                    disabled={busy || view.readOnly || view.paused}
-                    onClick={() => {
-                      onResolveEvent(event.occurrenceId);
-                    }}
-                  >
-                    Mark resolved
-                  </Button>
-                ) : null}
               </li>
             ))}
           </ul>

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.4.0 - 2026-07-24
+
+- Added a cohesive 13-image **FLUX.2 Dev** visual system: four official event-die outcomes, four seasons, and five World Event category packs.
+- Rebuilt event-die faces as illustrated result tiles while preserving complete textual and screen-reader labels.
+- Made the roll-stage banner respond to the current season before a roll and the official event outcome after a roll.
+- Added compact season-transition art, World Event pack imagery on pending and active event cards, and illustrated setup previews.
+- Added event art to the consolidated roll-resolution view without moving consequence text or controls out of their existing hierarchy.
+- Kept all generated imagery decorative, lazy-loaded list art, hidden in high-contrast/forced-colors modes, and documented exact model prompts, seeds, and regeneration steps.
+
 ## 0.3.0 - 2026-07-24
 
 - Added **Seasons Mode**: an optional house-rule layer over World Events that

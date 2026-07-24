@@ -1,3 +1,5 @@
+import { EVENT_DIE_ART } from "../illustrationCatalog";
+
 interface DieFaceProps {
   value: number | "barbarian" | "science" | "trade" | "politics" | null;
   kind: "red" | "yellow" | "event";
@@ -31,11 +33,15 @@ export function DieFace({ kind, label, rolling = false, value }: DieFaceProps) {
         </span>
       ) : (
         <span className="die__event" aria-hidden>
-          {value === "barbarian"
-            ? "S"
-            : value
-              ? value.slice(0, 1).toUpperCase()
-              : "?"}
+          {value ? (
+            <img
+              className="die__event-art"
+              src={EVENT_DIE_ART[value]}
+              alt=""
+              decoding="async"
+            />
+          ) : null}
+          {value ? null : <span className="die__event-placeholder">?</span>}
         </span>
       )}
       <span className="die__caption">{label}</span>

@@ -383,9 +383,19 @@ resolution, or alter domain state.
   and focus rings.
 - Player colors come from a tested palette and always pair with a name or
   symbol.
-- Dice use original SVG geometry and symbols.
-- Avoid parchment textures, copied hex art, official iconography, and branded
-  audio.
+- Numeric dice use original CSS geometry. Event-die outcomes pair an original
+  symbol with decorative FLUX.2 art while retaining a complete textual label.
+- The 13-image FLUX.2 system uses four official-event motifs, four seasonal
+  landscapes, and five World Event pack illustrations. Pack-level art is
+  preferred over 20 per-event images to limit offline-install weight.
+- Artwork is a subdued accent: consequence text, timing, controls, and
+  house-rule labels always remain visually and semantically primary.
+- Decorative imagery uses empty alt text, is hidden in high-contrast and
+  forced-colors modes, and never becomes the only carrier of state.
+- Responsive crops use shallow banners or stamps below 600 px so imagery never
+  pushes the primary roll/continue action out of the usable flow.
+- Avoid parchment textures, copied hex art, official iconography, recognizable
+  commercial pieces, and branded audio.
 
 ## 14. Motion and audio
 

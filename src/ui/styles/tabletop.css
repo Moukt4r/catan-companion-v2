@@ -520,6 +520,43 @@ h1 {
   background: var(--success);
 }
 
+.rules-card--illustrated {
+  display: grid;
+  align-content: start;
+}
+
+.event-die-preview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin-top: auto;
+  padding-top: 0.75rem;
+}
+
+.event-die-preview > span {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+  text-align: center;
+}
+
+.event-die-preview img {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: 0.45rem;
+  object-fit: cover;
+  box-shadow: var(--paper-shadow-soft);
+}
+
+.event-die-preview small {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+}
+
 .rule-label {
   border: 1px solid var(--success-line);
   background: var(--success-soft);
@@ -556,6 +593,58 @@ h1 {
 .check-field {
   border-color: var(--line);
   background: var(--surface-raised);
+}
+
+.check-field--illustrated {
+  position: relative;
+  min-height: 92px;
+  grid-template-columns: 76px auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.check-field__art {
+  width: 76px;
+  height: 68px;
+  border-radius: 0.45rem;
+  object-fit: cover;
+  box-shadow: var(--paper-shadow-soft);
+}
+
+.season-setup-preview {
+  position: relative;
+  min-height: 122px;
+  display: grid;
+  align-items: end;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-medium);
+  background: var(--surface-muted);
+}
+
+.season-setup-preview img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.season-setup-preview::after {
+  position: absolute;
+  inset: 30% 0 0;
+  background: linear-gradient(transparent, rgb(16 29 29 / 82%));
+  content: "";
+}
+
+.season-setup-preview span {
+  position: relative;
+  z-index: 1;
+  padding: 0.75rem;
+  color: #fff;
+  font-family: Georgia, "Times New Roman", ui-serif, serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  text-shadow: 0 1px 4px #000;
 }
 
 .setup-footer,
@@ -617,12 +706,25 @@ h1 {
 
 .season-transition {
   max-width: 32rem;
+  display: inline-grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
   margin-top: 0.55rem;
-  padding: 0.55rem 0.7rem;
+  overflow: hidden;
   border-left: 4px solid #f3c875;
   border-radius: 0 var(--radius-small) var(--radius-small) 0;
   background: rgb(243 200 117 / 14%);
   color: #fff;
+}
+
+.season-transition__art {
+  width: 72px;
+  height: 54px;
+  object-fit: cover;
+}
+
+.season-transition > span {
+  padding: 0.55rem 0.7rem;
 }
 
 .game-header .game-clock-row span {
@@ -700,12 +802,44 @@ h1 {
 }
 
 .roll-stage__art {
+  position: relative;
   width: 100%;
-  height: 112px;
+  height: 126px;
+  overflow: hidden;
   border-bottom: 1px solid var(--line);
+  background: var(--surface-muted);
+}
+
+.roll-stage__art img {
+  width: 100%;
+  height: 100%;
   object-fit: cover;
-  object-position: center 56%;
-  filter: saturate(0.78) contrast(0.96);
+  object-position: center 52%;
+  filter: saturate(0.84) contrast(1.02);
+  transform: scale(1.01);
+}
+
+.roll-stage__art-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgb(11 26 27 / 72%),
+    rgb(11 26 27 / 14%) 62%,
+    transparent
+  );
+}
+
+.roll-stage__art-label {
+  position: absolute;
+  left: 1.5rem;
+  bottom: 0.75rem;
+  color: #fff;
+  font-family: Georgia, "Times New Roman", ui-serif, serif;
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  font-weight: 700;
+  text-shadow: 0 2px 8px #000;
+  text-transform: capitalize;
 }
 
 .roll-stage__intro {
@@ -732,6 +866,28 @@ h1 {
     radial-gradient(circle at 50% 0%, rgb(211 154 57 / 15%), transparent 14rem),
     var(--surface-raised);
   box-shadow: inset 0 0 24px rgb(94 69 35 / 5%);
+}
+
+.event-dice-pair {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.25rem, 0.7vw, 0.45rem);
+}
+
+.dice-row .dice-total,
+.resolution-dice .dice-total {
+  min-width: auto;
+  padding: 0.42rem 0.62rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: clamp(0.72rem, 1.4vw, 0.88rem);
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .roll-actions {
@@ -763,6 +919,32 @@ h1 {
       transparent 14rem
     ),
     var(--warning-soft);
+}
+
+.inline-world-event {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.42fr) minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 1rem;
+  overflow: hidden;
+  padding: 0;
+}
+
+.inline-world-event__art {
+  width: 100%;
+  height: 100%;
+  min-height: 168px;
+  object-fit: cover;
+}
+
+.inline-world-event__copy {
+  align-self: center;
+  padding-block: 1rem;
+}
+
+.inline-world-event > .button {
+  align-self: center;
+  margin-right: 1rem;
 }
 
 .world-event-meta {
@@ -805,9 +987,25 @@ h1 {
 }
 
 .active-event-card {
-  padding: 0.75rem 1rem;
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
   border-radius: 0.5rem;
   border-left: 4px solid var(--warning-line);
+}
+
+.active-event-card__art {
+  width: 104px;
+  height: 100%;
+  min-height: 112px;
+  object-fit: cover;
+}
+
+.active-event-card__body {
+  min-width: 0;
+  padding: 0.75rem 1rem;
 }
 
 .active-event-card--boon {
@@ -854,7 +1052,35 @@ h1 {
   color: #1e3032;
 }
 
+.die__event {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.die__event-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.88) contrast(1.08);
+}
+
+.die__event-placeholder {
+  position: relative;
+  z-index: 1;
+  color: currentColor;
+  font-family: Georgia, "Times New Roman", ui-serif, serif;
+  font-size: clamp(2.4rem, 8vw, 4.8rem);
+  font-weight: 900;
+}
+
 .die__caption {
+  z-index: 2;
   color: var(--ink);
 }
 
@@ -1006,6 +1232,31 @@ h1 {
     var(--surface-muted);
 }
 
+.resolution-section--event {
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: start;
+}
+
+.resolution-section--event > :not(.resolution-event-visual) {
+  grid-column: 2;
+}
+
+.resolution-event-visual {
+  grid-column: 1;
+  grid-row: 1 / span 4;
+  height: 100%;
+  min-height: 142px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-small);
+}
+
+.resolution-event-visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .roll-resolution__actions,
 .history-toolbar {
   border-color: var(--line);
@@ -1079,9 +1330,15 @@ h1 {
 
 :root[data-theme="dark"] .home-hero__visual img,
 :root[data-theme="dark"] .setup-hero__art img,
-:root[data-theme="dark"] .roll-stage__art,
+:root[data-theme="dark"] .roll-stage__art img,
 :root[data-theme="dark"] .barbarian-card__visual img,
-:root[data-theme="dark"] .completed-hero__art img {
+:root[data-theme="dark"] .completed-hero__art img,
+:root[data-theme="dark"] .inline-world-event__art,
+:root[data-theme="dark"] .active-event-card__art,
+:root[data-theme="dark"] .resolution-event-visual img,
+:root[data-theme="dark"] .check-field__art,
+:root[data-theme="dark"] .season-setup-preview img,
+:root[data-theme="dark"] .season-transition__art {
   filter: brightness(0.7) saturate(0.72);
 }
 
@@ -1089,13 +1346,38 @@ h1 {
 :root[data-theme="high-contrast"] .setup-hero__art,
 :root[data-theme="high-contrast"] .roll-stage__art,
 :root[data-theme="high-contrast"] .barbarian-card__visual,
-:root[data-theme="high-contrast"] .completed-hero__art {
+:root[data-theme="high-contrast"] .completed-hero__art,
+:root[data-theme="high-contrast"] .event-die-preview,
+:root[data-theme="high-contrast"] .check-field__art,
+:root[data-theme="high-contrast"] .season-setup-preview,
+:root[data-theme="high-contrast"] .inline-world-event__art,
+:root[data-theme="high-contrast"] .active-event-card__art,
+:root[data-theme="high-contrast"] .resolution-event-visual,
+:root[data-theme="high-contrast"] .die__event-art,
+:root[data-theme="high-contrast"] .season-transition__art {
   display: none;
 }
 
-:root[data-theme="high-contrast"] .home-header.home-hero,
-:root[data-theme="high-contrast"] .completed-hero {
+:root[data-theme="high-contrast"] .season-transition {
   grid-template-columns: 1fr;
+}
+
+:root[data-theme="high-contrast"] .home-header.home-hero,
+:root[data-theme="high-contrast"] .completed-hero,
+:root[data-theme="high-contrast"] .inline-world-event,
+:root[data-theme="high-contrast"] .active-event-card,
+:root[data-theme="high-contrast"] .resolution-section--event {
+  grid-template-columns: 1fr;
+}
+
+:root[data-theme="high-contrast"] .check-field--illustrated {
+  grid-template-columns: auto 1fr;
+}
+
+:root[data-theme="high-contrast"]
+  .resolution-section--event
+  > :not(.resolution-event-visual) {
+  grid-column: 1;
 }
 
 :root[data-theme="high-contrast"] .surface,
@@ -1260,7 +1542,68 @@ h1 {
   }
 
   .roll-stage__art {
+    height: 96px;
+  }
+
+  .roll-stage__art-label {
+    left: 1rem;
+    bottom: 0.55rem;
+    font-size: 1rem;
+  }
+
+  .inline-world-event {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .inline-world-event__art {
+    height: 92px;
+    min-height: 92px;
+  }
+
+  .inline-world-event__copy {
+    padding: 0.9rem 1rem 0.5rem;
+  }
+
+  .inline-world-event > .button {
+    margin: 0.5rem 1rem 1rem;
+  }
+
+  .active-event-card {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .active-event-card__art {
+    width: 72px;
+    min-height: 100%;
+  }
+
+  .resolution-section--event {
+    grid-template-columns: 1fr;
+  }
+
+  .resolution-section--event > :not(.resolution-event-visual) {
+    grid-column: 1;
+  }
+
+  .resolution-event-visual {
+    grid-column: 1;
+    grid-row: auto;
     height: 82px;
+    min-height: 82px;
+  }
+
+  .check-field--illustrated {
+    grid-template-columns: 58px auto minmax(0, 1fr);
+  }
+
+  .check-field__art {
+    width: 58px;
+    height: 58px;
+  }
+
+  .event-die-preview small {
+    display: none;
   }
 
   .roll-stage__intro {
@@ -1355,13 +1698,36 @@ h1 {
   .setup-hero__art,
   .roll-stage__art,
   .barbarian-card__visual,
-  .completed-hero__art {
+  .completed-hero__art,
+  .event-die-preview,
+  .check-field__art,
+  .season-setup-preview,
+  .inline-world-event__art,
+  .active-event-card__art,
+  .resolution-event-visual,
+  .die__event-art,
+  .season-transition__art {
     display: none;
   }
 
-  .home-header.home-hero,
-  .completed-hero {
+  .season-transition {
     grid-template-columns: 1fr;
+  }
+
+  .home-header.home-hero,
+  .completed-hero,
+  .inline-world-event,
+  .active-event-card,
+  .resolution-section--event {
+    grid-template-columns: 1fr;
+  }
+
+  .check-field--illustrated {
+    grid-template-columns: auto 1fr;
+  }
+
+  .resolution-section--event > :not(.resolution-event-visual) {
+    grid-column: 1;
   }
 
   .surface,

@@ -13,6 +13,11 @@ import {
 } from "../../../domain";
 import resourceIllustration from "../../../assets/illustrations/resource-landscape.webp";
 import { Button, PlayerMarker, StatusBanner } from "../../components";
+import {
+  EVENT_DIE_ART,
+  SEASON_ART,
+  WORLD_EVENT_ART,
+} from "../../illustrationCatalog";
 
 const playerColors = [
   { name: "Amber", value: "#b66a1f" },
@@ -54,6 +59,13 @@ const worldEventPackOptions: ReadonlyArray<{
 ];
 
 const allWorldEventPacks = worldEventPackOptions.map((pack) => pack.id);
+
+const eventDiePreviewOptions = [
+  ["barbarian", "Ship"],
+  ["science", "Science"],
+  ["trade", "Trade"],
+  ["politics", "Politics"],
+] as const;
 
 export interface SetupPlayerDraft {
   draftId: string;
@@ -437,13 +449,26 @@ export function SetupWizard({
                   cycle.
                 </p>
               </article>
-              <article>
+              <article className="rules-card rules-card--illustrated">
                 <span className="rule-label rule-label--house">House rule</span>
                 <h3>Balanced event die</h3>
                 <p>
                   Each six-roll cycle has three ships and one of each progress
                   discipline.
                 </p>
+                <div className="event-die-preview" aria-hidden="true">
+                  {eventDiePreviewOptions.map(([event, label]) => (
+                    <span key={event} title={label}>
+                      <img
+                        src={EVENT_DIE_ART[event]}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <small>{label}</small>
+                    </span>
+                  ))}
+                </div>
               </article>
             </div>
             <label className="field">
@@ -516,7 +541,18 @@ export function SetupWizard({
                     (event) => event.category === pack.id,
                   ).length;
                   return (
-                    <label key={pack.id} className="check-field">
+                    <label
+                      key={pack.id}
+                      className="check-field check-field--illustrated"
+                    >
+                      <img
+                        className="check-field__art"
+                        src={WORLD_EVENT_ART[pack.id]}
+                        alt=""
+                        aria-hidden="true"
+                        loading="lazy"
+                        decoding="async"
+                      />
                       <input
                         type="checkbox"
                         checked={worldEventPacks.includes(pack.id)}
@@ -609,6 +645,19 @@ export function SetupWizard({
                         ))}
                       </select>
                     </label>
+                    <div className="season-setup-preview" aria-hidden="true">
+                      <img
+                        src={SEASON_ART[seasonConfig.startingSeason]}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <span>
+                        {SEASON_ICONS[seasonConfig.startingSeason]}{" "}
+                        {SEASON_LABELS[seasonConfig.startingSeason]} at the
+                        frontier
+                      </span>
+                    </div>
                   </>
                 ) : null}
               </fieldset>

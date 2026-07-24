@@ -127,6 +127,16 @@ describe("GameTable", () => {
     expect(container.querySelector(".barbarian-summary")).toHaveTextContent(
       "7 spaces until attack",
     );
+    expect(
+      Array.from(container.querySelectorAll(".dice-row .die")).map((die) =>
+        die.getAttribute("aria-label"),
+      ),
+    ).toEqual(["Yellow die: -", "Red die: -", "Event die: -"]);
+    expect(
+      Array.from(container.querySelectorAll(".event-dice-pair .die")).map(
+        (die) => die.getAttribute("aria-label"),
+      ),
+    ).toEqual(["Red die: -", "Event die: -"]);
   });
 
   it("offers one-tap score changes and detailed editing in the action phase", async () => {
@@ -382,6 +392,50 @@ describe("GameTable", () => {
     expect(screen.getByText("Current")).toBeInTheDocument();
   });
 
+  it("uses seasonal art before a roll and event art after a roll", () => {
+    const seasonal = renderTable({
+      season: {
+        current: "winter",
+        label: "Winter",
+        icon: "❄️",
+        roundInSeason: 1,
+        roundsPerSeason: 3,
+        transitioned: true,
+      },
+    });
+    expect(
+      seasonal.container.querySelector(
+        ".roll-stage__art--season-winter img[alt='']",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      seasonal.container.querySelector(".season-transition__art[alt='']"),
+    ).toBeInTheDocument();
+    seasonal.unmount();
+
+    const event = renderTable({
+      canRoll: false,
+      lastRoll: {
+        red: 3,
+        yellow: 4,
+        total: 7,
+        event: "trade",
+        source: "balanced",
+        progress: {
+          discipline: "trade",
+          redValue: 3,
+          eligiblePlayers: [],
+        },
+        production: { robberActivated: false },
+      },
+    });
+    expect(
+      event.container.querySelector(
+        ".roll-stage__art--event-trade img[alt='']",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("shows offline indicator", () => {
     renderTable({ offline: true });
     expect(screen.getByText("Offline")).toBeVisible();
@@ -489,11 +543,11 @@ describe("GameTable", () => {
     expect(onContinueRoll).toHaveBeenCalledOnce();
   });
 
-  it("presents pending World Event metadata and acknowledgement", async () => {
+  it("presents pending World Event metadata and decorative pack art", async () => {
     const user = userEvent.setup();
     const onAcknowledgeEvent = vi.fn();
 
-    renderTable(
+    const { container } = renderTable(
       {
         canRoll: false,
         lastRoll: {
@@ -528,17 +582,21 @@ describe("GameTable", () => {
     expect(screen.getByText("Trade Winds")).toBeVisible();
     expect(screen.getByText("Activates next round")).toBeVisible();
     expect(screen.getByText("2 / 3")).toBeVisible();
+    expect(container.querySelector(".inline-world-event__art")).toHaveAttribute(
+      "alt",
+      "",
+    );
     await user.click(
       screen.getByRole("button", { name: "Acknowledge world event" }),
     );
     expect(onAcknowledgeEvent).toHaveBeenCalledOnce();
   });
 
-  it("keeps persistent events visible and resolves only manual events", async () => {
+  it("keeps illustrated persistent events visible and resolves only manual events", async () => {
     const user = userEvent.setup();
     const onResolveEvent = vi.fn();
 
-    renderTable(
+    const { container } = renderTable(
       {
         activeEvents: [
           {
@@ -572,6 +630,9 @@ describe("GameTable", () => {
       screen.getByRole("region", { name: "Active world events" }),
     ).toBeVisible();
     expect(screen.getByText("Storm at Sea")).toBeVisible();
+    expect(container.querySelectorAll(".active-event-card__art")).toHaveLength(
+      2,
+    );
     expect(
       screen.getAllByRole("button", { name: "Mark resolved" }),
     ).toHaveLength(1);

@@ -6,6 +6,7 @@ import {
   PlayerMarker,
   StatusBanner,
 } from "../../components";
+import { EVENT_DIE_ART } from "../../illustrationCatalog";
 import { formatDuration } from "./time";
 
 export interface ProgressEligiblePlayer {
@@ -161,20 +162,27 @@ export function RollResolutionDialog({
             </span>
           </div>
           <div className="resolution-dice">
-            <DieFace kind="red" label="Red die" value={view.roll.red} />
-            <span aria-hidden>+</span>
             <DieFace
               kind="yellow"
               label="Yellow die"
               value={view.roll.yellow}
             />
-            <span aria-hidden>=</span>
-            <strong>{view.roll.total}</strong>
-            <DieFace kind="event" label="Event die" value={view.roll.event} />
+            <span aria-hidden>+</span>
+            <div className="event-dice-pair">
+              <DieFace kind="red" label="Red die" value={view.roll.red} />
+              <DieFace kind="event" label="Event die" value={view.roll.event} />
+            </div>
+            <strong className="dice-total">Production {view.roll.total}</strong>
           </div>
         </section>
 
-        <section className="resolution-section" aria-labelledby="event-heading">
+        <section
+          className="resolution-section resolution-section--event"
+          aria-labelledby="event-heading"
+        >
+          <div className="resolution-event-visual" aria-hidden="true">
+            <img src={EVENT_DIE_ART[view.roll.event]} alt="" decoding="async" />
+          </div>
           <div className="resolution-heading">
             <div>
               <p className="eyebrow">Event die</p>

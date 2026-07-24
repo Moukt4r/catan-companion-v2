@@ -42,14 +42,18 @@ this implementation.
   2/3/4-round seasons, selectable starting season, round-boundary transitions,
   and weighted-without-replacement World Event draws. Existing tone/impact and
   compatibility guardrails remain authoritative.
+- **FLUX.2 visual system v0.4.0:** Thirteen original local illustrations cover
+  the official event-die outcomes, four seasons, and five World Event packs.
+  They enrich setup, roll resolution, season transitions, and active events
+  without replacing textual guidance or accessible labels.
 - Immutable IndexedDB revisions with undo, redo, branch retention, integrity
   hashes, and verified-ancestor recovery.
 - Versioned JSON export/import that never overwrites an existing game.
 - Explicit single-tab control with read-only mirrored tabs and takeover.
 - Responsive mobile/tablet/desktop layouts, keyboard support, high contrast,
   reduced motion, synthesized sound cues, and sanitized diagnostics.
-- Original locally generated frontier illustrations with no official CATAN
-  artwork or trade dress.
+- Original locally generated frontier illustrations, including a reproducible
+  FLUX.2 Dev asset set, with no official CATAN artwork or trade dress.
 - Prompted PWA updates and complete offline operation after first load.
 
 Balanced decks, World Events, Seasons Mode, two-player mode, and custom victory
@@ -69,6 +73,20 @@ pnpm dev
 ```
 
 Open `http://127.0.0.1:5173`.
+
+### Regenerating the FLUX.2 visual set
+
+Normal builds use the committed WebP assets and do not require a model. To
+intentionally regenerate them, start the isolated local FLUX.2 ComfyUI service
+on `http://127.0.0.1:8190`, then run:
+
+```bash
+python3 scripts/generate-flux2-visuals.py
+```
+
+Use `--keys event-science season-winter` for selected scenes or `--force` to
+replace existing renders. Exact prompts, seeds, model settings, and output paths
+are recorded in `docs/flux2-visuals-manifest.json`.
 
 ## Quality commands
 

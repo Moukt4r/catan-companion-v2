@@ -143,6 +143,9 @@ test("Seasons setup and table indicator remain accessible", async ({
   await page.locator('input[placeholder="Player 4"]').fill("Margaret");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("checkbox", { name: /Enable Seasons Mode/ }).check();
+  await expect(page.locator(".event-die-preview img")).toHaveCount(4);
+  await expect(page.locator(".check-field__art")).toHaveCount(5);
+  await expect(page.locator(".season-setup-preview img")).toHaveCount(1);
 
   const setupResults = await new AxeBuilder({ page })
     .include(".setup-card")
@@ -155,9 +158,22 @@ test("Seasons setup and table indicator remain accessible", async ({
   await expect(
     page.getByLabel("Current season: Spring, round 1 of 3"),
   ).toBeVisible();
+  await expect(
+    page.locator(".roll-stage__art--season-spring img"),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
 
   const tableResults = await new AxeBuilder({ page })
     .include("main.game-layout")
     .analyze();
   expect(tableResults.violations).toEqual([]);
+
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "high-contrast";
+  });
+  await expect(page.locator(".roll-stage__art")).toBeHidden();
 });

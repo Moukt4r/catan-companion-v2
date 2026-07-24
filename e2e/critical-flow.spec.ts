@@ -473,6 +473,7 @@ test("configures Seasons Mode and announces a round-boundary transition", async 
   await expect(page.getByRole("status")).toContainText(
     "The season has changed to Spring",
   );
+  await expect(page.locator(".season-transition__art")).toBeVisible();
 
   await page.getByRole("button", { name: "History" }).click();
   const history = page.locator("dialog[open]");

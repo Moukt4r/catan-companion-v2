@@ -79,7 +79,7 @@ describe("RollResolutionDialog", () => {
     const user = userEvent.setup();
     const onContinue = vi.fn();
 
-    render(
+    const { container } = render(
       <RollResolutionDialog
         open
         view={baseView()}
@@ -91,6 +91,19 @@ describe("RollResolutionDialog", () => {
       />,
     );
 
+    expect(
+      container.querySelector(".resolution-event-visual img"),
+    ).toHaveAttribute("alt", "");
+    expect(
+      Array.from(container.querySelectorAll(".resolution-dice .die")).map(
+        (die) => die.getAttribute("aria-label"),
+      ),
+    ).toEqual(["Yellow die: 3", "Red die: 4", "Event die: Science"]);
+    expect(
+      Array.from(
+        container.querySelectorAll(".resolution-dice .event-dice-pair .die"),
+      ).map((die) => die.getAttribute("aria-label")),
+    ).toEqual(["Red die: 4", "Event die: Science"]);
     expect(
       screen.getByRole("dialog", { name: "Roll result: 7" }),
     ).toBeInTheDocument();
