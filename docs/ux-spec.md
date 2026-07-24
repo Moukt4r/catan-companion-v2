@@ -172,29 +172,29 @@ Risk uses icon, text, and shape in addition to color.
 
 ### 5.4 Player strip
 
-Each player card shows:
+Each compact player tile shows:
 
 - name and color label;
 - public victory points;
-- ordinary cities and derived discipline-specific metropolises;
-- active knight strength;
-- three improvement levels;
+- elapsed active-play time;
 - current-player marker.
 
-Tap or keyboard-activate a card to open its editor. On wide screens, all cards
-are visible in turn order. On narrow screens, use a horizontal snap list with
-the current player first in the viewport; do not hide other players behind a
-carousel with inaccessible controls.
+One-tap minus and plus controls adjust public points during the action phase.
+The Details action opens the full editor for corrections, cities, knights, and
+improvement levels. On wide screens, all tiles are visible in turn order. On
+narrow screens, use a compact horizontal snap list with the current player
+first in the viewport; do not hide other players behind a carousel with
+inaccessible controls.
 
 ### 5.5 Action controls
 
-The action phase presents quick actions for the current player:
+The action phase presents:
 
-- score adjustment;
-- ordinary-city adjustment;
-- active knight counters;
-- improvement levels, with a confirmed metropolis proposal when applicable;
-- **Next: PLAYER & roll**, which is the only action-phase turn transition.
+- one-tap score adjustment on every player tile;
+- a points-first editor with Cities & Knights state behind an advanced
+  disclosure;
+- a viewport-fixed **Next: PLAYER & roll** dock, which is the only action-phase
+  turn transition.
 
 Every adjustment previews the resulting derived strength or score and supports
 Cancel. High-frequency plus/minus controls must also allow direct numeric entry
@@ -362,8 +362,9 @@ Explain the schema version and validation issue. Do not modify existing data.
 - Single-column flow.
 - Sticky current-player header.
 - Dice and primary action above the fold.
-- Player cards in horizontal snap list.
+- Compact points-and-time tiles in a horizontal snap list.
 - Barbarian panel collapses to a status row.
+- Next-turn action remains fixed above the bottom safe area.
 - Bottom sheets use the full viewport and safe-area insets.
 
 ### Tablet and small desktop: 600-1199 px

@@ -80,7 +80,7 @@ export function PlayerEditorDialog({
     <Dialog
       open
       title={`Edit ${player.name}`}
-      description="Public table information only. Every saved change appears in history."
+      description="Adjust points first. Cities and Knights details are available when needed, and every saved change appears in history."
       onClose={onClose}
     >
       <div className="form-stack">
@@ -90,97 +90,13 @@ export function PlayerEditorDialog({
         />
 
         <section
-          className="editor-section"
-          aria-labelledby="cities-editor-heading"
-        >
-          <h3 id="cities-editor-heading">Cities</h3>
-          <NumberStepper
-            compact
-            label="Ordinary cities"
-            value={ordinaryCities}
-            min={0}
-            max={4}
-            onChange={setOrdinaryCities}
-          />
-          <p className="fine-print">
-            Metropolises are tracked by discipline and are not included in this
-            ordinary-city count. Held:{" "}
-            {player.metropolisDisciplines.join(", ") || "none"}.
-          </p>
-        </section>
-
-        <section
-          className="editor-section"
-          aria-labelledby="knights-editor-heading"
-        >
-          <div className="section-heading-row">
-            <h3 id="knights-editor-heading">Active knights</h3>
-            <strong>Strength {activeStrength}</strong>
-          </div>
-          <NumberStepper
-            compact
-            label="Basic"
-            value={activeKnights.basic}
-            min={0}
-            max={2}
-            onChange={(value) => {
-              updateKnight("basic", value);
-            }}
-          />
-          <NumberStepper
-            compact
-            label="Strong"
-            value={activeKnights.strong}
-            min={0}
-            max={2}
-            onChange={(value) => {
-              updateKnight("strong", value);
-            }}
-          />
-          <NumberStepper
-            compact
-            label="Mighty"
-            value={activeKnights.mighty}
-            min={0}
-            max={2}
-            onChange={(value) => {
-              updateKnight("mighty", value);
-            }}
-          />
-        </section>
-
-        <section
-          className="editor-section"
-          aria-labelledby="improvements-editor-heading"
-        >
-          <h3 id="improvements-editor-heading">City improvements</h3>
-          {(["science", "trade", "politics"] as const).map((discipline) => (
-            <NumberStepper
-              key={discipline}
-              compact
-              label={discipline[0]?.toUpperCase() + discipline.slice(1)}
-              value={improvements[discipline]}
-              min={0}
-              max={5}
-              onChange={(value) => {
-                updateImprovement(discipline, value as ImprovementValue);
-              }}
-            />
-          ))}
-          <StatusBanner>
-            Crossing level 4 or 5 may open a metropolis confirmation after this
-            edit.
-          </StatusBanner>
-        </section>
-
-        <section
-          className="editor-section"
+          className="editor-section editor-section--score"
           aria-labelledby="score-editor-heading"
         >
-          <h3 id="score-editor-heading">Public score adjustment</h3>
+          <h3 id="score-editor-heading">Public points</h3>
           <NumberStepper
             compact
-            label="Change"
+            label="Point change"
             value={scoreDelta}
             min={-10}
             max={10}
@@ -199,6 +115,95 @@ export function PlayerEditorDialog({
           </label>
         </section>
 
+        <details className="editor-advanced">
+          <summary>Advanced Cities &amp; Knights state</summary>
+          <div className="editor-advanced__content">
+            <section
+              className="editor-section"
+              aria-labelledby="cities-editor-heading"
+            >
+              <h3 id="cities-editor-heading">Cities</h3>
+              <NumberStepper
+                compact
+                label="Ordinary cities"
+                value={ordinaryCities}
+                min={0}
+                max={4}
+                onChange={setOrdinaryCities}
+              />
+              <p className="fine-print">
+                Metropolises are tracked by discipline and are not included in
+                this ordinary-city count. Held:{" "}
+                {player.metropolisDisciplines.join(", ") || "none"}.
+              </p>
+            </section>
+
+            <section
+              className="editor-section"
+              aria-labelledby="knights-editor-heading"
+            >
+              <div className="section-heading-row">
+                <h3 id="knights-editor-heading">Active knights</h3>
+                <strong>Strength {activeStrength}</strong>
+              </div>
+              <NumberStepper
+                compact
+                label="Basic"
+                value={activeKnights.basic}
+                min={0}
+                max={2}
+                onChange={(value) => {
+                  updateKnight("basic", value);
+                }}
+              />
+              <NumberStepper
+                compact
+                label="Strong"
+                value={activeKnights.strong}
+                min={0}
+                max={2}
+                onChange={(value) => {
+                  updateKnight("strong", value);
+                }}
+              />
+              <NumberStepper
+                compact
+                label="Mighty"
+                value={activeKnights.mighty}
+                min={0}
+                max={2}
+                onChange={(value) => {
+                  updateKnight("mighty", value);
+                }}
+              />
+            </section>
+
+            <section
+              className="editor-section"
+              aria-labelledby="improvements-editor-heading"
+            >
+              <h3 id="improvements-editor-heading">City improvements</h3>
+              {(["science", "trade", "politics"] as const).map((discipline) => (
+                <NumberStepper
+                  key={discipline}
+                  compact
+                  label={discipline[0]?.toUpperCase() + discipline.slice(1)}
+                  value={improvements[discipline]}
+                  min={0}
+                  max={5}
+                  onChange={(value) => {
+                    updateImprovement(discipline, value as ImprovementValue);
+                  }}
+                />
+              ))}
+              <StatusBanner>
+                Crossing level 4 or 5 may open a metropolis confirmation after
+                this edit.
+              </StatusBanner>
+            </section>
+          </div>
+        </details>
+
         <div className="button-row dialog-actions">
           <Button variant="quiet" onClick={onClose}>
             Cancel
@@ -214,7 +219,7 @@ export function PlayerEditorDialog({
               });
             }}
           >
-            Save public state
+            Save changes
           </Button>
         </div>
       </div>

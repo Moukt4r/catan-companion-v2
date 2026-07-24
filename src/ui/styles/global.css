@@ -445,10 +445,16 @@ h3 {
 }
 
 .game-header,
-.turn-footer,
 .player-strip,
 .game-layout > .status-banner {
   grid-column: 1 / -1;
+}
+
+.game-sidebar {
+  min-width: 0;
+  display: grid;
+  align-self: start;
+  gap: 1rem;
 }
 
 .game-header {
@@ -699,8 +705,9 @@ h3 {
 
 .player-card {
   display: grid;
-  gap: 0.8rem;
-  padding: 1rem;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.75rem;
   box-shadow: 0 8px 24px rgb(12 31 49 / 10%);
 }
 
@@ -719,70 +726,76 @@ h3 {
   background: var(--color-gold-300);
 }
 
-.player-score {
+.player-card__summary {
   display: flex;
-  align-items: baseline;
-  gap: 0.45rem;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.player-score {
+  display: grid;
+  gap: 0.1rem;
 }
 
 .player-score strong {
-  font-size: 2.4rem;
+  font-size: 2.15rem;
+  line-height: 1;
 }
 
-.player-score span {
+.player-score span,
+.player-time span {
   color: var(--color-navy-700);
-  font-size: 0.8rem;
-  font-weight: 720;
+  font-size: 0.68rem;
+  font-weight: 780;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.player-stats {
+.player-time {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.35rem;
-  margin: 0;
+  gap: 0.15rem;
+  justify-items: end;
+  font-variant-numeric: tabular-nums;
 }
 
-.player-stats div {
+.player-card__actions {
   display: grid;
-  gap: 0.2rem;
-  padding: 0.45rem;
-  border-radius: var(--radius-small);
-  background: rgb(23 50 77 / 6%);
-  text-align: center;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  gap: 0.4rem;
 }
 
-.player-stats dt {
-  color: var(--color-navy-700);
-  font-size: 0.65rem;
+.player-card__actions .button {
+  width: 100%;
+  padding-inline: 0.45rem;
 }
 
-.player-stats dd {
-  margin: 0;
-  font-weight: 850;
-}
-
-.improvement-row {
+.turn-action-dock {
+  position: relative;
+  width: 100%;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.35rem;
-}
-
-.improvement-row span {
-  padding: 0.38rem;
-  border-radius: var(--radius-small);
-  background: rgb(242 196 104 / 20%);
-  text-align: center;
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.turn-footer {
-  display: flex;
+  grid-template-columns: 1fr;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 0.25rem;
+  gap: 0.75rem;
+  padding: 0.65rem;
   color: var(--color-navy-700);
+}
+
+.turn-action-dock__copy {
+  display: grid;
+  gap: 0.1rem;
+  padding-inline: 0.45rem;
+}
+
+.turn-action-dock__copy span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.turn-action-dock__copy strong {
+  color: var(--color-navy-950);
 }
 
 .alchemy-grid {
@@ -855,6 +868,47 @@ h3 {
   gap: 0.7rem;
   padding-top: 0.9rem;
   border-top: 1px solid rgb(23 50 77 / 14%);
+}
+
+.editor-section--score {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.editor-advanced {
+  overflow: hidden;
+  border: 1px solid rgb(23 50 77 / 14%);
+  border-radius: var(--radius-medium);
+}
+
+.editor-advanced > summary {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.editor-advanced > summary::after {
+  content: "+";
+  font-size: 1.25rem;
+}
+
+.editor-advanced[open] > summary {
+  border-bottom: 1px solid rgb(23 50 77 / 14%);
+}
+
+.editor-advanced[open] > summary::after {
+  content: "-";
+}
+
+.editor-advanced__content {
+  display: grid;
+  gap: 1rem;
+  padding: 0 1rem 1rem;
 }
 
 .section-heading-row {
@@ -1573,6 +1627,25 @@ h3 {
   }
 }
 
+@media (max-width: 900px) {
+  .game-layout--turn-action {
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+  }
+
+  .turn-action-dock {
+    position: fixed;
+    bottom: max(0.5rem, env(safe-area-inset-bottom));
+    left: 50%;
+    z-index: 30;
+    width: min(calc(100% - 1rem), 760px);
+    transform: translateX(-50%);
+  }
+
+  .turn-action-dock__copy {
+    display: none;
+  }
+}
+
 @media (max-width: 600px) {
   .app-shell {
     width: min(100% - 1rem, 1180px);
@@ -1641,7 +1714,7 @@ h3 {
   }
 
   .roll-stage,
-  .barbarian-card {
+  .game-sidebar {
     grid-column: 1;
   }
 
@@ -1676,16 +1749,13 @@ h3 {
     overflow-x: auto;
     scroll-snap-type: x mandatory;
     padding-bottom: 0.4rem;
+    scrollbar-width: thin;
   }
 
   .player-card {
-    min-width: min(86vw, 340px);
+    min-width: 0;
+    flex: 0 0 min(64vw, 230px);
     scroll-snap-align: start;
-  }
-
-  .turn-footer {
-    align-items: stretch;
-    flex-direction: column;
   }
 
   .alchemy-grid {
@@ -1735,11 +1805,21 @@ h3 {
   }
 
   .roll-stage,
-  .barbarian-card {
+  .game-sidebar {
     grid-column: 1;
   }
 
   .player-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 0.4rem;
+    scrollbar-width: thin;
+  }
+
+  .player-card {
+    min-width: 0;
+    flex: 0 0 230px;
+    scroll-snap-align: start;
   }
 }

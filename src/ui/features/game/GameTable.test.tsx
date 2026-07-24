@@ -21,6 +21,7 @@ function view(): GameTableView {
     canContinueRoll: false,
     showNextRoll: false,
     canRollNextTurn: false,
+    canEditPublicState: false,
     canPause: true,
     currentTurnMs: 65_000,
     totalGameMs: 3_661_000,
@@ -40,15 +41,7 @@ function view(): GameTableView {
         name: "Ada",
         color: "#286b9b",
         victoryPoints: 3,
-        ordinaryCities: 1,
-        metropolisDisciplines: [],
-        activeKnightStrength: 0,
         activeTimeMs: 65_000,
-        improvements: {
-          science: 0,
-          trade: 0,
-          politics: 0,
-        },
         current: true,
       },
     ],
@@ -59,19 +52,19 @@ function view(): GameTableView {
 }
 
 describe("GameTable", () => {
-  it("offers the primary roll action and public player editor", async () => {
+  it("offers the primary roll action and compact player summary", async () => {
     const user = userEvent.setup();
     const onRoll = vi.fn();
-    const onEditPlayer = vi.fn();
 
     const { container } = render(
       <GameTable
         view={view()}
         onRoll={onRoll}
         onAlchemy={vi.fn()}
+        onAdjustScore={vi.fn()}
         onAcknowledgeEvent={vi.fn()}
         onContinueRoll={vi.fn()}
-        onEditPlayer={onEditPlayer}
+        onEditPlayer={vi.fn()}
         onNextRoll={vi.fn()}
         onPause={vi.fn()}
         onHistory={vi.fn()}
@@ -82,12 +75,17 @@ describe("GameTable", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Roll" }));
-    await user.click(screen.getByRole("button", { name: "Edit public state" }));
 
     expect(onRoll).toHaveBeenCalledOnce();
-    expect(onEditPlayer).toHaveBeenCalledWith("ada");
     expect(screen.getAllByText("00:01:05")).toHaveLength(2);
     expect(screen.getByText("01:01:01")).toBeVisible();
+    expect(screen.getByLabelText("Ada has 3 public points")).toHaveTextContent(
+      "3",
+    );
+    expect(screen.queryByText("Cities")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Increase Ada points" }),
+    ).toBeDisabled();
     expect(
       screen.getByRole("meter", {
         name: "7 spaces until the barbarian attack",
@@ -101,6 +99,47 @@ describe("GameTable", () => {
     );
   });
 
+  it("offers one-tap score changes and detailed editing in the action phase", async () => {
+    const user = userEvent.setup();
+    const onAdjustScore = vi.fn();
+    const onEditPlayer = vi.fn();
+
+    render(
+      <GameTable
+        view={{
+          ...view(),
+          phaseLabel: "Action phase",
+          canRoll: false,
+          canEditPublicState: true,
+        }}
+        onRoll={vi.fn()}
+        onAlchemy={vi.fn()}
+        onAdjustScore={onAdjustScore}
+        onAcknowledgeEvent={vi.fn()}
+        onContinueRoll={vi.fn()}
+        onEditPlayer={onEditPlayer}
+        onNextRoll={vi.fn()}
+        onPause={vi.fn()}
+        onHistory={vi.fn()}
+        onSettings={vi.fn()}
+        onExport={vi.fn()}
+        onConfirmWinner={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Increase Ada points" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Decrease Ada points" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Edit Ada details" }));
+
+    expect(onAdjustScore).toHaveBeenNthCalledWith(1, "ada", 1);
+    expect(onAdjustScore).toHaveBeenNthCalledWith(2, "ada", -1);
+    expect(onEditPlayer).toHaveBeenCalledWith("ada");
+  });
+
   it("disables every state-changing table control in read-only mode", () => {
     render(
       <GameTable
@@ -109,10 +148,12 @@ describe("GameTable", () => {
           readOnly: true,
           showNextRoll: true,
           canRollNextTurn: true,
+          canEditPublicState: true,
           winnerCandidateName: "Ada",
         }}
         onRoll={vi.fn()}
         onAlchemy={vi.fn()}
+        onAdjustScore={vi.fn()}
         onAcknowledgeEvent={vi.fn()}
         onContinueRoll={vi.fn()}
         onEditPlayer={vi.fn()}
@@ -130,7 +171,10 @@ describe("GameTable", () => {
     expect(screen.getByRole("button", { name: "Use Alchemy" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Pause" })).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: "Edit public state" }),
+      screen.getByRole("button", { name: "Increase Ada points" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Edit Ada details" }),
     ).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Next: Grace & roll" }),
@@ -153,9 +197,11 @@ describe("GameTable", () => {
           canRoll: false,
           showNextRoll: true,
           canRollNextTurn: true,
+          canEditPublicState: true,
         }}
         onRoll={vi.fn()}
         onAlchemy={vi.fn()}
+        onAdjustScore={vi.fn()}
         onAcknowledgeEvent={vi.fn()}
         onContinueRoll={vi.fn()}
         onEditPlayer={vi.fn()}
@@ -185,10 +231,12 @@ describe("GameTable", () => {
           paused: true,
           showNextRoll: true,
           canRollNextTurn: true,
+          canEditPublicState: true,
           winnerCandidateName: "Ada",
         }}
         onRoll={vi.fn()}
         onAlchemy={vi.fn()}
+        onAdjustScore={vi.fn()}
         onAcknowledgeEvent={vi.fn()}
         onContinueRoll={vi.fn()}
         onEditPlayer={vi.fn()}
@@ -240,6 +288,7 @@ describe("GameTable", () => {
         }}
         onRoll={vi.fn()}
         onAlchemy={vi.fn()}
+        onAdjustScore={vi.fn()}
         onAcknowledgeEvent={onAcknowledgeEvent}
         onContinueRoll={vi.fn()}
         onEditPlayer={vi.fn()}

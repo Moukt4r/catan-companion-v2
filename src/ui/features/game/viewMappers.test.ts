@@ -156,6 +156,7 @@ describe("toGameTableView", () => {
       canContinueRoll: false,
       showNextRoll: false,
       canRollNextTurn: false,
+      canEditPublicState: false,
       canPause: true,
       currentTurnMs: 0,
       totalGameMs: 0,
@@ -174,8 +175,6 @@ describe("toGameTableView", () => {
     expect(view.players[0]).toMatchObject({
       name: "Ada",
       victoryPoints: 3,
-      ordinaryCities: 2,
-      activeKnightStrength: 3,
       activeTimeMs: 0,
       current: true,
     });
@@ -213,6 +212,7 @@ describe("toGameTableView", () => {
 
     expect(view.showNextRoll).toBe(true);
     expect(view.canRollNextTurn).toBe(true);
+    expect(view.canEditPublicState).toBe(true);
     expect(view.lastRoll).toEqual({
       red: 3,
       yellow: 4,
@@ -228,7 +228,6 @@ describe("toGameTableView", () => {
         robberActivated: false,
       },
     });
-    expect(view.players[0]?.metropolisDisciplines).toEqual(["science"]);
     expect(view.winnerCandidateName).toBe("Ada");
 
     const pending = toGameTableView(
@@ -251,6 +250,7 @@ describe("toGameTableView", () => {
     );
     expect(pending.showNextRoll).toBe(true);
     expect(pending.canRollNextTurn).toBe(false);
+    expect(pending.canEditPublicState).toBe(false);
   });
 });
 

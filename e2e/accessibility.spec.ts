@@ -95,6 +95,13 @@ test("the active four-player table remains accessible across visual themes", asy
   await barbarianSummary.click();
   await expect(barbarianDetails).toBeVisible();
 
+  const playerCardHeights = await page
+    .locator(".player-card")
+    .evaluateAll((cards) =>
+      cards.map((card) => card.getBoundingClientRect().height),
+    );
+  expect(Math.max(...playerCardHeights)).toBeLessThanOrEqual(200);
+
   for (const theme of ["light", "dark", "high-contrast"] as const) {
     await page.evaluate((value) => {
       document.documentElement.dataset.theme = value;

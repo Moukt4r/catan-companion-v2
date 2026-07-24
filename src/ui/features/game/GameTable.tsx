@@ -19,15 +19,7 @@ export interface GamePlayerView {
   name: string;
   color: string;
   victoryPoints: number;
-  ordinaryCities: number;
-  metropolisDisciplines: string[];
-  activeKnightStrength: number;
   activeTimeMs: number;
-  improvements: {
-    science: number;
-    trade: number;
-    politics: number;
-  };
   current: boolean;
 }
 
@@ -48,6 +40,7 @@ export interface GameTableView {
   canContinueRoll: boolean;
   showNextRoll: boolean;
   canRollNextTurn: boolean;
+  canEditPublicState: boolean;
   canPause: boolean;
   currentTurnMs: number;
   totalGameMs: number;
@@ -92,6 +85,7 @@ interface GameTableProps {
   busy?: boolean;
   onRoll: () => void;
   onAlchemy: () => void;
+  onAdjustScore: (playerId: string, delta: -1 | 1) => void;
   onEditPlayer: (playerId: string) => void;
   onNextRoll: () => void;
   onContinueRoll: () => void;
@@ -172,6 +166,7 @@ function eventGuidance(
 export function GameTable({
   busy = false,
   onAlchemy,
+  onAdjustScore,
   onAcknowledgeEvent,
   onContinueRoll,
   onConfirmWinner,
@@ -195,6 +190,8 @@ export function GameTable({
     view.barbarian.strength,
     view.barbarian.defenderStrength,
   );
+  const playerControlsDisabled =
+    busy || !view.canEditPublicState || view.readOnly || view.paused;
   const [barbarianOpen, setBarbarianOpen] = useState(barbarianPanelStartsOpen);
 
   useEffect(() => {
@@ -215,7 +212,9 @@ export function GameTable({
   }, []);
 
   return (
-    <main className="game-layout">
+    <main
+      className={`game-layout${view.showNextRoll ? " game-layout--turn-action" : ""}`}
+    >
       <header className="game-header">
         <div>
           <p className="eyebrow">{view.title}</p>
@@ -428,79 +427,104 @@ export function GameTable({
         )}
       </section>
 
-      <aside className="surface barbarian-card" aria-label="Barbarian track">
-        <details
-          className="barbarian-details"
-          open={barbarianOpen}
-          onToggle={(event) => {
-            if (
-              typeof window.matchMedia !== "function" ||
-              window.matchMedia(MOBILE_BARBARIAN_QUERY).matches
-            ) {
-              setBarbarianOpen(event.currentTarget.open);
-            }
-          }}
-        >
-          <summary className="barbarian-summary">
-            <span className="barbarian-summary__copy">
-              <span className="eyebrow">Cities &amp; Knights</span>
-              <strong>{spacesLabel} until attack</strong>
-            </span>
-            <span className={`risk-badge risk-badge--${risk.tone}`}>
-              {risk.label}
-            </span>
-          </summary>
-          <div className="barbarian-details__body">
-            <div className="barbarian-card__visual" aria-hidden="true">
-              <img src={harborIllustration} alt="" />
-            </div>
-            <div className="barbarian-card__heading">
-              <div>
-                <p className="eyebrow">Cities &amp; Knights</p>
-                <h2>Barbarian track</h2>
-              </div>
+      <div className="game-sidebar">
+        <aside className="surface barbarian-card" aria-label="Barbarian track">
+          <details
+            className="barbarian-details"
+            open={barbarianOpen}
+            onToggle={(event) => {
+              if (
+                typeof window.matchMedia !== "function" ||
+                window.matchMedia(MOBILE_BARBARIAN_QUERY).matches
+              ) {
+                setBarbarianOpen(event.currentTarget.open);
+              }
+            }}
+          >
+            <summary className="barbarian-summary">
+              <span className="barbarian-summary__copy">
+                <span className="eyebrow">Cities &amp; Knights</span>
+                <strong>{spacesLabel} until attack</strong>
+              </span>
               <span className={`risk-badge risk-badge--${risk.tone}`}>
                 {risk.label}
               </span>
-            </div>
-            <div
-              className="barbarian-track"
-              role="meter"
-              aria-label={`${spacesLabel} until the barbarian attack`}
-              aria-valuemin={0}
-              aria-valuemax={view.barbarian.trackLength}
-              aria-valuenow={view.barbarian.position}
-            >
-              {Array.from(
-                { length: view.barbarian.trackLength },
-                (_, index) => (
-                  <span
-                    key={index}
-                    className={
-                      index < view.barbarian.position
-                        ? "barbarian-track__filled"
-                        : ""
-                    }
-                  />
-                ),
-              )}
-            </div>
-            <p className="barbarian-distance">{spacesLabel} until attack</p>
-            <dl className="definition-grid">
-              <div>
-                <dt>Barbarians</dt>
-                <dd>{view.barbarian.strength}</dd>
+            </summary>
+            <div className="barbarian-details__body">
+              <div className="barbarian-card__visual" aria-hidden="true">
+                <img src={harborIllustration} alt="" />
               </div>
-              <div>
-                <dt>Active defense</dt>
-                <dd>{view.barbarian.defenderStrength}</dd>
+              <div className="barbarian-card__heading">
+                <div>
+                  <p className="eyebrow">Cities &amp; Knights</p>
+                  <h2>Barbarian track</h2>
+                </div>
+                <span className={`risk-badge risk-badge--${risk.tone}`}>
+                  {risk.label}
+                </span>
               </div>
-            </dl>
-          </div>
-        </details>
-      </aside>
+              <div
+                className="barbarian-track"
+                role="meter"
+                aria-label={`${spacesLabel} until the barbarian attack`}
+                aria-valuemin={0}
+                aria-valuemax={view.barbarian.trackLength}
+                aria-valuenow={view.barbarian.position}
+              >
+                {Array.from(
+                  { length: view.barbarian.trackLength },
+                  (_, index) => (
+                    <span
+                      key={index}
+                      className={
+                        index < view.barbarian.position
+                          ? "barbarian-track__filled"
+                          : ""
+                      }
+                    />
+                  ),
+                )}
+              </div>
+              <p className="barbarian-distance">{spacesLabel} until attack</p>
+              <dl className="definition-grid">
+                <div>
+                  <dt>Barbarians</dt>
+                  <dd>{view.barbarian.strength}</dd>
+                </div>
+                <div>
+                  <dt>Active defense</dt>
+                  <dd>{view.barbarian.defenderStrength}</dd>
+                </div>
+              </dl>
+            </div>
+          </details>
+        </aside>
 
-      <section className="player-strip" aria-label="Players">
+        {view.showNextRoll ? (
+          <aside className="surface turn-action-dock" aria-label="Next turn">
+            <div className="turn-action-dock__copy">
+              <span>Turn complete</span>
+              <strong>{view.nextPlayerName} is next</strong>
+            </div>
+            <Button
+              size="large"
+              block
+              disabled={
+                busy || !view.canRollNextTurn || view.readOnly || view.paused
+              }
+              onClick={onNextRoll}
+            >
+              Next: {view.nextPlayerName} &amp; roll
+            </Button>
+          </aside>
+        ) : null}
+      </div>
+
+      <section
+        className="player-strip"
+        aria-label="Player points and time"
+        tabIndex={0}
+      >
         {view.players.map((player) => (
           <article
             key={player.id}
@@ -512,68 +536,60 @@ export function GameTable({
                 <span className="current-chip">Current</span>
               ) : null}
             </div>
-            <div className="player-score">
-              <strong>{player.victoryPoints}</strong>
-              <span>public VP</span>
+            <div className="player-card__summary">
+              <div
+                className="player-score"
+                aria-label={`${player.name} has ${player.victoryPoints} public points`}
+              >
+                <strong>{player.victoryPoints}</strong>
+                <span>points</span>
+              </div>
+              <div
+                className="player-time"
+                aria-label={`${player.name} active time ${formatDuration(player.activeTimeMs)}`}
+              >
+                <span>Time</span>
+                <strong>{formatDuration(player.activeTimeMs)}</strong>
+              </div>
             </div>
-            <dl className="player-stats">
-              <div>
-                <dt>Cities</dt>
-                <dd>{player.ordinaryCities}</dd>
-              </div>
-              <div>
-                <dt>Metropolises</dt>
-                <dd>{player.metropolisDisciplines.length}</dd>
-              </div>
-              <div>
-                <dt>Active knights</dt>
-                <dd>{player.activeKnightStrength}</dd>
-              </div>
-              <div>
-                <dt>Time</dt>
-                <dd>{formatDuration(player.activeTimeMs)}</dd>
-              </div>
-            </dl>
-            <div
-              className="improvement-row"
-              aria-label={`${player.name} improvements`}
-            >
-              <span title="Science">S {player.improvements.science}</span>
-              <span title="Trade">T {player.improvements.trade}</span>
-              <span title="Politics">P {player.improvements.politics}</span>
+            <div className="player-card__actions">
+              <Button
+                variant="secondary"
+                size="small"
+                aria-label={`Decrease ${player.name} points`}
+                disabled={playerControlsDisabled || player.victoryPoints <= 0}
+                onClick={() => {
+                  onAdjustScore(player.id, -1);
+                }}
+              >
+                -
+              </Button>
+              <Button
+                variant="quiet"
+                size="small"
+                aria-label={`Edit ${player.name} details`}
+                disabled={playerControlsDisabled}
+                onClick={() => {
+                  onEditPlayer(player.id);
+                }}
+              >
+                Details
+              </Button>
+              <Button
+                variant="secondary"
+                size="small"
+                aria-label={`Increase ${player.name} points`}
+                disabled={playerControlsDisabled}
+                onClick={() => {
+                  onAdjustScore(player.id, 1);
+                }}
+              >
+                +
+              </Button>
             </div>
-            <Button
-              variant="secondary"
-              block
-              disabled={view.readOnly || view.paused}
-              onClick={() => {
-                onEditPlayer(player.id);
-              }}
-            >
-              Edit public state
-            </Button>
           </article>
         ))}
       </section>
-
-      <footer className="turn-footer">
-        {view.houseEventPending ? (
-          <span className="house-event-indicator">
-            House event requires acknowledgement
-          </span>
-        ) : (
-          <span>All accepted actions are saved locally and can be undone.</span>
-        )}
-        {view.showNextRoll ? (
-          <Button
-            size="large"
-            disabled={!view.canRollNextTurn || view.readOnly || view.paused}
-            onClick={onNextRoll}
-          >
-            Next: {view.nextPlayerName} &amp; roll
-          </Button>
-        ) : null}
-      </footer>
     </main>
   );
 }

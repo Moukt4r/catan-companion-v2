@@ -638,6 +638,21 @@ export function App() {
             onAlchemy={() => {
               setAlchemyOpen(true);
             }}
+            onAdjustScore={(id, delta) => {
+              void dispatch(
+                {
+                  type: "player.publicStateAdjusted",
+                  playerId: asPlayerId(id),
+                  patch: {
+                    scoreAdjustment: {
+                      delta,
+                      reason: "manual",
+                    },
+                  },
+                },
+                "confirm",
+              );
+            }}
             onEditPlayer={(id) => {
               setSelectedPlayerId(asPlayerId(id));
             }}

@@ -55,9 +55,19 @@ async function resolveRoll(page: Page) {
   if (await houseEvent.isVisible()) {
     await houseEvent.click();
   }
-  await expect(
-    page.getByRole("button", { name: /^Next: .* & roll$/ }),
-  ).toBeEnabled();
+  const nextRoll = page.getByRole("button", { name: /^Next: .* & roll$/ });
+  await expect(nextRoll).toBeEnabled();
+  expect(
+    await nextRoll.evaluate((button) => {
+      const bounds = button.getBoundingClientRect();
+      return (
+        bounds.top >= 0 &&
+        bounds.left >= 0 &&
+        bounds.bottom <= window.innerHeight &&
+        bounds.right <= window.innerWidth
+      );
+    }),
+  ).toBe(true);
 }
 
 function durationSeconds(value: string | null): number {
@@ -180,13 +190,7 @@ test("persists Alchemy, public state, turns, undo, and redo", async ({
     "Chosen with Alchemy",
   );
 
-  await page.getByRole("button", { name: "Edit public state" }).first().click();
-  const editor = page.locator("dialog[open]");
-  await editor.getByRole("spinbutton", { name: "Change" }).fill("1");
-  await editor
-    .getByRole("textbox", { name: "Reason" })
-    .fill("Public score correction");
-  await editor.getByRole("button", { name: "Save public state" }).click();
+  await page.getByRole("button", { name: "Increase Ada points" }).click();
   await expect(
     page.locator(".player-card").first().locator(".player-score strong"),
   ).toHaveText("4");
@@ -267,8 +271,7 @@ test("tracks per-player time and freezes every timer while paused", async ({
     page
       .locator(".player-card")
       .nth(index)
-      .locator(".player-stats dd")
-      .nth(3)
+      .locator(".player-time strong")
       .textContent()
       .then(durationSeconds);
   await expect.poll(() => playerTime(0)).toBeGreaterThan(0);

@@ -73,6 +73,10 @@ export function toGameTableView(
     canRollNextTurn:
       state.turn.phase === "action-phase" &&
       state.metropolises.pendingProposal === null,
+    canEditPublicState:
+      (state.turn.phase === "action-phase" ||
+        state.turn.phase === "resolving-barbarian-attack") &&
+      state.metropolises.pendingProposal === null,
     canPause: state.clock?.runningSince !== null && state.clock !== undefined,
     currentTurnMs: currentTurnActiveMilliseconds(state, clockAt),
     totalGameMs: totalActiveMilliseconds(state, clockAt),
@@ -115,15 +119,7 @@ export function toGameTableView(
       name: player.name,
       color: player.color.hex,
       victoryPoints: scoreForPlayer(state, player.id),
-      ordinaryCities: player.ordinaryCities,
-      metropolisDisciplines: Object.entries(state.metropolises.controls)
-        .filter(([, control]) => control?.holderId === player.id)
-        .map(([discipline]) => discipline),
-      activeKnightStrength: activeKnightStrength(player),
       activeTimeMs: playerActiveMilliseconds(state, player.id, clockAt),
-      improvements: {
-        ...player.improvements,
-      },
       current: player.id === active.id,
     })),
     houseEventPending: state.thematicEvents.pendingEvent !== null,

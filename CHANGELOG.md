@@ -12,6 +12,10 @@
   typing and scrolling.
 - Collapsed the mobile barbarian panel to an always-visible risk summary while
   keeping the full track one tap away.
+- Reworked active play around compact points-and-time tiles, one-tap score
+  changes, and a viewport-fixed next-turn action.
+- Moved public point adjustments to the top of the player editor and collapsed
+  infrequent Cities & Knights bookkeeping behind an advanced disclosure.
 
 ## 0.1.4 - 2026-07-22
 
