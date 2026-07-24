@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { GameTable, type GameTableView } from "./GameTable";
 
@@ -49,6 +50,30 @@ function view(): GameTableView {
     houseEvent: null,
     winnerCandidateName: null,
   };
+}
+
+function renderTable(
+  overrides: Partial<GameTableView> = {},
+  callbacks: Partial<
+    Omit<ComponentProps<typeof GameTable>, "view" | "busy">
+  > = {},
+) {
+  const props: ComponentProps<typeof GameTable> = {
+    view: { ...view(), ...overrides },
+    onRoll: callbacks.onRoll ?? vi.fn(),
+    onAlchemy: callbacks.onAlchemy ?? vi.fn(),
+    onAdjustScore: callbacks.onAdjustScore ?? vi.fn(),
+    onAcknowledgeEvent: callbacks.onAcknowledgeEvent ?? vi.fn(),
+    onContinueRoll: callbacks.onContinueRoll ?? vi.fn(),
+    onEditPlayer: callbacks.onEditPlayer ?? vi.fn(),
+    onNextRoll: callbacks.onNextRoll ?? vi.fn(),
+    onPause: callbacks.onPause ?? vi.fn(),
+    onHistory: callbacks.onHistory ?? vi.fn(),
+    onSettings: callbacks.onSettings ?? vi.fn(),
+    onExport: callbacks.onExport ?? vi.fn(),
+    onConfirmWinner: callbacks.onConfirmWinner ?? vi.fn(),
+  };
+  return { ...render(<GameTable {...props} />), props };
 }
 
 describe("GameTable", () => {
@@ -312,5 +337,143 @@ describe("GameTable", () => {
       screen.getByRole("button", { name: "Acknowledge house event" }),
     );
     expect(onAcknowledgeEvent).toHaveBeenCalledOnce();
+  });
+
+  it("shows multiple players and highlights the current one", () => {
+    renderTable({
+      players: [
+        {
+          id: "ada",
+          name: "Ada",
+          color: "#286b9b",
+          victoryPoints: 3,
+          activeTimeMs: 65_000,
+          current: true,
+        },
+        {
+          id: "grace",
+          name: "Grace",
+          color: "#b43e3e",
+          victoryPoints: 5,
+          activeTimeMs: 120_000,
+          current: false,
+        },
+      ],
+    });
+
+    expect(
+      screen.getByLabelText("Ada has 3 public points"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Grace has 5 public points"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Current")).toBeInTheDocument();
+  });
+
+  it("shows offline indicator", () => {
+    renderTable({ offline: true });
+    expect(screen.getByText("Offline")).toBeVisible();
+  });
+
+  it("shows production guidance for a robber-activated roll of 7", () => {
+    renderTable({
+      canRoll: false,
+      lastRoll: {
+        red: 3,
+        yellow: 4,
+        total: 7,
+        event: "barbarian",
+        source: "balanced",
+        progress: null,
+        production: { robberActivated: true },
+      },
+    });
+
+    expect(screen.getByText(/move the robber and steal/)).toBeVisible();
+  });
+
+  it("shows barbarian ship advance text when no progress", () => {
+    renderTable({
+      canRoll: false,
+      lastRoll: {
+        red: 2,
+        yellow: 3,
+        total: 5,
+        event: "barbarian",
+        source: "balanced",
+        progress: null,
+        production: { robberActivated: false },
+      },
+      barbarian: {
+        position: 3,
+        trackLength: 7,
+        strength: 3,
+        defenderStrength: 2,
+        attackPending: false,
+      },
+    });
+
+    expect(screen.getByText(/barbarian ship advanced to 3 of 7/)).toBeVisible();
+  });
+
+  it("shows winner candidate banner with confirm button", async () => {
+    const user = userEvent.setup();
+    const onConfirmWinner = vi.fn();
+
+    renderTable({ winnerCandidateName: "Grace" }, { onConfirmWinner });
+
+    expect(
+      screen.getByText(/Grace has reached the victory target/),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Confirm winner" }));
+    expect(onConfirmWinner).toHaveBeenCalledOnce();
+  });
+
+  it("renders alchemy source label in roll result", () => {
+    renderTable({
+      canRoll: false,
+      lastRoll: {
+        red: 6,
+        yellow: 6,
+        total: 12,
+        event: "trade",
+        source: "alchemy",
+        progress: {
+          discipline: "trade",
+          redValue: 6,
+          eligiblePlayers: [],
+        },
+        production: { robberActivated: false },
+      },
+    });
+
+    expect(screen.getByText(/Chosen with Alchemy/)).toBeVisible();
+  });
+
+  it("shows continue roll button when canContinueRoll is true", async () => {
+    const user = userEvent.setup();
+    const onContinueRoll = vi.fn();
+
+    renderTable(
+      {
+        canRoll: false,
+        canContinueRoll: true,
+        lastRoll: {
+          red: 2,
+          yellow: 3,
+          total: 5,
+          event: "science",
+          source: "balanced",
+          progress: { discipline: "science", redValue: 2, eligiblePlayers: [] },
+          production: { robberActivated: false },
+        },
+      },
+      { onContinueRoll },
+    );
+
+    const btn = screen.getByRole("button", { name: "Continue roll" });
+    expect(btn).toBeEnabled();
+    await user.click(btn);
+    expect(onContinueRoll).toHaveBeenCalledOnce();
   });
 });

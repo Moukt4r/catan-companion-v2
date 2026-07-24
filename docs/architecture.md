@@ -22,7 +22,7 @@ There is no backend in the first release.
 | Language            | TypeScript in strict mode             | Shared types and exhaustive domain handling                                       |
 | UI                  | React                                 | Mature accessible component ecosystem and predictable rendering                   |
 | Build               | Vite                                  | Fast local development and static optimized output                                |
-| Package manager     | pnpm via Corepack                     | Reproducible installs and strict dependency layout                                |
+| Package manager     | pnpm 11.12.0                          | Reproducible installs via Corepack locally and the pinned pnpm setup action in CI |
 | Domain state        | Pure reducers and commands            | Framework-independent correctness and replay                                      |
 | Persistence         | IndexedDB adapter                     | Transactional, durable, versioned browser storage                                 |
 | Boundary validation | Zod                                   | Runtime validation for imports, persistence, and migrations                       |
@@ -39,50 +39,57 @@ starts. Runtime and package-manager versions are committed through
 
 ## 3. Repository structure
 
+Current repository layout:
+
 ```text
 /
+  .github/
+    workflows/            CI and Pages deployment
   docs/
   public/
   src/
-    app/                  composition root, boot, providers
-    domain/
-      game/               lifecycle, turns, commands, revisions
-      rolls/              balanced decks and secure shuffle ports
-      cities-knights/     progress and barbarian rules
-      thematic-events/    trigger and selection decks
-    application/          use cases and transaction orchestration
+    app/                  React app shell, controller wiring, app-level hooks, PWA update prompt
+    application/          GameController orchestration, ports, persistence contracts, record/integrity helpers
+    domain/               pure rules engine, decks, clocks, selectors, invariants, shared types
     infrastructure/
-      persistence/        IndexedDB repository and migrations
+      persistence/        IndexedDB repository, import/export schemas, durable record handling
+      platform/           browser adapters for files, diagnostics, storage, wake lock, audio, single-tab control
       randomness/         Web Crypto adapter
-      platform/           wake lock, fullscreen, broadcast channel
-      pwa/                service-worker update integration
     ui/
       components/         reusable accessible primitives
-      features/           setup, game table, attack, history, settings
-      styles/             tokens and global reset
-    assets/               original icons and optional audio
-    test/                 shared test builders and fakes
+      features/
+        home/             active/saved/completed game flows and import dialogs
+        setup/            setup wizard and preferences handoff
+        game/             table, roll resolution, history, recovery, pause, and winner flows
+        settings/         device preferences and storage controls
+      styles/             tokens, reset, and tabletop layout styles
+    assets/               locally served illustrations and static assets
+    test/                 Vitest setup and shared test helpers
   e2e/
-  scripts/
+  scripts/                deterministic CI helpers such as bundle-budget checks
 ```
 
-Tests live beside source when they describe one unit; cross-feature and browser
-tests live in `src/test` and `e2e`.
+Most unit and component tests are colocated with the source they exercise.
+`src/test` holds shared Vitest setup, and `e2e` holds Playwright critical-flow
+coverage.
 
 ## 4. Dependency rules
 
 ```text
-ui -> application -> domain
-infrastructure -> application ports and domain data
-app -> all layers for composition only
-domain -> no React, DOM, storage, clock, or browser imports
+domain -> no app, application, infrastructure, ui, React, or browser imports
+application -> domain only
+infrastructure -> application ports/contracts and domain types
+ui -> application-facing types and domain-derived view data; no app or infrastructure imports
+app -> composition root that wires application, infrastructure, and UI together
 ```
 
 The domain layer may depend only on TypeScript and small pure utility modules.
 Infrastructure implements interfaces defined inward. UI never writes
-IndexedDB directly and never mutates domain state.
+IndexedDB directly and never mutates domain state. The React app shell owns the
+browser-only side effects that sit above those layers, such as wake lock,
+diagnostics copy, file import/export, and update prompts.
 
-An import-boundary lint rule enforces these directions.
+ESLint `no-restricted-imports` rules enforce these directions.
 
 ## 5. Domain engine
 
@@ -92,29 +99,36 @@ Representative commands:
 
 ```ts
 type GameCommand =
-  | { type: "game.start"; setup: GameSetup }
+  | { type: "clock.started" }
+  | { type: "clock.paused" }
+  | { type: "clock.resumed" }
   | { type: "roll.draw" }
   | { type: "roll.alchemy"; red: DieValue; yellow: DieValue }
   | { type: "resolution.progressAcknowledged"; rollId: RollId }
-  | {
-      type: "attack.confirmed";
-      proposalId: ProposalId;
-      correction?: AttackCorrection;
-    }
-  | { type: "event.acknowledged"; eventId: EventId }
+  | { type: "resolution.productionAcknowledged"; rollId: RollId }
   | {
       type: "player.publicStateAdjusted";
       playerId: PlayerId;
       patch: PublicStatePatch;
     }
   | {
-      type: "metropolis.corrected";
-      discipline: Discipline;
+      type: "metropolis.assignmentProposed";
+      discipline: MetropolisDiscipline;
       holderId: PlayerId | null;
+      status: "temporary" | "permanent" | null;
     }
+  | { type: "metropolis.proposalConfirmed"; proposalId: ProposalId }
+  | { type: "metropolis.proposalCancelled"; proposalId: ProposalId }
+  | {
+      type: "attack.confirmed";
+      proposalId: ProposalId;
+      progressChoices?: Array<{
+        playerId: PlayerId;
+        discipline: ProgressDiscipline;
+      }>;
+    }
+  | { type: "event.acknowledged"; occurrenceId: EventOccurrenceId }
   | { type: "turn.ended" }
-  | { type: "history.undo" }
-  | { type: "history.redo" }
   | { type: "game.completed"; winnerId: PlayerId };
 ```
 
@@ -134,7 +148,7 @@ type Decide = (
 interface Decision {
   nextState: GameState;
   summary: JournalSummary;
-  effects: PresentationEffect[];
+  presentation: PresentationSummary;
 }
 ```
 
@@ -161,21 +175,20 @@ The reducer never calls `Date.now`, `crypto`, or storage itself.
 The application service is the single mutation entry point:
 
 ```text
-load current head
-  -> acquire game lock
-  -> validate expected revision
+load or resume the active game
+  -> acquire single-tab control when writable access is needed
   -> prepare random/time/id dependencies
-  -> decide next state
+  -> decide the next state in the pure domain engine
   -> validate next state invariants
-  -> persist revision and head atomically
-  -> publish new snapshot
-  -> release lock
-  -> start presentation effects
+  -> persist the revision and move the head atomically
+  -> refresh the controller snapshot and revision history
+  -> publish read-only or writable state to the app shell
 ```
 
-If persistence fails, the service does not publish the new durable state. It
-returns a typed failure with the unsaved candidate available for emergency
-export.
+If persistence fails, the controller does not publish the new durable state. It
+retains the failed commit only when recovery is possible, exposes that pending
+save in the snapshot, and requires the user to resolve it before making another
+change.
 
 Reads use selectors over the current immutable snapshot. React subscribes
 through a small external-store adapter so domain state is not coupled to a
@@ -199,17 +212,22 @@ Deck creation occurs in the application transaction before the first draw from
 that deck. The persisted shuffled deck is authoritative. Randomness is never
 re-requested during replay, resume, or undo.
 
-## 8. Presentation effects
+## 8. Presentation summaries
 
-Animation, audio, vibration, focus movement, and announcements are returned as
-non-authoritative presentation effects after persistence succeeds.
+The domain returns a compact `presentation` summary alongside each durable
+state transition. It describes what the UI should emphasize next: a created
+game, a roll result, a pending resolution, a metropolis proposal, a barbarian
+attack, a thematic event, a turn handoff, or a completed game.
 
-Effects:
+That summary is non-authoritative UI guidance:
 
-- may fail independently;
-- may be skipped under reduced motion or unsupported APIs;
-- never trigger a second domain command implicitly;
-- never contain the only copy of a required result.
+- the durable state remains the source of truth;
+- audio, motion, focus movement, and announcements may be derived from it by
+  the app shell;
+- browser-side affordances may be skipped under reduced motion or unsupported
+  APIs;
+- the summary never replaces persisted results or triggers a second domain
+  command implicitly.
 
 The result text is rendered from durable state.
 
@@ -316,16 +334,18 @@ than root-absolute paths.
 
 GitHub Actions performs:
 
-1. checkout and pinned Node/pnpm setup;
+1. checkout plus `actions/setup-node` and Corepack activation of pnpm 11.12.0;
 2. frozen dependency install;
-3. format, lint, type, unit/property/component, coverage, and production build
-   gates;
-4. desktop/mobile Chromium, desktop Firefox, and mobile WebKit Playwright
+3. format, lint, type, production dependency audit, coverage, and production
+   build gates;
+4. deterministic gzip bundle-budget verification against the built entry CSS
+   and JavaScript;
+5. desktop/mobile Chromium, desktop Firefox, and mobile WebKit Playwright
    flows against the built preview;
-5. a repository-base-path production build;
-6. Pages configuration and immutable artifact upload;
-7. deployment through the `github-pages` environment;
-8. a public-HTML smoke check against the deployed URL.
+6. a repository-base-path production build;
+7. Pages configuration and immutable artifact upload;
+8. deployment through the `github-pages` environment;
+9. a public-HTML smoke check against the deployed URL.
 
 Use official current major versions of:
 
@@ -387,7 +407,9 @@ CI must enforce:
 - no browser imports under `src/domain`;
 - no infrastructure imports under `src/domain` or UI feature logic;
 - strict TypeScript with no unchecked `any`;
+- dependency review on pull requests;
+- production dependency audit with a high-severity threshold;
 - serializability of persisted types;
 - deterministic replay from stored revisions;
-- bundle budget;
+- deterministic initial bundle budget;
 - no external network requests in offline end-to-end tests.

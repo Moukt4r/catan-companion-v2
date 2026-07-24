@@ -3,10 +3,8 @@ import {
   APPLICATION_VERSION,
   DATABASE_SCHEMA_VERSION,
   type StoredGame,
-  type StoredRevision,
 } from "../application";
 import {
-  BUILT_IN_THEMATIC_EVENTS,
   asGameId,
   asIsoTimestamp,
   asPlayerId,
@@ -15,7 +13,6 @@ import {
   winnerCandidates,
   type DieValue,
   type GameCommand,
-  type GameSetup,
   type PlayerId,
 } from "../domain";
 import {
@@ -35,31 +32,16 @@ import {
 import { AudioCues, type SoundCue } from "../infrastructure/platform/audio";
 import { ScreenWakeLock } from "../infrastructure/platform/wakeLock";
 import { Button, ConfirmDialog } from "../ui/components";
-import {
-  CompletedGamesDialog,
-  type CompletedGameSummary,
-} from "../ui/features/home/CompletedGamesDialog";
-import {
-  HomeScreen,
-  type HomeGameSummary,
-} from "../ui/features/home/HomeScreen";
-import {
-  ImportPreviewDialog,
-  type ImportPreview,
-} from "../ui/features/home/ImportPreviewDialog";
+import { CompletedGamesDialog } from "../ui/features/home/CompletedGamesDialog";
+import { HomeScreen } from "../ui/features/home/HomeScreen";
+import { ImportPreviewDialog } from "../ui/features/home/ImportPreviewDialog";
 import { SetupWizard, type SetupDraft } from "../ui/features/setup/SetupWizard";
 import { AlchemyDialog } from "../ui/features/game/AlchemyDialog";
 import { GameCompleteScreen } from "../ui/features/game/GameCompleteScreen";
 import { GameTable } from "../ui/features/game/GameTable";
-import {
-  HistoryDialog,
-  type HistoryEntryView,
-} from "../ui/features/game/HistoryDialog";
+import { HistoryDialog } from "../ui/features/game/HistoryDialog";
 import { MetropolisCorrectionDialog } from "../ui/features/game/MetropolisCorrectionDialog";
-import {
-  MetropolisDialog,
-  type MetropolisProposalView,
-} from "../ui/features/game/MetropolisDialog";
+import { MetropolisDialog } from "../ui/features/game/MetropolisDialog";
 import {
   PlayerEditorDialog,
   type PlayerEditorPatch,
@@ -78,6 +60,15 @@ import {
 } from "../ui/features/game/viewMappers";
 import { WinnerDialog } from "../ui/features/game/WinnerDialog";
 import { SettingsDialog } from "../ui/features/settings/SettingsDialog";
+import {
+  errorMessage,
+  setupFromDraft,
+  toHistoryEntries,
+  toHomeSummary,
+  toImportPreview,
+  toMetropolisProposalView,
+  toSavedGameSummary,
+} from "./appMappers";
 import { gameController } from "./gameController";
 import { PwaUpdate } from "./PwaUpdate";
 import { useDevicePreferences } from "./useDevicePreferences";
@@ -86,13 +77,6 @@ import { useGameController } from "./useGameController";
 import { useOnlineStatus } from "./useOnlineStatus";
 
 type Screen = "home" | "setup" | "game" | "complete";
-
-const colorNames: Record<string, string> = {
-  "#b66a1f": "Amber",
-  "#286b9b": "Ocean blue",
-  "#b43e3e": "Crimson",
-  "#2f7551": "Forest green",
-};
 
 export function App() {
   const snapshot = useGameController();
@@ -1143,193 +1127,4 @@ export function App() {
       {!clockPaused ? <PwaUpdate safeToUpdate={safeToUpdate} /> : null}
     </>
   );
-}
-
-function setupFromDraft(draft: SetupDraft): GameSetup {
-  const ids = new Map(
-    draft.players.map((player) => [
-      player.draftId,
-      asPlayerId(crypto.randomUUID()),
-    ]),
-  );
-  const firstPlayerId = ids.get(draft.firstPlayerDraftId);
-  if (!firstPlayerId) {
-    throw new Error("First player is missing from setup.");
-  }
-
-  return {
-    title: draft.title,
-    mode: draft.twoPlayerHouseMode ? "two-player-house-rule" : "standard",
-    players: draft.players.map((player) => {
-      const id = ids.get(player.draftId);
-      if (!id) {
-        throw new Error("Player setup ID is missing.");
-      }
-      const colorLabel = colorNames[player.color] ?? player.color;
-      return {
-        id,
-        name: player.name.trim(),
-        color: {
-          id: colorLabel.toLocaleLowerCase().replaceAll(/\s+/g, "-"),
-          label: colorLabel,
-          hex: player.color,
-          distinguishabilityKey: player.color,
-        },
-      };
-    }),
-    firstPlayerId,
-    victoryTarget: draft.victoryTarget,
-    thematicCadence: draft.eventCadence,
-    thematicEventsEnabled: true,
-    thematicEventCatalog: BUILT_IN_THEMATIC_EVENTS.map((event) => ({
-      ...event,
-    })),
-    rulesDataVersion: "2025.1",
-    gameDocumentVersion: 1,
-  };
-}
-
-function toHomeSummary(game: StoredGame): HomeGameSummary {
-  const player =
-    game.players.find(
-      (candidate) => candidate.id === game.currentTurn.playerId,
-    ) ?? game.players[0];
-  return {
-    id: game.id,
-    title: game.title,
-    currentPlayerName: game.currentTurn.playerName,
-    currentPlayerColor: player?.colorHex ?? "#286b9b",
-    round: game.currentTurn.round,
-    updatedAt: game.updatedAt,
-    players: game.players.map((entry) => entry.name),
-  };
-}
-
-function toSavedGameSummary(game: StoredGame): CompletedGameSummary {
-  const winner = game.winnerId
-    ? game.players.find((player) => player.id === game.winnerId)
-    : undefined;
-  const current =
-    game.players.find((player) => player.id === game.currentTurn.playerId) ??
-    game.players[0];
-  return {
-    id: game.id,
-    title: game.title,
-    status: game.lifecycle === "completed" ? "completed" : "archived",
-    currentPlayerName: game.currentTurn.playerName,
-    currentPlayerColor: current?.colorHex ?? "#286b9b",
-    updatedAt: game.updatedAt,
-    rounds: game.currentTurn.round,
-    turns: Math.max(0, game.currentTurn.turnNumber - 1),
-    playerNames: game.players.map((player) => player.name),
-    ...(winner
-      ? {
-          winnerName: winner.name,
-          winnerColor: winner.colorHex,
-        }
-      : {}),
-  };
-}
-
-function toImportPreview(
-  preview: ReturnType<typeof gameController.getSnapshot>["importPreview"],
-): ImportPreview | null {
-  if (!preview) {
-    return null;
-  }
-  return {
-    title: preview.title,
-    players: preview.playerNames,
-    turns: preview.completedTurns,
-    updatedAt: preview.updatedAt,
-    sourceVersion: preview.sourceApplicationVersion,
-    status: "Validated backup",
-  };
-}
-
-function toHistoryEntries(
-  revisions: StoredRevision[],
-  activeRevisionId: string | null,
-): HistoryEntryView[] {
-  return revisions.map((revision) => {
-    const playerId = revision.summary.playerIds[0];
-    const player = playerId
-      ? revision.state.players.find((candidate) => candidate.id === playerId)
-      : undefined;
-    return {
-      id: revision.id,
-      sequence: revision.sequence,
-      createdAt: revision.createdAt,
-      playerName: player?.name ?? null,
-      title: historyTitle(revision),
-      detail: revision.summary.text,
-      houseRule:
-        revision.summary.kind === "roll-drawn" ||
-        revision.summary.kind === "alchemy-used" ||
-        revision.summary.kind === "thematic-event-acknowledged",
-      active: revision.id === activeRevisionId,
-    };
-  });
-}
-
-function historyTitle(revision: StoredRevision): string {
-  const titles: Record<StoredRevision["summary"]["kind"], string> = {
-    "alchemy-used": "Alchemy roll",
-    "attack-confirmed": "Barbarian attack",
-    "clock-paused": "Game paused",
-    "clock-resumed": "Game resumed",
-    "clock-started": "Game timer started",
-    "game-completed": "Game completed",
-    "game-created": "Game created",
-    "metropolis-cancelled": "Metropolis cancelled",
-    "metropolis-confirmed": "Metropolis confirmed",
-    "metropolis-proposed": "Metropolis proposed",
-    "player-adjusted": "Public state updated",
-    "resolution-acknowledged": "Resolution acknowledged",
-    "roll-drawn": "Balanced roll",
-    "thematic-event-acknowledged": "House event",
-    "turn-ended": "Turn ended",
-  };
-  return titles[revision.summary.kind];
-}
-
-function toMetropolisProposalView(
-  state: NonNullable<
-    ReturnType<typeof gameController.getSnapshot>["activeState"]
-  >,
-  proposal: NonNullable<
-    NonNullable<
-      ReturnType<typeof gameController.getSnapshot>["activeState"]
-    >["metropolises"]["pendingProposal"]
-  >,
-): MetropolisProposalView {
-  const next = proposal.to
-    ? state.players.find((player) => player.id === proposal.to?.holderId)
-    : null;
-  const previous =
-    proposal.from && proposal.from.holderId !== proposal.to?.holderId
-      ? state.players.find((player) => player.id === proposal.from?.holderId)
-      : null;
-  return {
-    discipline: proposal.discipline,
-    nextHolder: next
-      ? {
-          id: next.id,
-          name: next.name,
-          color: next.color.hex,
-        }
-      : null,
-    previousHolder: previous
-      ? {
-          id: previous.id,
-          name: previous.name,
-          color: previous.color.hex,
-        }
-      : null,
-    status: proposal.to?.status ?? null,
-  };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "An unknown error occurred.";
 }

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { defaultDevicePreferences } from "../../../application/devicePreferences";
@@ -71,6 +71,128 @@ describe("SetupWizard", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Player names must be unique.",
     );
+  });
+
+  it("calls onCancel when clicking Cancel on the first step", async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+
+    render(
+      <SetupWizard
+        initialPreferences={defaultDevicePreferences}
+        onCancel={onCancel}
+        onStart={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("navigates back through steps with the Back button", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <SetupWizard
+        initialPreferences={defaultDevicePreferences}
+        onCancel={vi.fn()}
+        onStart={vi.fn()}
+      />,
+    );
+
+    const nameInputs = screen.getAllByPlaceholderText(/Player \d/);
+    for (const [index, input] of nameInputs.entries()) {
+      await user.type(input, ["A", "B", "C", "D"][index] ?? "");
+    }
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    expect(
+      screen.getByRole("heading", { name: "Rules and table events" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(
+      screen.getByRole("heading", { name: "Players and turn order" }),
+    ).toBeInTheDocument();
+  });
+
+  it("rejects empty player names before proceeding", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <SetupWizard
+        initialPreferences={defaultDevicePreferences}
+        onCancel={vi.fn()}
+        onStart={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Enter a name for every player.",
+    );
+  });
+
+  it("allows adjusting the victory target on the rules step", async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+
+    render(
+      <SetupWizard
+        initialPreferences={defaultDevicePreferences}
+        onCancel={vi.fn()}
+        onStart={onStart}
+      />,
+    );
+
+    const nameInputs = screen.getAllByPlaceholderText(/Player \d/);
+    for (const [index, input] of nameInputs.entries()) {
+      await user.type(input, ["A", "B", "C", "D"][index] ?? "");
+    }
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    const victoryInput = screen.getByLabelText("Victory target");
+    fireEvent.change(victoryInput, { target: { value: "10" } });
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(
+      screen.getByRole("button", { name: "Start and save game" }),
+    );
+
+    expect(onStart.mock.calls[0]?.[0]).toMatchObject({ victoryTarget: 10 });
+  });
+
+  it("selects a different event cadence", async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+
+    render(
+      <SetupWizard
+        initialPreferences={defaultDevicePreferences}
+        onCancel={vi.fn()}
+        onStart={onStart}
+      />,
+    );
+
+    const nameInputs = screen.getAllByPlaceholderText(/Player \d/);
+    for (const [index, input] of nameInputs.entries()) {
+      await user.type(input, ["A", "B", "C", "D"][index] ?? "");
+    }
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    await user.click(screen.getByLabelText(/Lively/));
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(
+      screen.getByRole("button", { name: "Start and save game" }),
+    );
+
+    expect(onStart.mock.calls[0]?.[0]).toMatchObject({
+      eventCadence: "lively",
+    });
   });
 
   it("reduces the setup to exactly two players in house mode", async () => {

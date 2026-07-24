@@ -27,9 +27,15 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - run: test "$(pnpm --version)" = "11.12.0"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm audit:prod
       - run: pnpm test:coverage
+      - run: pnpm build
+      - run: pnpm bundle:check
       - run: pnpm exec playwright install --with-deps chromium firefox webkit
       - run: pnpm test:e2e
       - run: pnpm build

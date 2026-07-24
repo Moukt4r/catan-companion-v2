@@ -174,7 +174,11 @@ export default tseslint.config(
     },
   },
   {
-    files: ["vite.config.ts", "playwright.config.ts"],
+    files: [
+      "vite.config.ts",
+      "playwright.config.ts",
+      "scripts/**/*.{js,mjs,cjs}",
+    ],
     languageOptions: {
       globals: {
         ...globals.node,

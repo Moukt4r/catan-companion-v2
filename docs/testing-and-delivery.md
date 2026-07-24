@@ -203,8 +203,10 @@ CI checks:
 
 ### Tests
 
-- production bundle analysis in CI;
-- Lighthouse CI on home, setup, and active game;
+- deterministic gzip bundle-budget verification in CI against the built entry
+  JavaScript and CSS;
+- Lighthouse on home, setup, and active game as a manual release check rather
+  than a required CI gate;
 - 200-revision and 1,000-revision synthetic game benchmarks;
 - animation frame profiling on representative mobile hardware;
 - offline cold and warm start.
@@ -216,8 +218,8 @@ CI checks:
 - Verify Content Security Policy against the production build.
 - Confirm no runtime third-party requests.
 - Run dependency review on pull requests.
-- Run package audit as advisory unless a reachable high-severity issue exists;
-  reachable high or critical vulnerabilities block release.
+- Run `pnpm audit --prod --audit-level high` in CI; high or critical runtime
+  vulnerabilities block the workflow.
 - Review service-worker cache poisoning and stale-asset scenarios.
 
 ## 7. Browser support
@@ -240,33 +242,35 @@ usage and feature support, then committed to the README.
 
 One workflow runs:
 
-1. dependency install with frozen lockfile;
-2. format check;
-3. lint;
-4. type check;
-5. unit/property/component tests with enforced coverage thresholds;
-6. production build;
-7. desktop/mobile Chromium, desktop Firefox, and mobile WebKit Playwright
-   critical flows.
+1. dependency review on the pull request diff;
+2. dependency install with frozen lockfile;
+3. format check;
+4. lint;
+5. type check;
+6. production dependency audit with a high-severity threshold;
+7. unit/property/component tests with enforced coverage thresholds;
+8. production build;
+9. deterministic bundle-budget check;
+10. desktop/mobile Chromium, desktop Firefox, and mobile WebKit Playwright
+    critical flows.
 
 Cancel superseded runs on the same branch.
 
 ### Main branch
 
 CI and Pages deployment run as separate workflows on each push to `main`. The
-deployment workflow repeats the quality gates independently, then runs
-Chromium, Firefox, and mobile WebKit flows, the repository-path build, Pages
-artifact upload, deployment, and a public HTML smoke check. Pages deploys only
-after its build job succeeds.
+deployment workflow repeats the format, lint, type, production-audit, coverage,
+build, bundle-budget, and Playwright gates independently, then runs the
+repository-path build, Pages artifact upload, deployment, and a public HTML
+smoke check. Pages deploys only after its build job succeeds.
 
-Lighthouse and broader physical-device checks remain manual release checks
-until dedicated automation is added.
+Lighthouse and broader physical-device checks remain manual release checks.
 
 ### Planned scheduled checks
 
 The following checks are desirable but are not currently scheduled:
 
-- full dependency audit;
+- full dependency audit including devDependencies and license review;
 - latest supported browser matrix;
 - migration/import corpus;
 - offline PWA install/update flow.
