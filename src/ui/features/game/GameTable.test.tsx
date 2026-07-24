@@ -62,6 +62,8 @@ function renderTable(
 ) {
   const props: ComponentProps<typeof GameTable> = {
     view: { ...view(), ...overrides },
+    soundEnabled: callbacks.soundEnabled ?? false,
+    onToggleSound: callbacks.onToggleSound ?? vi.fn(),
     onRoll: callbacks.onRoll ?? vi.fn(),
     onAlchemy: callbacks.onAlchemy ?? vi.fn(),
     onAdjustScore: callbacks.onAdjustScore ?? vi.fn(),
@@ -82,6 +84,23 @@ function renderTable(
 }
 
 describe("GameTable", () => {
+  it("offers a persistent, accessible sound toggle", async () => {
+    const user = userEvent.setup();
+    const onToggleSound = vi.fn();
+    const { rerender, props } = renderTable({}, { onToggleSound });
+
+    const muted = screen.getByRole("button", { name: "Sound off" });
+    expect(muted).toHaveAttribute("aria-pressed", "false");
+    await user.click(muted);
+    expect(onToggleSound).toHaveBeenCalledOnce();
+
+    rerender(<GameTable {...props} soundEnabled />);
+    expect(screen.getByRole("button", { name: "Sound on" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
   it("offers the primary roll action and compact player summary", async () => {
     const user = userEvent.setup();
     const onRoll = vi.fn();

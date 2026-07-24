@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-07-24
+
+- Replaced the four generic beeps with a procedural offline soundscape for physical dice rolls, each progress discipline, barbarian advances and attacks, World Event categories/tones/impact, and all four season transitions.
+- Added outcome-aware barbarian attack audio, rising urgency as the ship approaches, and a unique deterministic identity note for each of the 20 World Events without downloadable audio assets or a larger PWA cache.
+- Added a persisted volume preference, an accessible Settings preview, and a one-tap Sound on/off control at the game table.
+- Unlock Web Audio synchronously from the first roll gesture for Safari/iOS compatibility while keeping sound opt-in and non-essential to understanding play.
+
 ## 0.5.0 - 2026-07-24
 
 - Added a unique FLUX.2 illustration for every one of the 20 built-in World Events.

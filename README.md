@@ -49,12 +49,17 @@ this implementation.
 - **Unique World Event art v0.5.0:** Every built-in World Event has its own
   FLUX.2 illustration. Event images load and cache only when encountered; the
   five lightweight pack images remain offline-safe fallbacks.
+- **Procedural soundscape v0.6.0:** Opt-in, offline Web Audio effects distinguish
+  dice rolls, Science/Trade/Politics, barbarian advances and attack outcomes,
+  every World Event through category/tone/impact plus a unique identity note,
+  and season transitions. Volume persists per device, with table-level mute and
+  a Settings preview.
 - Immutable IndexedDB revisions with undo, redo, branch retention, integrity
   hashes, and verified-ancestor recovery.
 - Versioned JSON export/import that never overwrites an existing game.
 - Explicit single-tab control with read-only mirrored tabs and takeover.
 - Responsive mobile/tablet/desktop layouts, keyboard support, high contrast,
-  reduced motion, synthesized sound cues, and sanitized diagnostics.
+  reduced motion, opt-in procedural sound effects, and sanitized diagnostics.
 - Original locally generated frontier illustrations, including a reproducible
   FLUX.2 Dev asset set, with no official CATAN artwork or trade dress.
 - Prompted PWA updates and complete offline operation after first load.

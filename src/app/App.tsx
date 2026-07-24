@@ -15,6 +15,7 @@ import {
   winnerCandidates,
   type DieValue,
   type GameCommand,
+  type GameState,
   type PlayerId,
 } from "../domain";
 import {
@@ -31,7 +32,11 @@ import {
   requestPersistentStorage,
   type StorageStatus,
 } from "../infrastructure/platform/storage";
-import { AudioCues, type SoundCue } from "../infrastructure/platform/audio";
+import {
+  AudioCues,
+  type SoundCue,
+  type SoundPlayOptions,
+} from "../infrastructure/platform/audio";
 import { ScreenWakeLock } from "../infrastructure/platform/wakeLock";
 import { Button, ConfirmDialog } from "../ui/components";
 import { CompletedGamesDialog } from "../ui/features/home/CompletedGamesDialog";
@@ -87,6 +92,7 @@ export function App() {
   const initialized = useRef(false);
   const previousScreen = useRef<Screen>("home");
   const clockStartRequests = useRef(new Set<string>());
+  const soundedEventOccurrences = useRef(new Set<string>());
   const [screen, setScreen] = useState<Screen>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savedGamesOpen, setSavedGamesOpen] = useState(false);
@@ -165,6 +171,11 @@ export function App() {
       void wakeLock.release();
     };
   }, [preferences.keepAwake, screen, snapshot.activeState?.status, wakeLock]);
+
+  useEffect(() => {
+    audio.setVolume(preferences.soundVolume);
+    audio.setMuted(!preferences.soundEnabled);
+  }, [audio, preferences.soundEnabled, preferences.soundVolume]);
 
   useEffect(
     () => () => {
@@ -255,13 +266,83 @@ export function App() {
     }
   }
 
-  function playCue(cue: SoundCue): void {
+  function playCue(cue: SoundCue, options?: SoundPlayOptions): void {
     if (!preferences.soundEnabled) {
       return;
     }
-    void audio.play(cue).catch((error: unknown) => {
+    void audio.play(cue, options).catch((error: unknown) => {
       setNotice(`Sound unavailable: ${errorMessage(error)}`);
     });
+  }
+
+  function playRollOutcomeCue(current: GameState | null): void {
+    const result = current?.lastRoll;
+    if (!current || !result) return;
+
+    if (result.eventFace !== "barbarian") {
+      playCue({ type: "progress", discipline: result.eventFace });
+      return;
+    }
+
+    const attack = current.barbarian.pendingAttack;
+    if (attack) {
+      playCue({
+        type: "barbarian-attack",
+        outcome: attack.outcome.type,
+      });
+      return;
+    }
+
+    playCue({
+      type: "barbarian-advance",
+      spacesRemaining: Math.max(
+        0,
+        current.barbarian.rules.trackLength - current.barbarian.shipPosition,
+      ),
+    });
+  }
+
+  function playPendingWorldEventCue(
+    current: GameState | null,
+    delaySeconds = 0.24,
+  ): void {
+    if (!preferences.soundEnabled) return;
+    const event = current?.thematicEvents.pendingEvent;
+    if (!event || soundedEventOccurrences.current.has(event.occurrenceId)) {
+      return;
+    }
+    soundedEventOccurrences.current.add(event.occurrenceId);
+    playCue(
+      {
+        type: "world-event",
+        eventId: event.eventId,
+        category: event.category ?? "society",
+        tone: event.tone ?? "mixed",
+        impact: event.impact ?? 1,
+      },
+      { delaySeconds },
+    );
+  }
+
+  function setSoundEnabled(enabled: boolean): void {
+    audio.setMuted(!enabled);
+    updatePreferences({ soundEnabled: enabled });
+    if (!enabled) return;
+    audio.setVolume(preferences.soundVolume);
+    void audio.play({ type: "confirm" }).catch((error: unknown) => {
+      setNotice(`Sound unavailable: ${errorMessage(error)}`);
+    });
+  }
+
+  function changePreferences(patch: Partial<typeof preferences>): void {
+    if (patch.soundVolume !== undefined) {
+      audio.setVolume(patch.soundVolume);
+    }
+    if (patch.soundEnabled !== undefined) {
+      setSoundEnabled(patch.soundEnabled);
+      return;
+    }
+    updatePreferences(patch);
   }
 
   function navigateToLoadedGame(): void {
@@ -289,13 +370,13 @@ export function App() {
 
   async function startGame(draft: SetupDraft): Promise<void> {
     updatePreferences(draft.preferences);
+    audio.setVolume(draft.preferences.soundVolume);
     const setup = setupFromDraft(draft);
     const started = await runOperation(async () => {
       await gameController.startGame(setup);
     });
     if (started) {
       setScreen("game");
-      playCue("confirm");
       void requestPersistentStorage()
         .then(() => getStorageStatus())
         .then(setStorageStatus)
@@ -319,10 +400,13 @@ export function App() {
   }
 
   async function roll(command: GameCommand): Promise<boolean> {
+    // This synchronous call unlocks Web Audio inside the user's gesture on
+    // Safari/iOS before the durable command crosses an async boundary.
+    playCue({ type: "dice-roll" });
     setRolling(true);
     let completed: boolean;
     try {
-      completed = await dispatch(command, "roll");
+      completed = await dispatch(command);
       if (completed) {
         await new Promise<void>((resolve) => {
           window.setTimeout(
@@ -330,6 +414,7 @@ export function App() {
             preferences.motion === "reduced" ? 1 : 650,
           );
         });
+        playRollOutcomeCue(gameController.getSnapshot().activeState);
       }
     } finally {
       setRolling(false);
@@ -341,7 +426,11 @@ export function App() {
 
     setResolutionBusy(true);
     try {
-      return await acknowledgeOfficialRollSteps();
+      const acknowledged = await acknowledgeOfficialRollSteps();
+      if (acknowledged) {
+        playPendingWorldEventCue(gameController.getSnapshot().activeState);
+      }
+      return acknowledged;
     } finally {
       setResolutionBusy(false);
     }
@@ -424,7 +513,7 @@ export function App() {
                   })),
                 }),
           },
-          "confirm",
+          { type: "confirm" },
         );
         if (!confirmed) {
           return;
@@ -442,13 +531,11 @@ export function App() {
         current?.turn.phase === "resolving-thematic-event" &&
         current.thematicEvents.pendingEvent
       ) {
-        const acknowledged = await dispatch(
-          {
-            type: "event.acknowledged",
-            occurrenceId: current.thematicEvents.pendingEvent.occurrenceId,
-          },
-          "event",
-        );
+        playPendingWorldEventCue(current, 0.08);
+        const acknowledged = await dispatch({
+          type: "event.acknowledged",
+          occurrenceId: current.thematicEvents.pendingEvent.occurrenceId,
+        });
         if (!acknowledged) {
           return;
         }
@@ -472,6 +559,13 @@ export function App() {
   }
 
   async function rollNextTurn(): Promise<void> {
+    if (preferences.soundEnabled) {
+      // A resumed game may not have an unlocked context yet. Do this before
+      // the turn-ending dispatch crosses the user's click boundary.
+      void audio.unlock().catch((error: unknown) => {
+        setNotice(`Sound unavailable: ${errorMessage(error)}`);
+      });
+    }
     const current = gameController.getSnapshot().activeState;
     if (current?.turn.phase !== "action-phase") {
       setNotice("The current roll must reach the action phase first.");
@@ -481,9 +575,25 @@ export function App() {
       setWinnerOpen(true);
       return;
     }
-    const ended = await dispatch({ type: "turn.ended" }, "confirm");
+    const previousSeason = current.setup.seasonConfig?.enabled
+      ? deriveSeason(current.setup.seasonConfig, current.turn.round).season
+      : null;
+    const ended = await dispatch({ type: "turn.ended" });
     if (!ended) {
       return;
+    }
+
+    const next = gameController.getSnapshot().activeState;
+    const nextSeason = next?.setup.seasonConfig?.enabled
+      ? deriveSeason(next.setup.seasonConfig, next.turn.round).season
+      : null;
+    if (previousSeason && nextSeason && previousSeason !== nextSeason) {
+      playCue({ type: "season-change", season: nextSeason });
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, preferences.motion === "reduced" ? 1 : 520);
+      });
+    } else {
+      playCue({ type: "confirm" });
     }
     await roll({ type: "roll.draw" });
   }
@@ -618,6 +728,10 @@ export function App() {
               clockAt,
             )}
             busy={rolling || resolutionBusy || snapshot.saving}
+            soundEnabled={preferences.soundEnabled}
+            onToggleSound={() => {
+              setSoundEnabled(!preferences.soundEnabled);
+            }}
             onRoll={() => {
               void roll({ type: "roll.draw" });
             }}
@@ -636,7 +750,7 @@ export function App() {
                     },
                   },
                 },
-                "confirm",
+                { type: "confirm" },
               );
             }}
             onEditPlayer={(id) => {
@@ -651,13 +765,10 @@ export function App() {
             onAcknowledgeEvent={() => {
               const event = state.thematicEvents.pendingEvent;
               if (event) {
-                void dispatch(
-                  {
-                    type: "event.acknowledged",
-                    occurrenceId: event.occurrenceId,
-                  },
-                  "event",
-                );
+                void dispatch({
+                  type: "event.acknowledged",
+                  occurrenceId: event.occurrenceId,
+                });
               }
             }}
             onResolveEvent={(occurrenceId) => {
@@ -666,11 +777,11 @@ export function App() {
                   type: "event.resolved",
                   occurrenceId: asEventOccurrenceId(occurrenceId),
                 },
-                "confirm",
+                { type: "confirm" },
               );
             }}
             onPause={() => {
-              void dispatch({ type: "clock.paused" }, "confirm");
+              void dispatch({ type: "clock.paused" }, { type: "confirm" });
             }}
             onHistory={() => {
               setHistoryOpen(true);
@@ -775,7 +886,16 @@ export function App() {
         storageStatus={storageStatus}
         appVersion={APPLICATION_VERSION}
         schemaVersion={DATABASE_SCHEMA_VERSION}
-        onChange={updatePreferences}
+        onChange={changePreferences}
+        onPreviewSound={() => {
+          playCue({
+            type: "world-event",
+            eventId: "preview-world-event",
+            category: "economy",
+            tone: "boon",
+            impact: 2,
+          });
+        }}
         onRequestPersistentStorage={async () => {
           await runOperation(async () => {
             const persisted = await requestPersistentStorage();
@@ -950,7 +1070,7 @@ export function App() {
                 setSelectedPlayerId(asPlayerId(id));
               }}
               onPause={() => {
-                void dispatch({ type: "clock.paused" }, "confirm");
+                void dispatch({ type: "clock.paused" }, { type: "confirm" });
               }}
               onContinue={(choices) => {
                 void resolveRollResult(false, choices);
@@ -991,7 +1111,7 @@ export function App() {
                       type: "metropolis.proposalConfirmed",
                       proposalId: proposal.id,
                     },
-                    "confirm",
+                    { type: "confirm" },
                   );
                 }
               }}
@@ -1085,7 +1205,7 @@ export function App() {
                   type: "game.completed",
                   winnerId: winnerCandidate.id,
                 },
-                "confirm",
+                { type: "confirm" },
               ).then((completed) => {
                 if (completed) {
                   setWinnerOpen(false);
@@ -1110,7 +1230,7 @@ export function App() {
             canResume={!snapshot.readOnly}
             busy={snapshot.saving}
             onResume={() => {
-              void dispatch({ type: "clock.resumed" }, "confirm");
+              void dispatch({ type: "clock.resumed" }, { type: "confirm" });
             }}
           />
         </>

@@ -96,6 +96,8 @@ export interface GameTableView {
 interface GameTableProps {
   view: GameTableView;
   busy?: boolean;
+  soundEnabled?: boolean;
+  onToggleSound?: () => void;
   onRoll: () => void;
   onAlchemy: () => void;
   onAdjustScore: (playerId: string, delta: -1 | 1) => void;
@@ -179,6 +181,8 @@ function eventGuidance(
 
 export function GameTable({
   busy = false,
+  soundEnabled = false,
+  onToggleSound,
   onAlchemy,
   onAdjustScore,
   onAcknowledgeEvent,
@@ -308,6 +312,15 @@ export function GameTable({
             onClick={onExport}
           >
             Export
+          </Button>
+          <Button
+            variant="quiet"
+            size="small"
+            disabled={view.paused || busy}
+            aria-pressed={soundEnabled}
+            onClick={onToggleSound}
+          >
+            Sound {soundEnabled ? "on" : "off"}
           </Button>
           <Button
             variant="quiet"

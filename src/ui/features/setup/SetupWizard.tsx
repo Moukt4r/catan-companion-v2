@@ -720,11 +720,33 @@ export function SetupWizard({
                 }}
               />
               <span>
-                <strong>Sound cues</strong>
+                <strong>Sound effects</strong>
                 <small>
-                  Uses short synthesized tones with visual equivalents.
+                  Offline dice, event, season, and barbarian cues with visual
+                  equivalents.
                 </small>
               </span>
+            </label>
+            <label className="field field--range">
+              <span>
+                Sound volume
+                <output>{Math.round(preferences.soundVolume * 100)}%</output>
+              </span>
+              <input
+                type="range"
+                aria-label="Sound volume"
+                min="0"
+                max="1"
+                step="0.05"
+                value={preferences.soundVolume}
+                disabled={!preferences.soundEnabled}
+                onChange={(event) => {
+                  setPreferences((current) => ({
+                    ...current,
+                    soundVolume: Number(event.target.value),
+                  }));
+                }}
+              />
             </label>
             <label className="check-field">
               <input

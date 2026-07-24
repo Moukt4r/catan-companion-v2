@@ -26,6 +26,26 @@ describe("device preferences", () => {
     expect(loadDevicePreferences()).toEqual(preferences);
   });
 
+  it("migrates older preferences with a safe default volume", () => {
+    window.localStorage.setItem(
+      "catan-companion-device-preferences",
+      JSON.stringify({
+        theme: "dark",
+        soundEnabled: true,
+        motion: "full",
+        keepAwake: false,
+      }),
+    );
+
+    expect(loadDevicePreferences()).toEqual({
+      theme: "dark",
+      soundEnabled: true,
+      soundVolume: 0.55,
+      motion: "full",
+      keepAwake: false,
+    });
+  });
+
   it("recovers from malformed preferences", () => {
     window.localStorage.setItem(
       "catan-companion-device-preferences",

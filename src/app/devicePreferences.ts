@@ -14,6 +14,7 @@ const storageKey = "catan-companion-device-preferences";
 export const devicePreferencesSchema: z.ZodType<DevicePreferences> = z.object({
   theme: z.enum(["system", "light", "dark", "high-contrast"]).default("system"),
   soundEnabled: z.boolean().default(false),
+  soundVolume: z.number().min(0).max(1).default(0.55),
   motion: z.enum(["system", "full", "reduced"]).default("system"),
   keepAwake: z.boolean().default(false),
 });

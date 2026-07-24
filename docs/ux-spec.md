@@ -101,7 +101,8 @@ toggleable.
 
 ### Step 3: Preferences
 
-- Sound: off by default until enabled through a user gesture.
+- Sound effects: off by default until enabled through a user gesture; volume is
+  persisted per device and can be previewed before play.
 - Motion: system preference by default.
 - Theme: system, light, dark, or high contrast.
 - Keep screen awake: request only after the game starts and explain browser
@@ -156,6 +157,26 @@ After rolling:
 - replace Roll with the next required resolution action.
 
 The UI never displays decorative dice that disagree with the text result.
+
+### 5.2.1 Sound feedback
+
+Sound is an optional enhancement and never the only carrier of game state:
+
+- the first roll gesture synchronously unlocks Web Audio for Safari/iOS;
+- a tactile rattle represents the physical dice before the persisted result;
+- Science, Trade, and Politics each use a distinct short signature;
+- barbarian movement gains urgency near the city, while an attack uses drums,
+  impact, and an outcome-aware final phrase;
+- World Events combine category, tone, impact, and an event-specific identity
+  note into a short procedural cue;
+- each season transition uses its own chime palette;
+- all effects are synthesized locally, add no network requests, and remain
+  available offline;
+- a table-level Sound on/off control, Settings volume slider, and explicit
+  preview keep control with the device owner.
+
+Every audible state also remains visible in text, color-independent symbols,
+and the existing live-region announcements.
 
 ### 5.3 Barbarian panel
 

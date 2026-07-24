@@ -167,6 +167,54 @@ test.beforeEach(async ({ page }) => {
   await resetBrowserState(page);
 });
 
+test("persists opt-in sound effects and volume without network assets", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Settings" }).click();
+  const settings = page.locator("dialog[open]");
+  await settings.getByRole("checkbox", { name: /sound effects/i }).check();
+  await settings.getByRole("slider", { name: "Sound volume" }).fill("0.7");
+  await settings.getByRole("button", { name: "Preview sound" }).click();
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const stored = localStorage.getItem(
+          "catan-companion-device-preferences",
+        );
+        return stored
+          ? (JSON.parse(stored) as {
+              soundEnabled: boolean;
+              soundVolume: number;
+            })
+          : null;
+      }),
+    )
+    .toEqual(expect.objectContaining({ soundEnabled: true, soundVolume: 0.7 }));
+  await expect(page.getByText(/sound unavailable/i)).toHaveCount(0);
+
+  await settings.getByRole("button", { name: "Close" }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "Settings" }).click();
+  const reloaded = page.locator("dialog[open]");
+  await expect(
+    reloaded.getByRole("checkbox", { name: /sound effects/i }),
+  ).toBeChecked();
+  await expect(
+    reloaded.getByRole("slider", { name: "Sound volume" }),
+  ).toHaveValue("0.7");
+
+  await reloaded.getByRole("button", { name: "Close" }).click();
+  await setupStandardGame(page);
+  const soundToggle = page.getByRole("button", { name: "Sound on" });
+  await expect(soundToggle).toHaveAttribute("aria-pressed", "true");
+  await soundToggle.click();
+  await expect(page.getByRole("button", { name: "Sound off" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+});
+
 test("requests persistent storage when a game starts without wake lock", async ({
   page,
 }) => {
