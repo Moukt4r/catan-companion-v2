@@ -46,6 +46,9 @@ this implementation.
   the official event-die outcomes, four seasons, and five World Event packs.
   They enrich setup, roll resolution, season transitions, and active events
   without replacing textual guidance or accessible labels.
+- **Unique World Event art v0.5.0:** Every built-in World Event has its own
+  FLUX.2 illustration. Event images load and cache only when encountered; the
+  five lightweight pack images remain offline-safe fallbacks.
 - Immutable IndexedDB revisions with undo, redo, branch retention, integrity
   hashes, and verified-ancestor recovery.
 - Versioned JSON export/import that never overwrites an existing game.

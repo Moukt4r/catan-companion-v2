@@ -385,9 +385,12 @@ resolution, or alter domain state.
   symbol.
 - Numeric dice use original CSS geometry. Event-die outcomes pair an original
   symbol with decorative FLUX.2 art while retaining a complete textual label.
-- The 13-image FLUX.2 system uses four official-event motifs, four seasonal
-  landscapes, and five World Event pack illustrations. Pack-level art is
-  preferred over 20 per-event images to limit offline-install weight.
+- The core 13-image FLUX.2 system uses four official-event motifs, four seasonal
+  landscapes, and five World Event pack illustrations. Each of the 20 built-in
+  World Events additionally has a unique illustration loaded on demand.
+- Unique event art is excluded from the install-time precache and stored in a
+  20-entry CacheFirst runtime cache after first use. Precached pack art is the
+  offline fallback when an event image has not been seen yet.
 - Artwork is a subdued accent: consequence text, timing, controls, and
   house-rule labels always remain visually and semantically primary.
 - Decorative imagery uses empty alt text, is hidden in high-contrast and

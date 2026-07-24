@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.5.0 - 2026-07-24
+
+- Added a unique FLUX.2 illustration for every one of the 20 built-in World Events.
+- Load individual World Event art on demand and retain it in a dedicated CacheFirst runtime cache; the five pack illustrations remain precached offline fallbacks.
+- Kept the seasonal landscape in the roll-stage hero throughout the complete turn, eliminating duplicate official-event art between the hero and event die.
+- Compressed World Event pack selection into a responsive two-column setup grid with denser mobile cards.
+- Exposed stable event IDs to the presentation layer so pending and active cards resolve the correct unique illustration without changing domain rules.
+
 ## 0.4.0 - 2026-07-24
 
 - Added a cohesive 13-image **FLUX.2 Dev** visual system: four official event-die outcomes, four seasons, and five World Event category packs.

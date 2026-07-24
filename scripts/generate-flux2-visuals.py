@@ -165,6 +165,92 @@ SCENES = [
 ]
 
 
+WORLD_EVENT_SCENES = [
+    {
+        "key": "we-good-harvest", "title": "Good Harvest", "category": "economy", "group": "world-event", "seed": 240801,
+        "prompt": STYLE + "A newly opened coastal granary after a generous harvest, baskets of grain, fruit, wool, timber and clay arranged naturally on a sunlit wooden floor, full storehouse doors open toward green fields, warm gratitude and shared abundance, no people and no labels.",
+    },
+    {
+        "key": "we-market-day", "title": "Market Day", "category": "economy", "group": "world-event", "seed": 240802,
+        "prompt": STYLE + "A single-day frontier market beneath canvas awnings beside the harbor, a prominent empty brass balance, neatly arranged sacks, pottery, timber and woven cloth, lively motion suggested by distant soft silhouettes, bright morning opportunity, no signs and no readable price marks.",
+    },
+    {
+        "key": "we-trade-winds", "title": "Trade Winds", "category": "economy", "group": "world-event", "seed": 240803,
+        "prompt": STYLE + "Three graceful merchant sailing vessels driven toward a sheltered northern harbor by strong favorable winds, taut cream sails, sparkling teal water, cargo waiting on the quay, sweeping clouds opening to gold sunlight, dynamic prosperity, no flags or emblems.",
+    },
+    {
+        "key": "we-tax-collection", "title": "Tax Collection", "category": "economy", "group": "world-event", "seed": 240804,
+        "prompt": STYLE + "An austere coastal treasury room at dusk, measured portions of grain, timber and pottery set beside an empty brass scale and a sealed wooden strongbox, long shadow across a plain oak desk, restrained burden and civic obligation, no coins, no people, no writing.",
+    },
+    {
+        "key": "we-border-patrol", "title": "Border Patrol", "category": "military", "group": "world-event", "seed": 240805,
+        "prompt": STYLE + "A vigilant dawn patrol moving along a mountain pass above the coastal settlement, distant anonymous figures and horses seen from behind, stone watchtower beacon glowing, safe valley below, crisp blue air, preparedness without combat, no uniforms or heraldry.",
+    },
+    {
+        "key": "we-raider-attack", "title": "Raider Attack", "category": "military", "group": "world-event", "seed": 240806,
+        "prompt": STYLE + "Fast dark raider boats approaching an exposed coastal farm and harbor at stormy twilight, warning beacon lit, villagers only as tiny distant silhouettes securing gates, wind-whipped fields and urgent crimson light, threat without battle, injuries or gore, no emblems.",
+    },
+    {
+        "key": "we-peace-treaty", "title": "Peace Treaty", "category": "military", "group": "world-event", "seed": 240807,
+        "prompt": STYLE + "An empty treaty table on a quiet sea-cliff terrace after negotiations, two plain shields and sheathed swords deliberately set aside, blank parchment secured by simple wax, white linen moving in a soft breeze, calm harbor at sunrise, relief without triumph, no symbols or writing.",
+    },
+    {
+        "key": "we-fortification", "title": "Fortification", "category": "military", "group": "world-event", "seed": 240808,
+        "prompt": STYLE + "A northern settlement reinforcing its stone-and-timber harbor gate before nightfall, fresh beams, rope, tools and grain sacks ready for the watch, workers as small anonymous silhouettes, warm torchlight against steel-blue dusk, constructive defense, no battle or emblems.",
+    },
+    {
+        "key": "we-trade-embargo", "title": "Trade Embargo", "category": "diplomacy", "group": "world-event", "seed": 240809,
+        "prompt": STYLE + "A once-busy frontier harbor made still by an embargo, warehouse shutters closed, merchant vessels tied motionless beyond a lowered timber chain, untouched cargo under gray morning mist, quiet economic tension, no people, no signs, no official seals or readable text.",
+    },
+    {
+        "key": "we-cooperation", "title": "Cooperation", "category": "diplomacy", "group": "world-event", "seed": 240810,
+        "prompt": STYLE + "Two neighboring coastal settlements connected by a newly completed timber bridge, baskets and building materials meeting at the center, distant anonymous figures working together in warm evening light, shared purpose and trust, no handshake close-up, no banners or symbols.",
+    },
+    {
+        "key": "we-diplomacy", "title": "Diplomatic Summit", "category": "diplomacy", "group": "world-event", "seed": 241811,
+        "prompt": STYLE + "A formal summit chamber overlooking the harbor, four distinct empty chairs around a circular oak table, four plain unmarked cloth banners in restrained colors, blank parchment and extinguished weapons locked outside the room, balanced cool daylight and candlelight, no people or text, clean empty image corners, no badge, monogram, signature or artist mark.",
+    },
+    {
+        "key": "we-envoy", "title": "Royal Envoy", "category": "diplomacy", "group": "world-event", "seed": 240812,
+        "prompt": STYLE + "An elegant small messenger vessel arriving at a modest frontier quay at first light, a sealed blank letter case resting beside a folded travel cloak, harbor officials only as distant silhouettes, hopeful anticipation, deep blue and gold palette, no crown, heraldry or readable text.",
+    },
+    {
+        "key": "we-earthquake", "title": "Earthquake", "category": "nature", "group": "world-event", "seed": 240813,
+        "prompt": STYLE + "The safe aftermath of an earthquake along a coastal settlement road, a deep crack crossing the packed earth, shifted stone wall and fallen roof tiles, fine dust glowing in low sunlight, intact homes and no injured people, sober resilience, no disaster spectacle.",
+    },
+    {
+        "key": "we-drought", "title": "Drought", "category": "nature", "group": "world-event", "seed": 240814,
+        "prompt": STYLE + "A parched northern grain valley during prolonged drought, cracked earth, dry irrigation channel and pale struggling fields beneath a vast white-hot sky, distant coastal village conserving water, desaturated ochre and blue-gray palette, no dead animals or people.",
+    },
+    {
+        "key": "we-storm", "title": "Storm at Sea", "category": "nature", "group": "world-event", "seed": 241815,
+        "prompt": STYLE + "A fierce sea storm striking the outer harbor, towering dark waves, rain driven sideways, moored vessels secured behind the breakwater and lighthouse beam cutting through lightning-lit clouds, dramatic maritime danger without shipwreck, people or text, clean empty image corners, no badge, numeral, plaque, signature or artist mark.",
+    },
+    {
+        "key": "we-abundant-year", "title": "Abundant Year", "category": "nature", "group": "world-event", "seed": 240816,
+        "prompt": STYLE + "An exceptionally abundant coastal year, luminous green fields and heavy orchards surrounding a thriving timber-and-stone town, overflowing granary, clear river and full harbor under radiant late-summer light, extraordinary fertility without fantasy magic or people close-up.",
+    },
+    {
+        "key": "we-festival", "title": "Festival", "category": "society", "group": "world-event", "seed": 240817,
+        "prompt": STYLE + "A warm lantern festival in a coastal settlement square at blue hour, long communal tables, flower garlands, musicians and neighbors only as joyful distant silhouettes, harbor lights beyond, welcoming celebration with coral and gold accents, no banners, signs or readable text.",
+    },
+    {
+        "key": "we-epidemic", "title": "Epidemic", "category": "society", "group": "world-event", "seed": 242818,
+        "prompt": STYLE + "A quiet residential lane of simple homes in a coastal town responding carefully to an epidemic, calm empty street at dawn, closed shutters, bundles of medicinal herbs and clean water placed outside plain residential doorways, soft pale mist and one warm window lamp, compassionate restraint, no shops, no taverns, no hanging brackets, no signs, plaques, symbols, sick bodies, masks, gore, signature or artist mark.",
+    },
+    {
+        "key": "we-innovation", "title": "Innovation", "category": "society", "group": "world-event", "seed": 240819,
+        "prompt": STYLE + "A bright frontier invention workshop beside a waterwheel, elegant wooden gears, bellows, glass lenses, measuring tools and a compact new lifting mechanism, morning sun through open doors toward the harbor, practical discovery, no impossible machinery, formulas or writing.",
+    },
+    {
+        "key": "we-celebration", "title": "Celebration", "category": "society", "group": "world-event", "seed": 240820,
+        "prompt": STYLE + "A city-wide evening celebration seen from a hill above the harbor, hundreds of warm lanterns, flower-covered arches, small distant crowds and gentle fireworks reflected on dark water, civic pride and earned progress, elegant rather than carnival-like, no readable banners or logos.",
+    },
+]
+
+ALL_SCENES = SCENES + WORLD_EVENT_SCENES
+
+
 def request_json(path: str, payload: dict | None = None) -> dict:
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(
@@ -227,14 +313,18 @@ def main() -> None:
     args = parser.parse_args()
 
     request_json("/system_stats")
-    selected = [scene for scene in SCENES if not args.keys or scene["key"] in args.keys]
-    unknown = set(args.keys or []) - {scene["key"] for scene in SCENES}
+    selected = [scene for scene in ALL_SCENES if not args.keys or scene["key"] in args.keys]
+    unknown = set(args.keys or []) - {scene["key"] for scene in ALL_SCENES}
     if unknown:
         raise SystemExit(f"Unknown keys: {', '.join(sorted(unknown))}")
 
     manifest = []
-    for index, scene in enumerate(SCENES, 1):
-        target = DEST / f"{scene['key']}.webp"
+    for index, scene in enumerate(ALL_SCENES, 1):
+        target = (
+            REPO / "public" / "world-events" / f"{scene['key']}.webp"
+            if scene["group"] == "world-event"
+            else DEST / f"{scene['key']}.webp"
+        )
         if scene in selected and (args.force or not target.exists()):
             print(f"[{selected.index(scene) + 1}/{len(selected)}] {scene['key']}", flush=True)
             response = request_json("/prompt", {"prompt": graph(scene)})
@@ -244,7 +334,12 @@ def main() -> None:
         manifest.append({
             "id": scene["key"],
             "group": scene["group"],
-            "file": f"src/assets/flux2/{scene['key']}.webp",
+            "file": (
+                f"public/world-events/{scene['key']}.webp"
+                if scene["group"] == "world-event"
+                else f"src/assets/flux2/{scene['key']}.webp"
+            ),
+            **({"title": scene["title"], "category": scene["category"]} if scene["group"] == "world-event" else {}),
             "model": "FLUX.2 Dev FP8mixed",
             "seed": scene["seed"],
             "steps": STEPS,

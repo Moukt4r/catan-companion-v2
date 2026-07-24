@@ -35,3 +35,7 @@ export const WORLD_EVENT_ART: Readonly<Record<WorldEventCategory, string>> = {
   diplomacy: worldDiplomacy,
   society: worldSociety,
 };
+
+export function worldEventIllustration(eventId: string): string {
+  return `${import.meta.env.BASE_URL}world-events/${encodeURIComponent(eventId)}.webp`;
+}

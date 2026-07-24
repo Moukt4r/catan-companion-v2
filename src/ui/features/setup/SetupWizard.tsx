@@ -536,43 +536,45 @@ export function SetupWizard({
                   Select at least one category pack to include in the world
                   event deck.
                 </p>
-                {worldEventPackOptions.map((pack) => {
-                  const eventCount = WORLD_EVENTS_CATALOG.filter(
-                    (event) => event.category === pack.id,
-                  ).length;
-                  return (
-                    <label
-                      key={pack.id}
-                      className="check-field check-field--illustrated"
-                    >
-                      <img
-                        className="check-field__art"
-                        src={WORLD_EVENT_ART[pack.id]}
-                        alt=""
-                        aria-hidden="true"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                      <input
-                        type="checkbox"
-                        checked={worldEventPacks.includes(pack.id)}
-                        onChange={(event) => {
-                          setWorldEventPacks((current) =>
-                            event.target.checked
-                              ? [...current, pack.id]
-                              : current.filter((id) => id !== pack.id),
-                          );
-                        }}
-                      />
-                      <span>
-                        <strong>{pack.name}</strong>
-                        <small>
-                          {pack.description} {eventCount} events.
-                        </small>
-                      </span>
-                    </label>
-                  );
-                })}
+                <div className="pack-grid">
+                  {worldEventPackOptions.map((pack) => {
+                    const eventCount = WORLD_EVENTS_CATALOG.filter(
+                      (event) => event.category === pack.id,
+                    ).length;
+                    return (
+                      <label
+                        key={pack.id}
+                        className="check-field check-field--illustrated"
+                      >
+                        <img
+                          className="check-field__art"
+                          src={WORLD_EVENT_ART[pack.id]}
+                          alt=""
+                          aria-hidden="true"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <input
+                          type="checkbox"
+                          checked={worldEventPacks.includes(pack.id)}
+                          onChange={(event) => {
+                            setWorldEventPacks((current) =>
+                              event.target.checked
+                                ? [...current, pack.id]
+                                : current.filter((id) => id !== pack.id),
+                            );
+                          }}
+                        />
+                        <span>
+                          <strong>{pack.name}</strong>
+                          <small>
+                            {pack.description} {eventCount} events.
+                          </small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
                 {worldEventPacks.length === 0 ? (
                   <StatusBanner tone="danger">
                     Select at least one category pack.

@@ -322,6 +322,7 @@ describe("GameTable", () => {
           },
           worldEventPending: true,
           worldEvent: {
+            eventId: "we-festival",
             title: "Harbor Festival",
             instruction: "Announce every maritime trade.",
             tone: "boon",
@@ -392,8 +393,9 @@ describe("GameTable", () => {
     expect(screen.getByText("Current")).toBeInTheDocument();
   });
 
-  it("uses seasonal art before a roll and event art after a roll", () => {
-    const seasonal = renderTable({
+  it("keeps seasonal hero art through a roll and reserves event art for the die", () => {
+    const rendered = renderTable({
+      canRoll: false,
       season: {
         current: "winter",
         label: "Winter",
@@ -402,19 +404,6 @@ describe("GameTable", () => {
         roundsPerSeason: 3,
         transitioned: true,
       },
-    });
-    expect(
-      seasonal.container.querySelector(
-        ".roll-stage__art--season-winter img[alt='']",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      seasonal.container.querySelector(".season-transition__art[alt='']"),
-    ).toBeInTheDocument();
-    seasonal.unmount();
-
-    const event = renderTable({
-      canRoll: false,
       lastRoll: {
         red: 3,
         yellow: 4,
@@ -430,10 +419,20 @@ describe("GameTable", () => {
       },
     });
     expect(
-      event.container.querySelector(
-        ".roll-stage__art--event-trade img[alt='']",
+      rendered.container.querySelector(
+        ".roll-stage__art--season-winter img[alt='']",
       ),
     ).toBeInTheDocument();
+    expect(
+      rendered.container.querySelector(".season-transition__art[alt='']"),
+    ).toBeInTheDocument();
+    expect(rendered.container.querySelector(".die__event-art")).toHaveAttribute(
+      "alt",
+      "",
+    );
+    expect(
+      rendered.container.querySelector(".roll-stage__art--event-trade"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows offline indicator", () => {
@@ -565,6 +564,7 @@ describe("GameTable", () => {
         },
         worldEventPending: true,
         worldEvent: {
+          eventId: "we-trade-winds",
           title: "Trade Winds",
           instruction: "Maritime trade is cheaper.",
           tone: "boon",
@@ -586,6 +586,9 @@ describe("GameTable", () => {
       "alt",
       "",
     );
+    expect(
+      container.querySelector(".inline-world-event__art")?.getAttribute("src"),
+    ).toContain("/world-events/we-trade-winds.webp");
     await user.click(
       screen.getByRole("button", { name: "Acknowledge world event" }),
     );
@@ -601,6 +604,7 @@ describe("GameTable", () => {
         activeEvents: [
           {
             occurrenceId: "earthquake-1",
+            eventId: "we-earthquake",
             title: "Earthquake",
             instruction: "Repair every damaged road.",
             tone: "setback",
@@ -612,6 +616,7 @@ describe("GameTable", () => {
           },
           {
             occurrenceId: "storm-1",
+            eventId: "we-storm",
             title: "Storm at Sea",
             instruction: "No maritime trade.",
             tone: "setback",
@@ -630,8 +635,13 @@ describe("GameTable", () => {
       screen.getByRole("region", { name: "Active world events" }),
     ).toBeVisible();
     expect(screen.getByText("Storm at Sea")).toBeVisible();
-    expect(container.querySelectorAll(".active-event-card__art")).toHaveLength(
-      2,
+    const activeArt = container.querySelectorAll(".active-event-card__art");
+    expect(activeArt).toHaveLength(2);
+    expect(activeArt[0]?.getAttribute("src")).toContain(
+      "/world-events/we-earthquake.webp",
+    );
+    expect(activeArt[1]?.getAttribute("src")).toContain(
+      "/world-events/we-storm.webp",
     );
     expect(
       screen.getAllByRole("button", { name: "Mark resolved" }),
@@ -647,6 +657,7 @@ describe("GameTable", () => {
         activeEvents: [
           {
             occurrenceId: "earthquake-1",
+            eventId: "we-earthquake",
             title: "Earthquake",
             instruction: "Repair every damaged road.",
             tone: "setback",

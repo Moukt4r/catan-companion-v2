@@ -48,6 +48,7 @@ const phaseLabels: Record<GamePhase, string> = {
 
 export interface ActiveEventView {
   occurrenceId: string;
+  eventId: string;
   title: string;
   instruction: string;
   tone: WorldEventTone;
@@ -59,6 +60,7 @@ export interface ActiveEventView {
 }
 
 export interface PendingWorldEventView {
+  eventId: string;
   title: string;
   instruction: string;
   tone: WorldEventTone;
@@ -97,6 +99,7 @@ function toActiveEventViews(
     .sort((a, b) => b.triggeredAtCompletedTurn - a.triggeredAtCompletedTurn)
     .map((event) => ({
       occurrenceId: event.occurrenceId,
+      eventId: event.eventId,
       title: event.title,
       instruction: event.instruction,
       tone: event.tone,
@@ -116,6 +119,7 @@ function toPendingWorldEventView(
   const tone = pendingEvent.tone ?? worldDef?.tone ?? "mixed";
   const duration = pendingEvent.duration ?? worldDef?.duration ?? "immediate";
   return {
+    eventId: pendingEvent.eventId,
     title: pendingEvent.title,
     instruction: pendingEvent.instruction,
     tone,

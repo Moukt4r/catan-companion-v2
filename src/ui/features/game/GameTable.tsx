@@ -5,9 +5,9 @@ import type { ActiveEventView, PendingWorldEventView } from "./viewMappers";
 import type { Season } from "../../../domain";
 import { Button, DieFace, PlayerMarker, StatusBanner } from "../../components";
 import {
-  EVENT_DIE_ART,
   SEASON_ART,
   WORLD_EVENT_ART,
+  worldEventIllustration,
 } from "../../illustrationCatalog";
 import { formatDuration } from "./time";
 
@@ -208,18 +208,12 @@ export function GameTable({
   const playerControlsDisabled =
     busy || !view.canEditPublicState || view.readOnly || view.paused;
   const [barbarianOpen, setBarbarianOpen] = useState(barbarianPanelStartsOpen);
-  const rollStageArt =
-    view.canRoll && view.season
-      ? SEASON_ART[view.season.current]
-      : view.lastRoll
-        ? EVENT_DIE_ART[view.lastRoll.event]
-        : resourceIllustration;
-  const rollStageArtKey =
-    view.canRoll && view.season
-      ? `season-${view.season.current}`
-      : view.lastRoll
-        ? `event-${view.lastRoll.event}`
-        : "neutral";
+  const rollStageArt = view.season
+    ? SEASON_ART[view.season.current]
+    : resourceIllustration;
+  const rollStageArtKey = view.season
+    ? `season-${view.season.current}`
+    : "neutral";
 
   useEffect(() => {
     if (
@@ -359,11 +353,9 @@ export function GameTable({
           <img src={rollStageArt} alt="" decoding="async" />
           <span className="roll-stage__art-scrim" />
           <span className="roll-stage__art-label">
-            {view.canRoll && view.season
+            {view.season
               ? `${view.season.label} at the frontier`
-              : view.lastRoll
-                ? `${view.lastRoll.event} event`
-                : "The frontier table"}
+              : "The frontier table"}
           </span>
         </div>
         <div className="roll-stage__intro">
@@ -465,10 +457,15 @@ export function GameTable({
                   >
                     <img
                       className="inline-world-event__art"
-                      src={WORLD_EVENT_ART[view.worldEvent.category]}
+                      src={worldEventIllustration(view.worldEvent.eventId)}
                       alt=""
                       aria-hidden="true"
                       decoding="async"
+                      onError={(event) => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src =
+                          WORLD_EVENT_ART[view.worldEvent!.category];
+                      }}
                     />
                     <div className="inline-world-event__copy">
                       <p className="rule-label rule-label--world-event">
@@ -617,11 +614,16 @@ export function GameTable({
               >
                 <img
                   className="active-event-card__art"
-                  src={WORLD_EVENT_ART[event.category]}
+                  src={worldEventIllustration(event.eventId)}
                   alt=""
                   aria-hidden="true"
                   loading="lazy"
                   decoding="async"
+                  onError={(imageEvent) => {
+                    imageEvent.currentTarget.onerror = null;
+                    imageEvent.currentTarget.src =
+                      WORLD_EVENT_ART[event.category];
+                  }}
                 />
                 <div className="active-event-card__body">
                   <div className="active-event-card__header">
