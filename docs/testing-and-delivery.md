@@ -258,11 +258,13 @@ Cancel superseded runs on the same branch.
 
 ### Main branch
 
-CI and Pages deployment run as separate workflows on each push to `main`. The
-deployment workflow repeats the format, lint, type, production-audit, coverage,
-build, bundle-budget, and Playwright gates independently, then runs the
-repository-path build, Pages artifact upload, deployment, and a public HTML
-smoke check. Pages deploys only after its build job succeeds.
+CI runs on each push to `main`. The Pages workflow is triggered only after that
+CI run completes successfully and checks out the exact tested commit SHA. It
+repeats the deterministic `pnpm check` and production-audit gates, creates the
+repository-path build, uploads the Pages artifact, deploys it, and performs a
+public HTML smoke check. The longer cross-browser Playwright matrix runs once in
+CI rather than racing a duplicate deployment copy. A manual Pages dispatch uses
+the same deterministic build and audit gates.
 
 Lighthouse and broader physical-device checks remain manual release checks.
 
