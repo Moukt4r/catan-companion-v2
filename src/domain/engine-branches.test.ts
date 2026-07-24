@@ -818,6 +818,35 @@ describe("attack confirmation edge cases", () => {
       {
         type: "attack.confirmed",
         proposalId: tied.barbarian.pendingAttack!.id,
+        manualOutcome: {
+          type: "barbarians-win",
+          pillagedPlayerIds: [asPlayerId("missing-player")],
+        },
+      },
+      "INVALID_COMMAND",
+      "attack-missing-player",
+    );
+
+    const noCity = tiedAttack();
+    noCity.players[0]!.ordinaryCities = 0;
+    expectError(
+      noCity,
+      {
+        type: "attack.confirmed",
+        proposalId: noCity.barbarian.pendingAttack!.id,
+        manualOutcome: {
+          type: "barbarians-win",
+          pillagedPlayerIds: [PLAYER_IDS[0]!],
+        },
+      },
+      "INVALID_COMMAND",
+      "attack-no-city",
+    );
+    expectError(
+      tied,
+      {
+        type: "attack.confirmed",
+        proposalId: tied.barbarian.pendingAttack!.id,
         manualOutcome: tied.barbarian.pendingAttack!.outcome,
         progressChoices: [{ playerId: PLAYER_IDS[0]!, discipline: "science" }],
       },
