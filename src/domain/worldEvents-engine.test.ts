@@ -139,7 +139,11 @@ function advanceTurn(state: GameState, turnPrefix: string): GameState {
   if (s.barbarian.pendingAttack) {
     const r = decide(
       s,
-      { type: "attack.confirmed", proposalId: s.barbarian.pendingAttack.id },
+      {
+        type: "attack.confirmed",
+        proposalId: s.barbarian.pendingAttack.id,
+        manualOutcome: s.barbarian.pendingAttack.outcome,
+      },
       deps(`${turnPrefix}-atk`),
     );
     if (!r.ok) throw new Error(`attack confirm failed: ${r.error.message}`);
@@ -356,6 +360,7 @@ describe("engine world-event lifecycle integration", () => {
         {
           type: "attack.confirmed",
           proposalId: state.barbarian.pendingAttack.id,
+          manualOutcome: state.barbarian.pendingAttack.outcome,
         },
         deps("resolve-atk"),
       );
@@ -453,6 +458,7 @@ describe("engine world-event lifecycle integration", () => {
         {
           type: "attack.confirmed",
           proposalId: state.barbarian.pendingAttack.id,
+          manualOutcome: state.barbarian.pendingAttack.outcome,
         },
         deps("nope-atk"),
       );

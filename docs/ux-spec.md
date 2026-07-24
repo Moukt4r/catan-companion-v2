@@ -214,8 +214,8 @@ The action phase presents:
 - one-tap score adjustment on every player tile;
 - a points-first editor with Cities & Knights state behind an advanced
   disclosure;
-- a viewport-fixed **Next: PLAYER & roll** dock, which is the only action-phase
-  turn transition.
+- a viewport-fixed **Next: PLAYER** dock, which is the only action-phase turn
+  transition.
 
 Every adjustment previews the resulting derived strength or score and supports
 Cancel. High-frequency plus/minus controls must also allow direct numeric entry
@@ -232,8 +232,9 @@ Ordinary rolls resolve inline on the game table:
 3. After official resolution completes, show a scheduled World Event inline
    with an unmistakable **World Event (house rule)** label.
 4. The table acknowledges the World Event before entering the action phase.
-5. The viewport-fixed **Next: PLAYER & roll** action records the turn boundary
-   and rolls for the next player.
+5. The viewport-fixed **Next: PLAYER** action records the turn boundary and
+   opens the next player's pre-roll state, where Roll and Use Alchemy are both
+   available.
 
 Controls remain disabled while persistence is incomplete. A blocking dialog is
 reserved for barbarian attacks or other decisions that cannot safely resolve
@@ -255,33 +256,32 @@ dialog.
 
 ## 8. Barbarian attack experience
 
-Attack resolution occupies one section of the consolidated roll modal and
-prevents the footer actions until required tie choices are complete.
+Attack resolution occupies one section of the consolidated roll modal. It
+records what the players resolved on the physical board; tracked knight totals
+must not silently decide or lock the outcome.
 
-### Step 1: Verify inputs
+### Step 1: Record the outcome
 
-Show a per-player table:
+Ask the table to choose exactly one result:
 
-| Player | Ordinary cities | Held metropolises | Active knights | Strength |
-| ------ | --------------- | ----------------- | -------------- | -------- |
+- Defenders won;
+- Barbarians won.
 
-Each value has an Edit link. The operator confirms that the physical board and
-app match before calculation is accepted.
+Do not show a knight-strength comparison or per-player knight table in the
+attack modal. The chosen physical-board result is authoritative.
 
-### Step 2: Outcome
+### Step 2: Record consequences
 
-Show barbarian and defender strengths with the comparison.
+For **Defenders won**:
 
-For a successful defense:
+- choose the sole top contributor who receives the Defender point; or
+- choose two or more tied top contributors and one progress deck for each.
 
-- identify the unique highest contributor and proposed +1 point; or
-- list tied highest contributors and instruct each to choose a progress deck.
+For **Barbarians won**:
 
-For a barbarian victory:
-
-- list proposed players whose ordinary cities are pillaged;
-- explain why protected-metropolis-only players were skipped;
-- let the operator correct city selection before confirmation.
+- list only players with at least one recorded ordinary city;
+- select every player who must downgrade one city;
+- allow an empty selection when no recorded ordinary city is vulnerable.
 
 ### Step 3: Confirm through the modal footer
 
@@ -293,8 +293,8 @@ The footer action summarizes and commits every mutation:
 - all active knight counters reset;
 - robber activation when applicable.
 
-The operator may temporarily open the public-state editor from an attack row;
-closing it returns to the same recalculated result modal.
+The footer remains disabled until the selected outcome has all required reward
+or pillage choices.
 
 ## 9. World Event experience
 

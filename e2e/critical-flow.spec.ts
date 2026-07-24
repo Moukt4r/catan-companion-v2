@@ -55,7 +55,7 @@ async function resolveRoll(page: Page) {
   if (await worldEvent.isVisible()) {
     await worldEvent.click();
   }
-  const nextRoll = page.getByRole("button", { name: /^Next: .* & roll$/ });
+  const nextRoll = page.getByRole("button", { name: /^Next: / });
   await expect(nextRoll).toBeEnabled();
   expect(
     await nextRoll.evaluate((button) => {
@@ -75,7 +75,7 @@ async function resolveSeasonRoll(page: Page) {
   const worldEvent = page.getByRole("button", {
     name: "Acknowledge world event",
   });
-  const nextRoll = page.getByRole("button", { name: /^Next: .* & roll$/ });
+  const nextRoll = page.getByRole("button", { name: /^Next: / });
   await expect
     .poll(
       async () =>
@@ -279,8 +279,8 @@ test("persists Alchemy, public state, turns, undo, and redo", async ({
     page.locator(".player-card").first().locator(".player-score strong"),
   ).toHaveText("4");
 
-  await page.getByRole("button", { name: "Next: Grace & roll" }).click();
-  await resolveRoll(page);
+  await page.getByRole("button", { name: "Next: Grace" }).click();
+  await expect(page.getByRole("button", { name: "Use Alchemy" })).toBeVisible();
   await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
 
   await page.reload();
@@ -316,7 +316,9 @@ test("next-player roll advances the turn and updates the inline result", async (
   await setupStandardGame(page);
   await page.getByRole("button", { name: "Roll", exact: true }).click();
   await resolveRoll(page);
-  await page.getByRole("button", { name: "Next: Grace & roll" }).click();
+  await page.getByRole("button", { name: "Next: Grace" }).click();
+  await expect(page.getByRole("button", { name: "Use Alchemy" })).toBeVisible();
+  await page.getByRole("button", { name: "Roll", exact: true }).click();
   await resolveRoll(page);
 
   await expect(
@@ -333,7 +335,8 @@ test("tracks per-player time and freezes every timer while paused", async ({
   await page.waitForTimeout(1_100);
   await page.getByRole("button", { name: "Roll", exact: true }).click();
   await resolveRoll(page);
-  await page.getByRole("button", { name: "Next: Grace & roll" }).click();
+  await page.getByRole("button", { name: "Next: Grace" }).click();
+  await page.getByRole("button", { name: "Roll", exact: true }).click();
   await resolveRoll(page);
   const playerTime = (index: number) =>
     page
@@ -508,10 +511,14 @@ test("configures Seasons Mode and announces a round-boundary transition", async 
   await resolveSeasonRoll(page);
 
   for (let completedTurn = 0; completedTurn < 6; completedTurn += 1) {
-    await page.getByRole("button", { name: /^Next: .* & roll$/ }).click();
+    await page.getByRole("button", { name: /^Next: / }).click();
     await expect(page.locator(".game-meta")).toContainText(
       `Turn ${completedTurn + 2}`,
     );
+    await expect(
+      page.getByRole("button", { name: "Use Alchemy" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Roll", exact: true }).click();
     await resolveSeasonRoll(page);
   }
 
@@ -528,8 +535,10 @@ test("configures Seasons Mode and announces a round-boundary transition", async 
   await expect(history).toContainText("Spring began.");
   await history.getByRole("button", { name: "Close" }).click();
 
-  await page.getByRole("button", { name: /^Next: .* & roll$/ }).click();
+  await page.getByRole("button", { name: /^Next: / }).click();
   await expect(page.locator(".game-meta")).toContainText("Turn 8");
+  await expect(page.getByRole("button", { name: "Use Alchemy" })).toBeVisible();
+  await page.getByRole("button", { name: "Roll", exact: true }).click();
   await resolveSeasonRoll(page);
   await expect(page.locator(".season-transition")).toHaveCount(0);
 });

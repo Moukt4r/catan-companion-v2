@@ -25,6 +25,7 @@ export function DieFace({ kind, label, rolling = false, value }: DieFaceProps) {
   return (
     <div
       className={`die die--${kind}${rolling ? " die--rolling" : ""}`}
+      role="img"
       aria-label={`${label}: ${display}`}
     >
       {typeof value === "number" ? (
@@ -44,7 +45,6 @@ export function DieFace({ kind, label, rolling = false, value }: DieFaceProps) {
           {value ? null : <span className="die__event-placeholder">?</span>}
         </span>
       )}
-      <span className="die__caption">{label}</span>
     </div>
   );
 }

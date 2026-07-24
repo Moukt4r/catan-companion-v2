@@ -13,6 +13,7 @@ import {
   deriveSeason,
   totalActiveMilliseconds,
   winnerCandidates,
+  type BarbarianAttackOutcome,
   type DieValue,
   type GameCommand,
   type GameState,
@@ -56,7 +57,7 @@ import {
 import { PauseGameDialog } from "../ui/features/game/PauseGameDialog";
 import {
   RollResolutionDialog,
-  type AttackProgressChoice,
+  type ManualAttackResolution,
 } from "../ui/features/game/RollResolutionDialog";
 import { SaveRecoveryDialog } from "../ui/features/game/SaveRecoveryDialog";
 import {
@@ -84,6 +85,33 @@ import { useGameController } from "./useGameController";
 import { useOnlineStatus } from "./useOnlineStatus";
 
 type Screen = "home" | "setup" | "game" | "complete";
+
+function toBarbarianOutcome(
+  resolution: ManualAttackResolution,
+): BarbarianAttackOutcome {
+  if (resolution.type === "barbarians-win") {
+    return {
+      type: "barbarians-win",
+      pillagedPlayerIds: resolution.pillagedPlayerIds.map(asPlayerId),
+    };
+  }
+  if (resolution.reward.type === "defender-point") {
+    return {
+      type: "defenders-win",
+      reward: {
+        type: "defender-point",
+        playerId: asPlayerId(resolution.reward.playerId),
+      },
+    };
+  }
+  return {
+    type: "defenders-win",
+    reward: {
+      type: "progress-choice",
+      playerIds: resolution.reward.playerIds.map(asPlayerId),
+    },
+  };
+}
 
 export function App() {
   const snapshot = useGameController();
@@ -486,7 +514,7 @@ export function App() {
 
   async function resolveRollResult(
     quickRoll: boolean,
-    choices: AttackProgressChoice[],
+    resolution: ManualAttackResolution | null,
   ): Promise<void> {
     setResolutionBusy(true);
     try {
@@ -500,18 +528,24 @@ export function App() {
         if (!proposal) {
           throw new Error("The barbarian attack proposal is missing.");
         }
+        if (!resolution) {
+          throw new Error("A manual attack resolution is required.");
+        }
+        const manualOutcome = toBarbarianOutcome(resolution);
+        const progressChoices =
+          resolution.type === "defenders-win" &&
+          resolution.reward.type === "progress-choice"
+            ? resolution.reward.choices.map((choice) => ({
+                playerId: asPlayerId(choice.playerId),
+                discipline: choice.discipline,
+              }))
+            : [];
         const confirmed = await dispatch(
           {
             type: "attack.confirmed",
             proposalId: proposal.id,
-            ...(choices.length === 0
-              ? {}
-              : {
-                  progressChoices: choices.map((choice) => ({
-                    playerId: asPlayerId(choice.playerId),
-                    discipline: choice.discipline,
-                  })),
-                }),
+            manualOutcome,
+            ...(progressChoices.length === 0 ? {} : { progressChoices }),
           },
           { type: "confirm" },
         );
@@ -595,7 +629,6 @@ export function App() {
     } else {
       playCue({ type: "confirm" });
     }
-    await roll({ type: "roll.draw" });
   }
 
   async function exportStoredGame(game: StoredGame): Promise<void> {
@@ -1066,17 +1099,14 @@ export function App() {
               open
               view={toRollResolutionView(state, clockAt)}
               busy={resolutionBusy || snapshot.saving}
-              onCorrectAttackPlayer={(id) => {
-                setSelectedPlayerId(asPlayerId(id));
-              }}
               onPause={() => {
                 void dispatch({ type: "clock.paused" }, { type: "confirm" });
               }}
-              onContinue={(choices) => {
-                void resolveRollResult(false, choices);
+              onContinue={(resolution) => {
+                void resolveRollResult(false, resolution);
               }}
-              onQuickRoll={(choices) => {
-                void resolveRollResult(true, choices);
+              onQuickRoll={(resolution) => {
+                void resolveRollResult(true, resolution);
               }}
             />
           ) : null}

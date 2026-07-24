@@ -113,12 +113,6 @@ interface GameTableProps {
   onConfirmWinner: () => void;
 }
 
-const disciplineNames = {
-  politics: "Politics",
-  science: "Science",
-  trade: "Trade",
-};
-
 function barbarianRisk(
   strength: number,
   defenderStrength: number,
@@ -142,41 +136,6 @@ function barbarianRisk(
     label: "Exposed",
     tone: "danger",
   };
-}
-
-function productionGuidance(
-  roll: NonNullable<GameTableView["lastRoll"]>,
-): string {
-  if (roll.total !== 7) {
-    return `Distribute resources and commodities for production ${roll.total}.`;
-  }
-
-  return roll.production.robberActivated
-    ? "Discard above the safe hand limit, then move the robber and steal."
-    : "Discard above the safe hand limit; the robber stays inactive until the first barbarian attack.";
-}
-
-function eventGuidance(
-  roll: NonNullable<GameTableView["lastRoll"]>,
-  barbarian: GameTableView["barbarian"],
-): string {
-  if (!roll.progress) {
-    return barbarian.attackPending
-      ? "The barbarian attack needs confirmation."
-      : `The barbarian ship advanced to ${barbarian.position} of ${barbarian.trackLength}.`;
-  }
-
-  const eligibleNames = roll.progress.eligiblePlayers.map(
-    (player) => player.name,
-  );
-  const eligibility =
-    eligibleNames.length === 0
-      ? "No recorded player is eligible."
-      : `${eligibleNames.join(", ")} ${
-          eligibleNames.length === 1 ? "is" : "are"
-        } eligible; draw in current-player order.`;
-
-  return `${disciplineNames[roll.progress.discipline]} progress with red ${roll.progress.redValue}. ${eligibility}`;
 }
 
 export function GameTable({
@@ -433,10 +392,7 @@ export function GameTable({
             {view.lastRoll ? (
               <>
                 <div className="roll-result-summary__heading">
-                  <strong>
-                    {view.lastRoll.red} + {view.lastRoll.yellow} ={" "}
-                    {view.lastRoll.total}
-                  </strong>
+                  <strong>Production {view.lastRoll.total}</strong>
                   <span>
                     {view.lastRoll.event} event ·{" "}
                     {view.lastRoll.source === "alchemy"
@@ -444,16 +400,6 @@ export function GameTable({
                       : "Balanced draw"}
                   </span>
                 </div>
-                <dl className="roll-guidance">
-                  <div>
-                    <dt>Numbered dice</dt>
-                    <dd>{productionGuidance(view.lastRoll)}</dd>
-                  </div>
-                  <div>
-                    <dt>Event die</dt>
-                    <dd>{eventGuidance(view.lastRoll, view.barbarian)}</dd>
-                  </div>
-                </dl>
                 {view.canContinueRoll ? (
                   <Button
                     size="small"
@@ -607,7 +553,7 @@ export function GameTable({
               }
               onClick={onNextRoll}
             >
-              Next: {view.nextPlayerName} &amp; roll
+              Next: {view.nextPlayerName}
             </Button>
           </aside>
         ) : null}

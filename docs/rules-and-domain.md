@@ -110,6 +110,8 @@ shuffle.
 
 Alchemy is entered before the roll:
 
+- Every turn begins in `awaiting-roll`, including after **Next: PLAYER**, so
+  Alchemy remains available before every roll.
 - The player chooses red and yellow values from 1 through 6.
 - The selected pair becomes the production result.
 - The numbered-deck cursor does not move.
@@ -236,7 +238,13 @@ improvement was purchased.
 
 Track length is edition rules data, not a magic number in UI code.
 
-## 9. Barbarian attack algorithm
+## 9. Barbarian attack guidance and confirmation
+
+The engine retains a calculated proposal for risk summaries, legacy saves, and
+the strength snapshot stored with attack history. It is advisory at confirmation
+time. The operator resolves the official attack on the physical board and
+submits a `manualOutcome`; that submitted outcome is authoritative even when it
+differs from the calculated proposal.
 
 ### 9.1 Strengths
 
@@ -260,35 +268,34 @@ defenderStrength = sum(activeStrength)
 
 Metropolises add to barbarian strength but cannot be pillaged.
 
-### 9.2 Defenders win
+### 9.2 Defenders win on the physical board
 
-The defenders win when:
+The official comparison is:
 
 ```text
 defenderStrength >= barbarianStrength
 ```
 
-- Find the maximum contributed active strength.
-- If exactly one player has that maximum, propose one Defender victory point
-  for that player.
-- If multiple players share that maximum, no Defender point is proposed. In
-  current-player order, each tied player is prompted to draw one progress card
-  from a deck of that player's choice.
-- The operator confirms before the score ledger changes.
+- If exactly one player has the highest contributed strength, the operator
+  selects that player for one Defender victory point.
+- If multiple players share the highest contribution, the operator selects two
+  or more tied players and one progress deck for each. No Defender point is
+  awarded.
+- The domain validates the submitted reward before the score ledger changes.
 
 The tied-player progress-card reward is verified against page 11 of the current
 2025 rulebook. It is not derived from the event-die face, which is necessarily
 the barbarian face during an attack.
 
-### 9.3 Barbarians win
+### 9.3 Barbarians win on the physical board
 
-The barbarians win when:
+The official comparison is:
 
 ```text
 barbarianStrength > defenderStrength
 ```
 
-Pillage candidates are selected as follows:
+The physical rules select pillage candidates as follows:
 
 1. Group players by contributed active strength, ascending.
 2. Start with the lowest group.
@@ -302,7 +309,10 @@ The fall-through in step 4 is explicit in page 11 of the current 2025 rulebook:
 selection continues until a strength group contains a city that can be
 pillaged.
 
-The operator confirms the selected players and resulting city counts.
+The operator submits the players selected on the physical board. The domain
+accepts only existing players with at least one recorded ordinary city, then
+downgrades one city for each selected player. An empty list is valid when no
+recorded ordinary city is vulnerable.
 
 ### 9.4 Return home
 

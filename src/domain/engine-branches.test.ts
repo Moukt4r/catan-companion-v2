@@ -796,6 +796,7 @@ describe("attack confirmation edge cases", () => {
       {
         type: "attack.confirmed",
         proposalId: asProposalId("missing"),
+        manualOutcome: { type: "barbarians-win", pillagedPlayerIds: [] },
       },
       "INVALID_PHASE",
       "attack-phase",
@@ -807,6 +808,7 @@ describe("attack confirmation edge cases", () => {
       {
         type: "attack.confirmed",
         proposalId: asProposalId("stale"),
+        manualOutcome: { type: "barbarians-win", pillagedPlayerIds: [] },
       },
       "ATTACK_CONFIRMATION_STALE",
       "attack-stale",
@@ -816,6 +818,7 @@ describe("attack confirmation edge cases", () => {
       {
         type: "attack.confirmed",
         proposalId: tied.barbarian.pendingAttack!.id,
+        manualOutcome: tied.barbarian.pendingAttack!.outcome,
         progressChoices: [{ playerId: PLAYER_IDS[0]!, discipline: "science" }],
       },
       "INVALID_COMMAND",
@@ -826,6 +829,7 @@ describe("attack confirmation edge cases", () => {
       {
         type: "attack.confirmed",
         proposalId: tied.barbarian.pendingAttack!.id,
+        manualOutcome: tied.barbarian.pendingAttack!.outcome,
         progressChoices: [
           { playerId: PLAYER_IDS[0]!, discipline: "science" },
           { playerId: PLAYER_IDS[0]!, discipline: "trade" },
@@ -842,6 +846,7 @@ describe("attack confirmation edge cases", () => {
       {
         type: "attack.confirmed",
         proposalId: loss.barbarian.pendingAttack!.id,
+        manualOutcome: loss.barbarian.pendingAttack!.outcome,
         progressChoices: [{ playerId: PLAYER_IDS[0]!, discipline: "science" }],
       },
       "INVALID_COMMAND",
@@ -891,7 +896,11 @@ describe("attack confirmation edge cases", () => {
     const actionProposal = action.barbarian.pendingAttack!.id;
     action = run(
       action,
-      { type: "attack.confirmed", proposalId: actionProposal },
+      {
+        type: "attack.confirmed",
+        proposalId: actionProposal,
+        manualOutcome: action.barbarian.pendingAttack!.outcome,
+      },
       "attack-action",
     );
     expect(action.turn.phase).toBe("action-phase");
@@ -900,7 +909,11 @@ describe("attack confirmation edge cases", () => {
     const eventProposal = event.barbarian.pendingAttack!.id;
     event = run(
       event,
-      { type: "attack.confirmed", proposalId: eventProposal },
+      {
+        type: "attack.confirmed",
+        proposalId: eventProposal,
+        manualOutcome: event.barbarian.pendingAttack!.outcome,
+      },
       "attack-event",
     );
     expect(event.turn.phase).toBe("resolving-thematic-event");

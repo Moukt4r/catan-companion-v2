@@ -313,6 +313,7 @@ function decideNormal(
       return confirmAttack(
         state,
         command.proposalId,
+        command.manualOutcome,
         command.progressChoices ?? [],
         deps,
       );
@@ -808,18 +809,7 @@ function adjustPlayer(
     ];
   }
   let candidate: GameState = { ...state, players, scoreLedger };
-  if (correctingAttack) {
-    candidate = {
-      ...candidate,
-      barbarian: {
-        ...candidate.barbarian,
-        pendingAttack: calculateBarbarianAttack(
-          candidate,
-          nextProposalId(deps.ids),
-        ),
-      },
-    };
-  } else {
+  if (!correctingAttack) {
     const automaticProposal = findAutomaticMetropolisProposal(
       state,
       candidate,
@@ -1076,6 +1066,7 @@ function cancelMetropolis(
 function confirmAttack(
   state: GameState,
   proposalId: ProposalId,
+  manualOutcome: BarbarianAttackOutcome,
   progressChoices: Array<{
     playerId: PlayerId;
     discipline: ProgressDiscipline;
@@ -1095,10 +1086,23 @@ function confirmAttack(
       ),
     );
   }
-  const choiceError = validateProgressChoices(
-    proposal.outcome,
-    progressChoices,
-  );
+  // Validate manual outcome
+  const outcome = manualOutcome;
+  if (outcome.type === "barbarians-win") {
+    for (const playerId of outcome.pillagedPlayerIds) {
+      const player = state.players.find((p) => p.id === playerId);
+      if (!player || player.ordinaryCities === 0) {
+        return failure(
+          domainError(
+            "INVALID_COMMAND",
+            "Selected player has no ordinary city to pillage.",
+            { playerId },
+          ),
+        );
+      }
+    }
+  }
+  const choiceError = validateProgressChoices(outcome, progressChoices);
   if (choiceError !== null) {
     return failure(choiceError);
   }
@@ -1109,21 +1113,20 @@ function confirmAttack(
   }));
   const scoreEntries: ScoreEntry[] = [];
   if (
-    proposal.outcome.type === "defenders-win" &&
-    proposal.outcome.reward.type === "defender-point"
+    outcome.type === "defenders-win" &&
+    outcome.reward.type === "defender-point"
   ) {
     scoreEntries.push({
       id: nextScoreEntryId(deps.ids),
-      playerId: proposal.outcome.reward.playerId,
+      playerId: outcome.reward.playerId,
       delta: 1,
       reason: "defender",
       createdAt: deps.at,
     });
   }
-  if (proposal.outcome.type === "barbarians-win") {
+  if (outcome.type === "barbarians-win") {
     players = players.map((player) =>
-      proposal.outcome.type === "barbarians-win" &&
-      proposal.outcome.pillagedPlayerIds.includes(player.id)
+      outcome.pillagedPlayerIds.includes(player.id)
         ? { ...player, ordinaryCities: player.ordinaryCities - 1 }
         : player,
     );
@@ -1132,9 +1135,17 @@ function confirmAttack(
     proposalId,
     completedAt: deps.at,
     strengths: proposal.strengths,
-    outcome: proposal.outcome,
+    outcome,
     progressChoices,
   };
+  const summary =
+    outcome.type === "defenders-win"
+      ? outcome.reward.type === "defender-point"
+        ? "The defenders win; the sole top contributor gains one Defender point."
+        : "The defenders win; tied top contributors each choose a progress deck."
+      : outcome.pillagedPlayerIds.length === 0
+        ? "The barbarians win, but no recorded ordinary city is vulnerable."
+        : "The barbarians win; selected players lose one ordinary city each.";
   const official = state.resolution.official;
   const phase =
     official !== null &&
@@ -1160,10 +1171,10 @@ function confirmAttack(
       ...state.statistics,
       barbarianAttacksWon:
         state.statistics.barbarianAttacksWon +
-        (proposal.outcome.type === "defenders-win" ? 1 : 0),
+        (outcome.type === "defenders-win" ? 1 : 0),
       barbarianAttacksLost:
         state.statistics.barbarianAttacksLost +
-        (proposal.outcome.type === "barbarians-win" ? 1 : 0),
+        (outcome.type === "barbarians-win" ? 1 : 0),
     },
   };
   return commit(
@@ -1171,13 +1182,13 @@ function confirmAttack(
     deps,
     {
       kind: "attack-confirmed",
-      text: proposal.summary,
+      text: summary,
       playerIds:
-        proposal.outcome.type === "barbarians-win"
-          ? proposal.outcome.pillagedPlayerIds
-          : proposal.outcome.reward.type === "defender-point"
-            ? [proposal.outcome.reward.playerId]
-            : proposal.outcome.reward.playerIds,
+        outcome.type === "barbarians-win"
+          ? outcome.pillagedPlayerIds
+          : outcome.reward.type === "defender-point"
+            ? [outcome.reward.playerId]
+            : outcome.reward.playerIds,
     },
     { type: "barbarian-attack", record, phase },
   );

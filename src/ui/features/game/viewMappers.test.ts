@@ -372,17 +372,10 @@ describe("other view mappers", () => {
     };
     expect(toBarbarianAttackView(state, defendersWin)).toMatchObject({
       proposalId: defendersWin.id,
-      outcome: "defenders-win",
-      uniqueDefenderId: null,
-      tiedDefenderIds: [ADA, GRACE],
-      pillagedPlayerIds: [],
       firstAttack: true,
     });
     expect(toBarbarianAttackView(state, defendersWin).players[0]).toMatchObject(
-      {
-        activeKnights: "1 basic, 1 strong",
-        activeStrength: 3,
-      },
+      {},
     );
 
     const barbariansWin: BarbarianAttackProposal = {
@@ -392,9 +385,7 @@ describe("other view mappers", () => {
       firstAttack: false,
     };
     expect(toBarbarianAttackView(state, barbariansWin)).toMatchObject({
-      outcome: "barbarians-win",
-      tiedDefenderIds: [],
-      pillagedPlayerIds: [GRACE],
+      firstAttack: false,
     });
   });
 

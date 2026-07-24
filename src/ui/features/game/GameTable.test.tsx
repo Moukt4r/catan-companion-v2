@@ -235,9 +235,7 @@ describe("GameTable", () => {
     expect(
       screen.getByRole("button", { name: "Edit Ada details" }),
     ).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Next: Grace & roll" }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next: Grace" })).toBeDisabled();
     expect(
       screen.getByRole("button", { name: "Confirm winner" }),
     ).toBeDisabled();
@@ -276,9 +274,7 @@ describe("GameTable", () => {
     expect(
       screen.queryByRole("button", { name: "End turn" }),
     ).not.toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Next: Grace & roll" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Next: Grace" }));
     expect(onNextRoll).toHaveBeenCalledOnce();
   });
 
@@ -368,8 +364,10 @@ describe("GameTable", () => {
       />,
     );
 
-    expect(screen.getByText(/Science progress with red 4/)).toBeVisible();
-    expect(screen.getByText(/robber stays inactive/)).toBeVisible();
+    expect(
+      screen.getByText("Production 7", { selector: "strong" }),
+    ).toBeVisible();
+    expect(screen.getByText(/science event/)).toBeVisible();
     expect(screen.getByText("Harbor Festival")).toBeVisible();
     expect(
       screen.queryByRole("dialog", { name: /Roll result:/ }),
@@ -459,7 +457,7 @@ describe("GameTable", () => {
     expect(screen.getByText("Offline")).toBeVisible();
   });
 
-  it("shows production guidance for a robber-activated roll of 7", () => {
+  it("shows production total for a robber-activated roll of 7", () => {
     renderTable({
       canRoll: false,
       lastRoll: {
@@ -473,10 +471,12 @@ describe("GameTable", () => {
       },
     });
 
-    expect(screen.getByText(/move the robber and steal/)).toBeVisible();
+    expect(
+      screen.getByText("Production 7", { selector: "strong" }),
+    ).toBeVisible();
   });
 
-  it("shows barbarian ship advance text when no progress", () => {
+  it("shows barbarian event label when no progress", () => {
     renderTable({
       canRoll: false,
       lastRoll: {
@@ -497,7 +497,7 @@ describe("GameTable", () => {
       },
     });
 
-    expect(screen.getByText(/barbarian ship advanced to 3 of 7/)).toBeVisible();
+    expect(screen.getByText(/barbarian event/)).toBeVisible();
   });
 
   it("shows winner candidate banner with confirm button", async () => {

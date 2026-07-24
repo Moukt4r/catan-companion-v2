@@ -84,7 +84,6 @@ describe("RollResolutionDialog", () => {
         open
         view={baseView()}
         busy={false}
-        onCorrectAttackPlayer={vi.fn()}
         onPause={vi.fn()}
         onContinue={onContinue}
         onQuickRoll={vi.fn()}
@@ -109,7 +108,7 @@ describe("RollResolutionDialog", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Science", { selector: "h3" })).toBeVisible();
     expect(screen.getByText("Ada", { exact: true })).toBeVisible();
-    expect(screen.getByText("Resolve the 7")).toBeVisible();
+    expect(screen.getByText(/Discard above the safe hand limit/)).toBeVisible();
     expect(screen.getByText("00:01:05")).toBeVisible();
     expect(screen.getByText("01:01:01")).toBeVisible();
     expect(
@@ -119,7 +118,7 @@ describe("RollResolutionDialog", () => {
     await user.click(
       screen.getByRole("button", { name: "Continue current turn" }),
     );
-    expect(onContinue).toHaveBeenCalledWith([]);
+    expect(onContinue).toHaveBeenCalledWith(null);
   });
 
   it("offers a quick next-player roll from the same modal", async () => {
@@ -132,7 +131,6 @@ describe("RollResolutionDialog", () => {
         open
         view={baseView()}
         busy={false}
-        onCorrectAttackPlayer={vi.fn()}
         onPause={onPause}
         onContinue={vi.fn()}
         onQuickRoll={onQuickRoll}
@@ -141,17 +139,16 @@ describe("RollResolutionDialog", () => {
 
     await user.click(
       screen.getByRole("button", {
-        name: "Next: Grace & quick roll",
+        name: "Next: Grace",
       }),
     );
-    expect(onQuickRoll).toHaveBeenCalledWith([]);
+    expect(onQuickRoll).toHaveBeenCalledWith(null);
     await user.click(screen.getByRole("button", { name: "Pause game" }));
     expect(onPause).toHaveBeenCalledOnce();
   });
 
-  it("collects tied defender choices before either modal action is available", async () => {
+  it("collects manual defender choices before either action is available", async () => {
     const user = userEvent.setup();
-    const onCorrect = vi.fn();
     const onQuickRoll = vi.fn();
     const view: RollResolutionView = {
       ...baseView(),
@@ -162,9 +159,6 @@ describe("RollResolutionDialog", () => {
       progress: null,
       attack: {
         proposalId: "attack-1",
-        barbarianStrength: 3,
-        defenderStrength: 4,
-        outcome: "defenders-win",
         players: [
           {
             id: "ada",
@@ -172,8 +166,6 @@ describe("RollResolutionDialog", () => {
             color: "#123456",
             ordinaryCities: 1,
             metropolises: 0,
-            activeKnights: "1 strong",
-            activeStrength: 2,
           },
           {
             id: "grace",
@@ -181,13 +173,8 @@ describe("RollResolutionDialog", () => {
             color: "#654321",
             ordinaryCities: 1,
             metropolises: 0,
-            activeKnights: "1 strong",
-            activeStrength: 2,
           },
         ],
-        uniqueDefenderId: null,
-        tiedDefenderIds: ["ada", "grace"],
-        pillagedPlayerIds: [],
         firstAttack: true,
       },
     };
@@ -197,7 +184,6 @@ describe("RollResolutionDialog", () => {
         open
         view={view}
         busy={false}
-        onCorrectAttackPlayer={onCorrect}
         onPause={vi.fn()}
         onContinue={vi.fn()}
         onQuickRoll={onQuickRoll}
@@ -205,12 +191,26 @@ describe("RollResolutionDialog", () => {
     );
 
     const quickRoll = screen.getByRole("button", {
-      name: "Next: Grace & quick roll",
+      name: "Next: Grace",
     });
     expect(quickRoll).toBeDisabled();
 
-    await user.click(screen.getAllByRole("button", { name: "Correct" })[0]!);
-    expect(onCorrect).toHaveBeenCalledWith("ada");
+    // Choose defenders won
+    await user.click(screen.getByLabelText("Defenders won"));
+    expect(quickRoll).toBeDisabled();
+
+    // Choose tied contributors
+    await user.click(
+      screen.getByLabelText("Tied contributors (progress deck each)"),
+    );
+    expect(quickRoll).toBeDisabled();
+
+    // Select two tied defenders
+    await user.click(screen.getByLabelText("Ada"));
+    await user.click(screen.getByLabelText("Grace"));
+
+    // Still disabled until progress choices are made
+    expect(quickRoll).toBeDisabled();
 
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Ada's progress deck" }),
@@ -222,16 +222,17 @@ describe("RollResolutionDialog", () => {
     );
     await user.click(quickRoll);
 
-    expect(onQuickRoll).toHaveBeenCalledWith([
-      {
-        playerId: "ada",
-        discipline: "science",
+    expect(onQuickRoll).toHaveBeenCalledWith({
+      type: "defenders-win",
+      reward: {
+        type: "progress-choice",
+        playerIds: ["ada", "grace"],
+        choices: [
+          { playerId: "ada", discipline: "science" },
+          { playerId: "grace", discipline: "trade" },
+        ],
       },
-      {
-        playerId: "grace",
-        discipline: "trade",
-      },
-    ]);
+    });
   });
 
   it("disables modal actions while the consolidated result is saving", () => {
@@ -240,7 +241,6 @@ describe("RollResolutionDialog", () => {
         open
         view={baseView()}
         busy
-        onCorrectAttackPlayer={vi.fn()}
         onPause={vi.fn()}
         onContinue={vi.fn()}
         onQuickRoll={vi.fn()}

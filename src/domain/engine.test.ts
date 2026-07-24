@@ -307,7 +307,11 @@ describe("barbarian attacks", () => {
     });
     state = run(
       state,
-      { type: "attack.confirmed", proposalId: proposal?.id as never },
+      {
+        type: "attack.confirmed",
+        proposalId: proposal?.id as never,
+        manualOutcome: proposal!.outcome,
+      },
       "attack-win-confirm",
     );
     expect(scoreForPlayer(state, PLAYER_IDS[0] as PlayerId)).toBe(4);
@@ -353,6 +357,7 @@ describe("barbarian attacks", () => {
       {
         type: "attack.confirmed",
         proposalId: proposal?.id as never,
+        manualOutcome: proposal!.outcome,
         progressChoices: choices,
       },
       "attack-tie-confirm",
@@ -376,7 +381,11 @@ describe("barbarian attacks", () => {
     });
     state = run(
       state,
-      { type: "attack.confirmed", proposalId: proposal?.id as never },
+      {
+        type: "attack.confirmed",
+        proposalId: proposal?.id as never,
+        manualOutcome: proposal!.outcome,
+      },
       "attack-loss-confirm",
     );
     expect(state.players.map((player) => player.ordinaryCities)).toEqual([
@@ -386,13 +395,13 @@ describe("barbarian attacks", () => {
     expect(state.barbarian.shipPosition).toBe(0);
   });
 
-  it("recalculates the pending attack after a board-state correction", () => {
+  it("allows board-state correction during attack without recalculating the proposal", () => {
     let state = withNextEventFace(
       newGame({ barbarianTrackLength: 1 }),
       "barbarian",
     );
     state = run(state, { type: "roll.draw" }, "attack-correction-roll");
-    const staleProposalId = state.barbarian.pendingAttack?.id;
+    const originalProposalId = state.barbarian.pendingAttack?.id;
 
     state = run(
       state,
@@ -407,14 +416,40 @@ describe("barbarian attacks", () => {
     );
 
     expect(state.turn.phase).toBe("resolving-barbarian-attack");
-    expect(state.barbarian.pendingAttack?.id).not.toBe(staleProposalId);
-    expect(state.barbarian.pendingAttack?.outcome).toMatchObject({
-      type: "defenders-win",
+    expect(state.barbarian.pendingAttack?.id).toBe(originalProposalId);
+    expect(state.players[0]?.activeKnights.mighty).toBe(1);
+  });
+
+  it("records a manual defenders-win even when the proposal says barbarians-win", () => {
+    let state = withNextEventFace(
+      newGame({ barbarianTrackLength: 1 }),
+      "barbarian",
+    );
+    state = run(state, { type: "roll.draw" }, "manual-override-roll");
+    const proposal = state.barbarian.pendingAttack;
+    expect(proposal?.outcome.type).toBe("barbarians-win");
+
+    const manualOutcome = {
+      type: "defenders-win" as const,
       reward: {
-        type: "defender-point",
-        playerId: PLAYER_IDS[0],
+        type: "defender-point" as const,
+        playerId: PLAYER_IDS[0] as PlayerId,
       },
-    });
+    };
+    state = run(
+      state,
+      {
+        type: "attack.confirmed",
+        proposalId: proposal?.id as never,
+        manualOutcome,
+      },
+      "manual-override-confirm",
+    );
+    expect(state.barbarian.history[0]?.outcome).toEqual(manualOutcome);
+    expect(scoreForPlayer(state, PLAYER_IDS[0] as PlayerId)).toBe(4);
+    expect(state.statistics.barbarianAttacksWon).toBe(1);
+    expect(state.statistics.barbarianAttacksLost).toBe(0);
+    expect(state.players.map((p) => p.ordinaryCities)).toEqual([1, 1, 1]);
   });
 
   it("falls through protected lowest strength groups to vulnerable ordinary cities", () => {

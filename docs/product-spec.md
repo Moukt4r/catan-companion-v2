@@ -237,9 +237,16 @@ and vulnerable city count are derived rather than independently editable.
 
 - Advance the barbarian ship when the event result is barbarian.
 - Open attack resolution immediately when the final track space is reached.
-- Calculate barbarian and defender strengths from current public state.
-- Calculate the official winning reward or losing pillage candidates.
-- Require operator confirmation before changing scores or city counts.
+- Retain derived barbarian/defender strengths as advisory state and for
+  backward-compatible attack records, not as the authoritative attack result.
+- Require the operator to record the physical board's result: defenders won or
+  barbarians won.
+- For a defense, record either the sole Defender-point recipient or two or more
+  tied contributors and each chosen progress deck.
+- For a barbarian victory, record every player who must downgrade an ordinary
+  city; only players with a recorded ordinary city are eligible.
+- Treat the submitted physical-board outcome as authoritative before changing
+  scores or city counts, even if it differs from a legacy calculated proposal.
 - Reset the ship and deactivate all active knights after confirmed resolution.
 - Keep attack resolution atomic and undoable.
 
@@ -279,13 +286,13 @@ and vulnerable city count are derived rather than independently editable.
 ### FR-11: Turn management
 
 - Do not expose a standalone End turn action.
-- The action-phase **Next: PLAYER & roll** control ends the current turn and
-  immediately rolls for the next player.
+- The action-phase **Next: PLAYER** control ends the current turn and leaves the
+  next player in `awaiting-roll`.
 - Advance clockwise and increment the round after the final player.
 - Keep quick public-state controls available during the action phase.
-- Offer **Next player & quick roll** in the consolidated result modal. This
-  acknowledges the displayed result, ends the current turn, and immediately
-  rolls for the next player.
+- Offer **Next: PLAYER** in the consolidated result modal. This acknowledges the
+  displayed result and ends the current turn without rolling automatically.
+- Present both **Roll** and **Use Alchemy** before every turn's roll.
 - Announce the next player visually and through an accessible live region.
 
 ### FR-12: History and undo

@@ -23,21 +23,26 @@ export interface AttackPlayerView {
   color: string;
   ordinaryCities: number;
   metropolises: number;
-  activeKnights: string;
-  activeStrength: number;
 }
 
 export interface BarbarianAttackView {
   proposalId: string;
-  barbarianStrength: number;
-  defenderStrength: number;
-  outcome: "defenders-win" | "barbarians-win";
   players: AttackPlayerView[];
-  uniqueDefenderId: string | null;
-  tiedDefenderIds: string[];
-  pillagedPlayerIds: string[];
   firstAttack: boolean;
 }
+
+export type ManualAttackResolution =
+  | {
+      type: "defenders-win";
+      reward:
+        | { type: "defender-point"; playerId: string }
+        | {
+            type: "progress-choice";
+            playerIds: string[];
+            choices: AttackProgressChoice[];
+          };
+    }
+  | { type: "barbarians-win"; pillagedPlayerIds: string[] };
 
 export interface RollResolutionView {
   currentPlayerName: string;
@@ -76,10 +81,9 @@ interface RollResolutionDialogProps {
   open: boolean;
   view: RollResolutionView;
   busy: boolean;
-  onCorrectAttackPlayer: (playerId: string) => void;
   onPause: () => void;
-  onContinue: (choices: AttackProgressChoice[]) => void;
-  onQuickRoll: (choices: AttackProgressChoice[]) => void;
+  onContinue: (resolution: ManualAttackResolution | null) => void;
+  onQuickRoll: (resolution: ManualAttackResolution | null) => void;
 }
 
 const eventNames = {
@@ -92,39 +96,73 @@ const eventNames = {
 export function RollResolutionDialog({
   busy,
   onContinue,
-  onCorrectAttackPlayer,
   onPause,
   onQuickRoll,
   open,
   view,
 }: RollResolutionDialogProps) {
+  const [outcomeType, setOutcomeType] = useState<
+    "defenders-win" | "barbarians-win" | null
+  >(null);
+  const [rewardType, setRewardType] = useState<
+    "defender-point" | "progress-choice" | null
+  >(null);
+  const [soleDefenderId, setSoleDefenderId] = useState<string>("");
+  const [tiedDefenderIds, setTiedDefenderIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [progressChoices, setProgressChoices] = useState<
     Record<string, "science" | "trade" | "politics">
   >({});
+  const [pillagedPlayerIds, setPillagedPlayerIds] = useState<Set<string>>(
+    new Set(),
+  );
+
   const attack = view.attack;
-  const byId = new Map(
-    attack?.players.map((player) => [player.id, player]) ?? [],
+  const players = attack?.players ?? [];
+  const vulnerablePlayers = players.filter(
+    (player) => player.ordinaryCities > 0,
   );
-  const uniqueDefender = attack?.uniqueDefenderId
-    ? byId.get(attack.uniqueDefenderId)
-    : undefined;
-  const tiedDefenders =
-    attack?.tiedDefenderIds.flatMap((id) => {
-      const player = byId.get(id);
-      return player ? [player] : [];
-    }) ?? [];
-  const pillagedPlayers =
-    attack?.pillagedPlayerIds.flatMap((id) => {
-      const player = byId.get(id);
-      return player ? [player] : [];
-    }) ?? [];
-  const choicesReady = tiedDefenders.every(
-    (player) => progressChoices[player.id] !== undefined,
-  );
-  const choices = tiedDefenders.map((player) => ({
-    playerId: player.id,
-    discipline: progressChoices[player.id] as "science" | "trade" | "politics",
-  }));
+
+  function buildResolution(): ManualAttackResolution | null {
+    if (!attack || !outcomeType) return null;
+    if (outcomeType === "defenders-win") {
+      if (rewardType === "defender-point") {
+        if (!soleDefenderId) return null;
+        return {
+          type: "defenders-win",
+          reward: { type: "defender-point", playerId: soleDefenderId },
+        };
+      }
+      if (rewardType === "progress-choice") {
+        const ids = [...tiedDefenderIds];
+        if (ids.length < 2) return null;
+        const allChosen = ids.every((id) => progressChoices[id] !== undefined);
+        if (!allChosen) return null;
+        return {
+          type: "defenders-win",
+          reward: {
+            type: "progress-choice",
+            playerIds: ids,
+            choices: ids.map((id) => ({
+              playerId: id,
+              discipline: progressChoices[id] as
+                "science" | "trade" | "politics",
+            })),
+          },
+        };
+      }
+      return null;
+    }
+    // barbarians-win: pillagedPlayerIds can be empty if no vulnerable city
+    return {
+      type: "barbarians-win",
+      pillagedPlayerIds: [...pillagedPlayerIds],
+    };
+  }
+
+  const resolution = buildResolution();
+  const choicesReady = attack ? resolution !== null : true;
   const isSeven = view.production.total === 7;
 
   return (
@@ -142,10 +180,7 @@ export function RollResolutionDialog({
         >
           <div className="resolution-heading">
             <div>
-              <p className="eyebrow">Dice</p>
-              <h3 id="resolution-dice-heading">
-                {view.roll.red} + {view.roll.yellow} = {view.roll.total}
-              </h3>
+              <h3 id="resolution-dice-heading">Production {view.roll.total}</h3>
             </div>
             <span className="cycle-progress">
               {view.roll.source === "alchemy"
@@ -172,7 +207,6 @@ export function RollResolutionDialog({
               <DieFace kind="red" label="Red die" value={view.roll.red} />
               <DieFace kind="event" label="Event die" value={view.roll.event} />
             </div>
-            <strong className="dice-total">Production {view.roll.total}</strong>
           </div>
         </section>
 
@@ -184,109 +218,220 @@ export function RollResolutionDialog({
             <img src={EVENT_DIE_ART[view.roll.event]} alt="" decoding="async" />
           </div>
           <div className="resolution-heading">
-            <div>
-              <p className="eyebrow">Event die</p>
-              <h3 id="event-heading">{eventNames[view.roll.event]}</h3>
-            </div>
+            <h3 id="event-heading">{eventNames[view.roll.event]}</h3>
           </div>
 
           {attack ? (
             <div className="form-stack">
-              <dl className="attack-comparison">
-                <div>
-                  <dt>Barbarian strength</dt>
-                  <dd>{attack.barbarianStrength}</dd>
-                </div>
-                <span aria-hidden>
-                  {attack.outcome === "defenders-win" ? "<=" : ">"}
-                </span>
-                <div>
-                  <dt>Active defense</dt>
-                  <dd>{attack.defenderStrength}</dd>
-                </div>
-              </dl>
+              <StatusBanner tone="info">
+                The barbarian ship reached the end of the track. Resolve the
+                attack on the physical board by comparing total active knight
+                strength to the barbarian strength (number of cities +
+                metropolises).
+              </StatusBanner>
 
-              <div
-                className="attack-player-table"
-                role="table"
-                aria-label="Attack contributions"
-              >
-                {attack.players.map((player) => (
-                  <div key={player.id} role="row" className="attack-player-row">
-                    <div role="cell">
-                      <PlayerMarker color={player.color} label={player.name} />
-                    </div>
-                    <span role="cell">
-                      {player.ordinaryCities} cities · {player.metropolises}{" "}
-                      metropolises
-                    </span>
-                    <span role="cell">
-                      {player.activeKnights || "No active knights"} · strength{" "}
-                      {player.activeStrength}
-                    </span>
-                    <Button
-                      variant="quiet"
-                      size="small"
+              <fieldset className="attack-outcome-fieldset">
+                <legend>Who won the attack?</legend>
+                <p className="fine-print">
+                  Record the result from the physical board below.
+                </p>
+                <div className="radio-group">
+                  <label>
+                    <input
+                      type="radio"
+                      name="attack-outcome"
+                      value="defenders-win"
+                      checked={outcomeType === "defenders-win"}
                       disabled={busy}
-                      onClick={() => {
-                        onCorrectAttackPlayer(player.id);
+                      onChange={() => {
+                        setOutcomeType("defenders-win");
+                        setRewardType(null);
+                        setSoleDefenderId("");
+                        setTiedDefenderIds(new Set());
+                        setProgressChoices({});
+                        setPillagedPlayerIds(new Set());
                       }}
-                    >
-                      Correct
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                    />
+                    Defenders won
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="attack-outcome"
+                      value="barbarians-win"
+                      checked={outcomeType === "barbarians-win"}
+                      disabled={busy}
+                      onChange={() => {
+                        setOutcomeType("barbarians-win");
+                        setRewardType(null);
+                        setSoleDefenderId("");
+                        setTiedDefenderIds(new Set());
+                        setProgressChoices({});
+                        setPillagedPlayerIds(new Set());
+                      }}
+                    />
+                    Barbarians won
+                  </label>
+                </div>
+              </fieldset>
 
-              {attack.outcome === "defenders-win" ? (
-                uniqueDefender ? (
-                  <StatusBanner tone="success">
-                    <PlayerMarker
-                      color={uniqueDefender.color}
-                      label={uniqueDefender.name}
-                    />{" "}
-                    receives one Defender victory point.
-                  </StatusBanner>
-                ) : (
-                  <>
-                    <StatusBanner tone="success">
-                      {tiedDefenders.map((player) => player.name).join(", ")}{" "}
-                      tied for the highest contribution. Each chooses one
-                      progress deck; no Defender point is awarded.
+              {outcomeType === "defenders-win" && (
+                <fieldset className="attack-reward-fieldset">
+                  <legend>Defender reward</legend>
+                  <div className="radio-group">
+                    <label>
+                      <input
+                        type="radio"
+                        name="reward-type"
+                        value="defender-point"
+                        checked={rewardType === "defender-point"}
+                        disabled={busy}
+                        onChange={() => {
+                          setRewardType("defender-point");
+                          setTiedDefenderIds(new Set());
+                          setProgressChoices({});
+                        }}
+                      />
+                      Sole top contributor (Defender point)
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="reward-type"
+                        value="progress-choice"
+                        checked={rewardType === "progress-choice"}
+                        disabled={busy}
+                        onChange={() => {
+                          setRewardType("progress-choice");
+                          setSoleDefenderId("");
+                        }}
+                      />
+                      Tied contributors (progress deck each)
+                    </label>
+                  </div>
+
+                  {rewardType === "defender-point" && (
+                    <label className="field">
+                      <span>Sole top contributor</span>
+                      <select
+                        value={soleDefenderId}
+                        disabled={busy}
+                        onChange={(event) =>
+                          setSoleDefenderId(event.target.value)
+                        }
+                      >
+                        <option value="">Choose a player</option>
+                        {players.map((player) => (
+                          <option key={player.id} value={player.id}>
+                            {player.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  {rewardType === "progress-choice" && (
+                    <>
+                      <p className="fine-print">
+                        Select 2 or more tied top contributors.
+                      </p>
+                      <div className="checkbox-group">
+                        {players.map((player) => (
+                          <label key={player.id}>
+                            <input
+                              type="checkbox"
+                              checked={tiedDefenderIds.has(player.id)}
+                              disabled={busy}
+                              onChange={(event) => {
+                                setTiedDefenderIds((current) => {
+                                  const next = new Set(current);
+                                  if (event.target.checked) {
+                                    next.add(player.id);
+                                  } else {
+                                    next.delete(player.id);
+                                  }
+                                  return next;
+                                });
+                              }}
+                            />
+                            {player.name}
+                          </label>
+                        ))}
+                      </div>
+                      {tiedDefenderIds.size >= 2 && (
+                        <div className="resolution-choice-grid">
+                          {[...tiedDefenderIds].map((id) => {
+                            const player = players.find((p) => p.id === id);
+                            if (!player) return null;
+                            return (
+                              <label key={id} className="field">
+                                <span>{player.name}'s progress deck</span>
+                                <select
+                                  value={progressChoices[id] ?? ""}
+                                  disabled={busy}
+                                  onChange={(event) => {
+                                    setProgressChoices((current) => ({
+                                      ...current,
+                                      [id]: event.target.value as
+                                        "science" | "trade" | "politics",
+                                    }));
+                                  }}
+                                >
+                                  <option value="">Choose a deck</option>
+                                  <option value="science">Science</option>
+                                  <option value="trade">Trade</option>
+                                  <option value="politics">Politics</option>
+                                </select>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </fieldset>
+              )}
+
+              {outcomeType === "barbarians-win" && (
+                <fieldset className="attack-pillage-fieldset">
+                  <legend>Pillaged players</legend>
+                  {vulnerablePlayers.length === 0 ? (
+                    <StatusBanner>
+                      No recorded player has an ordinary city to pillage.
                     </StatusBanner>
-                    <div className="resolution-choice-grid">
-                      {tiedDefenders.map((player) => (
-                        <label key={player.id} className="field">
-                          <span>{player.name}'s progress deck</span>
-                          <select
-                            value={progressChoices[player.id] ?? ""}
-                            disabled={busy}
-                            onChange={(event) => {
-                              setProgressChoices((current) => ({
-                                ...current,
-                                [player.id]: event.target.value as
-                                  "science" | "trade" | "politics",
-                              }));
-                            }}
-                          >
-                            <option value="">Choose a deck</option>
-                            <option value="science">Science</option>
-                            <option value="trade">Trade</option>
-                            <option value="politics">Politics</option>
-                          </select>
-                        </label>
-                      ))}
-                    </div>
-                  </>
-                )
-              ) : (
-                <StatusBanner tone="danger">
-                  {pillagedPlayers.map((player) => player.name).join(", ")}{" "}
-                  {pillagedPlayers.length === 1
-                    ? "downgrades"
-                    : "each downgrade"}{" "}
-                  one ordinary city. Protected metropolises are not pillaged.
-                </StatusBanner>
+                  ) : (
+                    <>
+                      <p className="fine-print">
+                        Select players who downgrade an ordinary city. Only
+                        players with ordinary cities are shown.
+                      </p>
+                      <div className="checkbox-group">
+                        {vulnerablePlayers.map((player) => (
+                          <label key={player.id}>
+                            <input
+                              type="checkbox"
+                              checked={pillagedPlayerIds.has(player.id)}
+                              disabled={busy}
+                              onChange={(event) => {
+                                setPillagedPlayerIds((current) => {
+                                  const next = new Set(current);
+                                  if (event.target.checked) {
+                                    next.add(player.id);
+                                  } else {
+                                    next.delete(player.id);
+                                  }
+                                  return next;
+                                });
+                              }}
+                            />
+                            {player.name} ({player.ordinaryCities}{" "}
+                            {player.ordinaryCities === 1 ? "city" : "cities"})
+                          </label>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </fieldset>
               )}
 
               {attack.firstAttack ? (
@@ -297,7 +442,7 @@ export function RollResolutionDialog({
               ) : null}
               <p className="fine-print">
                 Continuing confirms the attack, resets the ship, and deactivates
-                every active knight in the same undoable revision.
+                every active knight.
               </p>
             </div>
           ) : view.progress ? (
@@ -340,40 +485,32 @@ export function RollResolutionDialog({
           className="resolution-section"
           aria-labelledby="production-heading"
         >
-          <div className="resolution-heading">
-            <div>
-              <p className="eyebrow">Numbered dice</p>
-              <h3 id="production-heading">
-                {isSeven
-                  ? "Resolve the 7"
-                  : `Resolve production ${view.production.total}`}
-              </h3>
-            </div>
-          </div>
+          <h3 id="production-heading" className="sr-only">
+            Production
+          </h3>
           {isSeven ? (
             view.production.robberActivated ? (
               <StatusBanner tone="warning">
-                Players above their hand limit discard, then move the robber and
-                steal as normal. City walls increase the safe hand limit.
+                Discard above the safe hand limit, then move the robber and
+                steal. City walls increase the safe limit.
               </StatusBanner>
             ) : (
               <StatusBanner>
-                Players above their hand limit still discard, but the robber is
-                not active until the first barbarian attack is complete.
+                Discard above the safe hand limit; the robber stays inactive
+                until the first barbarian attack.
               </StatusBanner>
             )
           ) : (
             <StatusBanner tone="success">
-              Distribute resources and commodities for total{" "}
-              {view.production.total} at the physical board.
+              Distribute resources and commodities for production{" "}
+              {view.production.total}.
             </StatusBanner>
           )}
         </section>
 
         <footer className="roll-resolution__actions">
           <p className="fine-print">
-            Use quick roll after {view.currentPlayerName} has completed the
-            physical action phase. It ends the turn and rolls immediately for{" "}
+            End {view.currentPlayerName}'s turn and advance to{" "}
             {view.nextPlayerName}.
           </p>
           <div className="button-row dialog-actions">
@@ -390,7 +527,7 @@ export function RollResolutionDialog({
               size="large"
               disabled={busy || !choicesReady}
               onClick={() => {
-                onContinue(choices);
+                onContinue(resolution);
               }}
             >
               Continue current turn
@@ -399,10 +536,10 @@ export function RollResolutionDialog({
               size="large"
               disabled={busy || !choicesReady}
               onClick={() => {
-                onQuickRoll(choices);
+                onQuickRoll(resolution);
               }}
             >
-              {busy ? "Saving..." : `Next: ${view.nextPlayerName} & quick roll`}
+              {busy ? "Saving..." : `Next: ${view.nextPlayerName}`}
             </Button>
           </div>
         </footer>

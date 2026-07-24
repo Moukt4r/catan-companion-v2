@@ -1,6 +1,5 @@
 import {
   PROGRESS_ELIGIBILITY_2025,
-  activeKnightStrength,
   barbarianStrength,
   currentPlayer,
   currentTurnActiveMilliseconds,
@@ -361,28 +360,15 @@ export function toBarbarianAttackView(
   state: GameState,
   proposal: BarbarianAttackProposal,
 ): BarbarianAttackView {
-  const outcome = proposal.outcome;
-  const reward = outcome.type === "defenders-win" ? outcome.reward : null;
-
   return {
     proposalId: proposal.id,
-    barbarianStrength: proposal.strengths.barbarian,
-    defenderStrength: proposal.strengths.defenders,
-    outcome: outcome.type,
     players: state.players.map((player) => ({
       id: player.id,
       name: player.name,
       color: player.color.hex,
       ordinaryCities: player.ordinaryCities,
       metropolises: metropolisCountForPlayer(state, player.id),
-      activeKnights: describeActiveKnights(player.activeKnights),
-      activeStrength: activeKnightStrength(player),
     })),
-    uniqueDefenderId:
-      reward?.type === "defender-point" ? reward.playerId : null,
-    tiedDefenderIds: reward?.type === "progress-choice" ? reward.playerIds : [],
-    pillagedPlayerIds:
-      outcome.type === "barbarians-win" ? outcome.pillagedPlayerIds : [],
     firstAttack: proposal.firstAttack,
   };
 }
@@ -411,16 +397,4 @@ export function toGameCompleteView(state: GameState): GameCompleteView {
       activeTimeMs: playerActiveMilliseconds(state, player.id, state.updatedAt),
     })),
   };
-}
-
-function describeActiveKnights(
-  counts: GameState["players"][number]["activeKnights"],
-): string {
-  const parts = [
-    counts.basic > 0 ? `${counts.basic} basic` : null,
-    counts.strong > 0 ? `${counts.strong} strong` : null,
-    counts.mighty > 0 ? `${counts.mighty} mighty` : null,
-  ].filter((part): part is string => part !== null);
-
-  return parts.join(", ");
 }

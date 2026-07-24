@@ -21,16 +21,17 @@ this implementation.
   trade, and 1 politics face.
 - Alchemy rolls that preserve the numbered-deck cursor.
 - Inline roll guidance for ordinary results, with a blocking modal only when a
-  barbarian attack requires verification or choices.
-- **Next player & quick roll** directly from the active table flow.
-- No standalone end-turn button: the next-player roll action records the turn
-  boundary and immediately rolls.
+  barbarian attack needs its physical-board outcome and rewards recorded.
+- **Next: PLAYER** directly from the active table flow.
+- No standalone end-turn button: the next-player action records the turn
+  boundary and stops before the next roll so Roll and Use Alchemy are always
+  available.
 - Live current-turn, per-player accumulated, and total active game timers.
 - A persisted Pause mode that stops every timer and blocks all controls except
   Resume.
 - Progress-card eligibility guidance using the current 2025 improvement board.
-- Barbarian movement, verified attacks, tie rewards, live board corrections,
-  pillaging, knight reset, and first-attack robber activation.
+- Barbarian movement, manually recorded physical-board outcomes, Defender/tie
+  rewards, pillaging, knight reset, and first-attack robber activation.
 - Public player scores, cities, metropolises, active knights, and city
   improvements.
 - **World Events v0.2.0:** A typed 20-event engine with five selectable packs

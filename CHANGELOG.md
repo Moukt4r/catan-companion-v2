@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Removed visible die captions, redundant dice arithmetic, and the oversized
+  numbered/event-die explanation blocks from roll resolution.
+- Replaced knight-derived attack confirmation with a manual physical-board
+  workflow: record whether the defenders or barbarians won, then record the
+  Defender/tie reward or the players whose cities are pillaged.
+- Changed turn advancement to stop at the next player's pre-roll state instead
+  of rolling automatically, making Roll and Use Alchemy available every turn.
+
 ## 0.6.0 - 2026-07-24
 
 - Replaced the four generic beeps with a procedural offline soundscape for physical dice rolls, each progress discipline, barbarian advances and attacks, World Event categories/tones/impact, and all four season transitions.

@@ -61,9 +61,7 @@ test("the inline roll result has no detectable accessibility violations", async 
   await page.getByRole("button", { name: "Roll", exact: true }).click();
 
   await expect(page.locator(".roll-result-summary")).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: /^Next: .* & roll$/ }),
-  ).toBeEnabled();
+  await expect(page.getByRole("button", { name: /^Next: / })).toBeEnabled();
   await expect(page.getByRole("dialog", { name: /Roll result:/ })).toHaveCount(
     0,
   );

@@ -477,6 +477,7 @@ export type GameCommand =
   | {
       type: "attack.confirmed";
       proposalId: ProposalId;
+      manualOutcome: BarbarianAttackOutcome;
       progressChoices?: Array<{
         playerId: PlayerId;
         discipline: ProgressDiscipline;

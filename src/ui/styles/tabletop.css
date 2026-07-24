@@ -1130,11 +1130,6 @@ h1 {
   font-weight: 900;
 }
 
-.die__caption {
-  z-index: 2;
-  color: var(--ink);
-}
-
 .barbarian-card {
   padding: 0;
   overflow: hidden;
