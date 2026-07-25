@@ -73,6 +73,12 @@ export function createGame(input: CreateGameInput): DomainResult<Decision> {
       strong: player.activeKnights?.strong ?? 0,
       mighty: player.activeKnights?.mighty ?? 0,
     },
+    inactiveKnights: {
+      basic: player.inactiveKnights?.basic ?? 0,
+      strong: player.inactiveKnights?.strong ?? 0,
+      mighty: player.inactiveKnights?.mighty ?? 0,
+    },
+    cityWalls: player.cityWalls ?? 0,
     improvements: {
       science: player.improvements?.science ?? 0,
       trade: player.improvements?.trade ?? 0,
@@ -771,6 +777,11 @@ function adjustPlayer(
     name: patch.name?.trim() ?? player.name,
     ordinaryCities: patch.ordinaryCities ?? player.ordinaryCities,
     activeKnights: mergeKnights(player.activeKnights, patch.activeKnights),
+    inactiveKnights: mergeKnights(
+      player.inactiveKnights,
+      patch.inactiveKnights,
+    ),
+    cityWalls: patch.cityWalls ?? player.cityWalls,
     improvements: mergeImprovements(player.improvements, patch.improvements),
   };
   const increasedImprovement = DISCIPLINES.some(
@@ -1139,10 +1150,7 @@ function confirmAttack(
   let players =
     outcome.type === "board-authoritative"
       ? state.players
-      : state.players.map((player) => ({
-          ...player,
-          activeKnights: { basic: 0, strong: 0, mighty: 0 },
-        }));
+      : state.players.map(deactivateKnights);
   const scoreEntries: ScoreEntry[] = [];
   if (
     outcome.type === "defenders-win" &&
@@ -1556,6 +1564,33 @@ function mergeKnights(
   };
 }
 
+/**
+ * Move every activated knight back to its inactive state.
+ *
+ * A barbarian attack deactivates all knights, but the knights themselves stay
+ * on the board holding their positions. They are therefore transferred to the
+ * inactive counts rather than discarded.
+ */
+function deactivateKnights(player: PlayerState): PlayerState {
+  const { activeKnights, inactiveKnights } = player;
+  if (
+    activeKnights.basic === 0 &&
+    activeKnights.strong === 0 &&
+    activeKnights.mighty === 0
+  ) {
+    return player;
+  }
+  return {
+    ...player,
+    activeKnights: { basic: 0, strong: 0, mighty: 0 },
+    inactiveKnights: {
+      basic: inactiveKnights.basic + activeKnights.basic,
+      strong: inactiveKnights.strong + activeKnights.strong,
+      mighty: inactiveKnights.mighty + activeKnights.mighty,
+    },
+  };
+}
+
 function mergeImprovements(
   current: ImprovementLevels,
   patch: Partial<ImprovementLevels> | undefined,
@@ -1576,6 +1611,9 @@ function cloneSetup(setup: CreateGameInput["setup"]): CreateGameInput["setup"] {
       ...(player.activeKnights === undefined
         ? {}
         : { activeKnights: { ...player.activeKnights } }),
+      ...(player.inactiveKnights === undefined
+        ? {}
+        : { inactiveKnights: { ...player.inactiveKnights } }),
       ...(player.improvements === undefined
         ? {}
         : { improvements: { ...player.improvements } }),

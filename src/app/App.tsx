@@ -673,7 +673,9 @@ export function App() {
       playerId: selectedPlayerId,
       patch: {
         ordinaryCities: patch.ordinaryCities,
+        cityWalls: patch.cityWalls,
         activeKnights: patch.activeKnights,
+        inactiveKnights: patch.inactiveKnights,
         improvements: patch.improvements,
         ...scoreAdjustment,
       },

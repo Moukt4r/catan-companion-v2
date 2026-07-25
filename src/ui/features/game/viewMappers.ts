@@ -6,6 +6,8 @@ import {
   defenderStrength,
   metropolisCountForPlayer,
   playerActiveMilliseconds,
+  safeHandLimit,
+  forecastBarbarianAttack,
   scoreForPlayer,
   totalActiveMilliseconds,
   winnerCandidates,
@@ -217,6 +219,7 @@ export function toGameTableView(
       defenderStrength: defenderStrength(state),
       attackPending: state.barbarian.pendingAttack !== null,
     },
+    forecast: toBarbarianForecastView(state),
     players: state.players.map((player) => ({
       id: player.id,
       name: player.name,
@@ -261,6 +264,43 @@ function toSeasonView(state: GameState): GameTableView["season"] {
   };
 }
 
+export interface BarbarianForecastView {
+  advancesUntilAttack: number;
+  attackImminent: boolean;
+  defended: boolean;
+  strength: number;
+  defenderStrength: number;
+  inactiveStrength: number;
+  summary: string;
+  pillagedNames: string[];
+  rewardNames: string[];
+}
+
+function toBarbarianForecastView(state: GameState): BarbarianForecastView {
+  const forecast = forecastBarbarianAttack(state);
+  const nameOf = (playerId: PlayerId): string =>
+    state.players.find((player) => player.id === playerId)?.name ?? "Unknown";
+
+  const rewardNames =
+    forecast.outcome.type === "defenders-win"
+      ? forecast.outcome.reward.type === "defender-point"
+        ? [nameOf(forecast.outcome.reward.playerId)]
+        : forecast.outcome.reward.playerIds.map(nameOf)
+      : [];
+
+  return {
+    advancesUntilAttack: forecast.advancesUntilAttack,
+    attackImminent: forecast.attackImminent,
+    defended: forecast.outcome.type === "defenders-win",
+    strength: forecast.strengths.barbarian,
+    defenderStrength: forecast.strengths.defenders,
+    inactiveStrength: forecast.inactiveStrength,
+    summary: forecast.summary,
+    pillagedNames: forecast.pillagedPlayerIds.map(nameOf),
+    rewardNames,
+  };
+}
+
 export function toPlayerEditorValue(
   state: GameState,
   playerId: PlayerId,
@@ -276,8 +316,13 @@ export function toPlayerEditorValue(
     color: player.color.hex,
     victoryPoints: scoreForPlayer(state, player.id),
     ordinaryCities: player.ordinaryCities,
+    cityWalls: player.cityWalls,
+    safeHandLimit: safeHandLimit(player),
     activeKnights: {
       ...player.activeKnights,
+    },
+    inactiveKnights: {
+      ...player.inactiveKnights,
     },
     improvements: {
       ...player.improvements,

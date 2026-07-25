@@ -36,6 +36,58 @@ export function activeKnightStrength(
   );
 }
 
+/** Total knights a player owns on the board, activated or not. */
+export function knightCount(
+  player: Pick<PlayerState, "activeKnights" | "inactiveKnights">,
+): number {
+  const counts = [player.activeKnights, player.inactiveKnights];
+  return counts.reduce(
+    (total, knights) => total + knights.basic + knights.strong + knights.mighty,
+    0,
+  );
+}
+
+/**
+ * Defence a player could contribute if every knight were activated.
+ *
+ * Inactive knights hold board positions but never defend, so the gap between
+ * this and {@link activeKnightStrength} is exactly what a player gives up by
+ * leaving knights inactive when the barbarians arrive.
+ */
+export function potentialKnightStrength(
+  player: Pick<PlayerState, "activeKnights" | "inactiveKnights">,
+): number {
+  return (
+    activeKnightStrength(player) +
+    player.inactiveKnights.basic +
+    2 * player.inactiveKnights.strong +
+    3 * player.inactiveKnights.mighty
+  );
+}
+
+/** Base cards a player may hold at a 7 before any city walls are counted. */
+export const BASE_SAFE_HAND_LIMIT = 7;
+
+/** Extra safe cards granted by each city wall. */
+export const HAND_LIMIT_PER_CITY_WALL = 2;
+
+/**
+ * Cards a player may keep on a 7. Each city wall raises the limit by two, so
+ * this is the number the table actually needs when discarding.
+ */
+export function safeHandLimit(player: Pick<PlayerState, "cityWalls">): number {
+  return BASE_SAFE_HAND_LIMIT + HAND_LIMIT_PER_CITY_WALL * player.cityWalls;
+}
+
+/** Cards discarded on a 7: everything above the limit, halved and rounded down. */
+export function discardCount(
+  player: Pick<PlayerState, "cityWalls">,
+  handSize: number,
+): number {
+  const limit = safeHandLimit(player);
+  return handSize <= limit ? 0 : Math.floor(handSize / 2);
+}
+
 export function barbarianStrength(
   state: Pick<GameState, "players" | "metropolises">,
 ): number {

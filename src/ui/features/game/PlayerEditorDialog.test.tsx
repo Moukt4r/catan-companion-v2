@@ -12,7 +12,10 @@ const player: PlayerEditorValue = {
   color: "#123456",
   victoryPoints: 6,
   ordinaryCities: 1,
+  cityWalls: 0,
+  safeHandLimit: 7,
   activeKnights: { basic: 1, strong: 0, mighty: 0 },
+  inactiveKnights: { basic: 0, strong: 0, mighty: 0 },
   improvements: { science: 3, trade: 2, politics: 1 },
   metropolisDisciplines: ["science"],
 };
@@ -63,7 +66,9 @@ describe("PlayerEditorDialog", () => {
 
     expect(onSave).toHaveBeenCalledWith({
       ordinaryCities: 2,
+      cityWalls: 0,
       activeKnights: { basic: 1, strong: 1, mighty: 0 },
+      inactiveKnights: { basic: 0, strong: 0, mighty: 0 },
       improvements: { science: 4, trade: 2, politics: 1 },
       scoreDelta: 1,
       scoreNote: "Longest road",

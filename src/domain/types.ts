@@ -98,6 +98,8 @@ export interface PlayerSetup {
   color: PlayerColor;
   ordinaryCities?: number;
   activeKnights?: Partial<KnightCounts>;
+  inactiveKnights?: Partial<KnightCounts>;
+  cityWalls?: number;
   improvements?: Partial<ImprovementLevels>;
   initialScore?: number;
 }
@@ -167,7 +169,15 @@ export interface PlayerState {
   color: PlayerColor;
   order: number;
   ordinaryCities: number;
+  /** Knights that are currently activated and defend against barbarians. */
   activeKnights: KnightCounts;
+  /**
+   * Knights that are built but not activated. They hold board positions and
+   * can be activated later, but contribute no defence.
+   */
+  inactiveKnights: KnightCounts;
+  /** Built city walls. Each wall raises the safe hand limit by two cards. */
+  cityWalls: number;
   improvements: ImprovementLevels;
 }
 
@@ -466,6 +476,8 @@ export interface PublicStatePatch {
   name?: string;
   ordinaryCities?: number;
   activeKnights?: Partial<KnightCounts>;
+  inactiveKnights?: Partial<KnightCounts>;
+  cityWalls?: number;
   improvements?: Partial<ImprovementLevels>;
   scoreAdjustment?: {
     delta: number;

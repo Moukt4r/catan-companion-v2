@@ -68,6 +68,8 @@ function player(
     order: id === PLAYER_A ? 0 : 1,
     ordinaryCities,
     activeKnights: { basic: 0, strong: 0, mighty: 0 },
+    inactiveKnights: { basic: 0, strong: 0, mighty: 0 },
+    cityWalls: 0,
     improvements: { science, trade: 0, politics: 0 },
   };
 }

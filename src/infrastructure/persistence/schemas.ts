@@ -46,6 +46,8 @@ const playerSetupSchema = z.strictObject({
   color: colorSchema,
   ordinaryCities: nonNegativeInteger.optional(),
   activeKnights: knightSchema.partial().optional(),
+  inactiveKnights: knightSchema.partial().optional(),
+  cityWalls: nonNegativeInteger.optional(),
   improvements: improvementSchema.partial().optional(),
   initialScore: integer.optional(),
 });
@@ -122,6 +124,8 @@ const playerStateSchema = z.strictObject({
   order: nonNegativeInteger,
   ordinaryCities: nonNegativeInteger,
   activeKnights: knightSchema,
+  inactiveKnights: knightSchema,
+  cityWalls: nonNegativeInteger,
   improvements: improvementSchema,
 });
 

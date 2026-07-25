@@ -268,6 +268,53 @@ function validatePlayerCounters(
       );
     }
   }
+  // Active and inactive knights share the same physical components, so the
+  // per-level total is what the component limit applies to.
+  for (const level of ["basic", "strong", "mighty"] as const) {
+    const inactive = player.inactiveKnights[level];
+    if (!Number.isInteger(inactive) || inactive < 0) {
+      errors.push(
+        domainError(
+          "INVALID_PLAYER_STATE",
+          "Inactive knight count must be a non-negative integer.",
+          { playerId: player.id, level, count: inactive },
+        ),
+      );
+      continue;
+    }
+    const total = player.activeKnights[level] + inactive;
+    if (total > state.barbarian.rules.knightComponentLimitPerLevel) {
+      errors.push(
+        domainError(
+          "INVALID_PLAYER_STATE",
+          "Total knights exceed the component limit for this level.",
+          { playerId: player.id, level, count: total },
+        ),
+      );
+    }
+  }
+  if (!nonNegativeInteger(player.cityWalls)) {
+    errors.push(
+      domainError(
+        "INVALID_PLAYER_STATE",
+        "City walls must be a non-negative integer.",
+        { playerId: player.id },
+      ),
+    );
+  } else if (player.cityWalls > player.ordinaryCities) {
+    // A wall is built onto a city, so walls can never outnumber cities.
+    errors.push(
+      domainError(
+        "INVALID_PLAYER_STATE",
+        "City walls cannot exceed the number of cities.",
+        {
+          playerId: player.id,
+          cityWalls: player.cityWalls,
+          cities: player.ordinaryCities,
+        },
+      ),
+    );
+  }
   for (const [discipline, level] of [
     ["science", player.improvements.science],
     ["trade", player.improvements.trade],

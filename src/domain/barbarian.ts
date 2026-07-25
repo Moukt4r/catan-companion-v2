@@ -1,11 +1,69 @@
-import { activeKnightStrength, barbarianStrength } from "./selectors";
+import {
+  activeKnightStrength,
+  barbarianStrength,
+  potentialKnightStrength,
+} from "./selectors";
 import type {
+  BarbarianAttackOutcome,
   BarbarianAttackProposal,
   BarbarianAttackStrengths,
   GameState,
   PlayerId,
   ProposalId,
 } from "./types";
+
+/**
+ * What would happen if the barbarians landed right now.
+ *
+ * The pillage cascade — barbarians strike the weakest knight group that still
+ * owns an ordinary city, skipping groups with nothing left to lose — is the
+ * most misplayed moment in Cities & Knights. This runs the real resolution
+ * ahead of time so the table can see the consequence before it happens.
+ */
+export interface BarbarianForecast {
+  strengths: BarbarianAttackStrengths;
+  outcome: BarbarianAttackOutcome;
+  summary: string;
+  /** Advances still needed before the ship reaches Catan. */
+  advancesUntilAttack: number;
+  /** True when the next barbarian face triggers the attack. */
+  attackImminent: boolean;
+  /** Defence the table is giving up by leaving knights inactive. */
+  inactiveStrength: number;
+  /** Players who would lose an ordinary city if the attack resolved now. */
+  pillagedPlayerIds: readonly PlayerId[];
+}
+
+const FORECAST_PROPOSAL_ID = "forecast" as ProposalId;
+
+export function forecastBarbarianAttack(
+  state: Pick<GameState, "players" | "metropolises" | "barbarian" | "turn">,
+): BarbarianForecast {
+  // Reuse the real resolution so the forecast can never drift from what
+  // actually happens when the ship lands.
+  const proposal = calculateBarbarianAttack(state, FORECAST_PROPOSAL_ID);
+  const potential = state.players.reduce(
+    (total, player) => total + potentialKnightStrength(player),
+    0,
+  );
+  const advancesUntilAttack = Math.max(
+    0,
+    state.barbarian.rules.trackLength - state.barbarian.shipPosition,
+  );
+
+  return {
+    strengths: proposal.strengths,
+    outcome: proposal.outcome,
+    summary: proposal.summary,
+    advancesUntilAttack,
+    attackImminent: advancesUntilAttack <= 1,
+    inactiveStrength: potential - proposal.strengths.defenders,
+    pillagedPlayerIds:
+      proposal.outcome.type === "barbarians-win"
+        ? proposal.outcome.pillagedPlayerIds
+        : [],
+  };
+}
 
 export function calculateBarbarianAttack(
   state: Pick<GameState, "players" | "metropolises" | "barbarian" | "turn">,

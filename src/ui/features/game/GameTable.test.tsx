@@ -37,6 +37,18 @@ function view(): GameTableView {
       defenderStrength: 0,
       attackPending: false,
     },
+    forecast: {
+      advancesUntilAttack: 7,
+      attackImminent: false,
+      defended: false,
+      strength: 3,
+      defenderStrength: 0,
+      inactiveStrength: 0,
+      summary:
+        "The barbarians win; the lowest vulnerable strength group loses one ordinary city each.",
+      pillagedNames: ["Ada"],
+      rewardNames: [],
+    },
     players: [
       {
         id: "ada",

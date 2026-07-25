@@ -143,6 +143,8 @@ describe("calculateBarbarianAttack", () => {
         strong: knights.strong ?? 0,
         mighty: knights.mighty ?? 0,
       },
+      inactiveKnights: { basic: 0, strong: 0, mighty: 0 },
+      cityWalls: 0,
       improvements: { science: 0, trade: 0, politics: 0 },
     };
   }
