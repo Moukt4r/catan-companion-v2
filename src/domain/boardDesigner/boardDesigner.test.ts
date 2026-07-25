@@ -58,6 +58,33 @@ function randomSequence(seed: number): (upperExclusive: number) => number {
   };
 }
 
+/**
+ * A seeded source that also counts how many random draws generation needed.
+ *
+ * Generation is deterministic for a given seed, so the draw count is an exact,
+ * machine-independent measure of how much search work was performed. The
+ * "without blocking" tests assert on this instead of elapsed milliseconds:
+ * wall-clock thresholds fail intermittently on loaded CI runners even when the
+ * algorithm is unchanged, while a draw-count ceiling still catches the runaway
+ * or unbounded search those tests exist to prevent.
+ */
+function countingRandomSequence(seed: number): {
+  next: (upperExclusive: number) => number;
+  readonly draws: number;
+} {
+  const next = randomSequence(seed);
+  let draws = 0;
+  return {
+    next: (upperExclusive) => {
+      draws += 1;
+      return next(upperExclusive);
+    },
+    get draws() {
+      return draws;
+    },
+  };
+}
+
 describe("board designer domain", () => {
   it("uses the balanced 37-tile default inventory", () => {
     const inventory = createClassicIslandInventory();
@@ -426,12 +453,14 @@ describe("board designer domain", () => {
     const inventory = createEmptyBoardInventory();
     inventory.terrain.forest = 127;
     inventory.numbers[5] = 127;
-    const startedAt = performance.now();
+    const random = countingRandomSequence(1);
 
-    const result = generateWithSymmetricFootprint(inventory, randomSequence(1));
+    const result = generateWithSymmetricFootprint(inventory, random.next);
 
     expect(result.ok).toBe(true);
-    expect(performance.now() - startedAt).toBeLessThan(500);
+    // A single terrain and a single token value collapse both search loops to
+    // one attempt, so this stays far below the mixed-inventory ceiling.
+    expect(random.draws).toBeLessThan(2_000);
   });
 
   it("generates a maximum mixed-token board without blocking", () => {
@@ -440,12 +469,14 @@ describe("board designer domain", () => {
     for (const [index, value] of NUMBER_TOKEN_VALUES.entries()) {
       inventory.numbers[value] = index < 7 ? 13 : 12;
     }
-    const startedAt = performance.now();
+    const random = countingRandomSequence(1);
 
-    const result = generateWithSymmetricFootprint(inventory, randomSequence(1));
+    const result = generateWithSymmetricFootprint(inventory, random.next);
 
     expect(result.ok).toBe(true);
-    expect(performance.now() - startedAt).toBeLessThan(500);
+    // The largest supported board with every token value in play: attempts are
+    // capped, so the work stays bounded rather than growing with the search.
+    expect(random.draws).toBeLessThan(20_000);
   });
 
   it("warns about adjacent high-production numbers without blocking them", () => {
