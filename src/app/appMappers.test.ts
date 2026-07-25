@@ -135,7 +135,7 @@ function worldEventDraft(overrides: Partial<SetupDraft> = {}): SetupDraft {
       { draftId: "p1", name: "Ada", color: "#b66a1f" },
       { draftId: "p2", name: "Grace", color: "#286b9b" },
       { draftId: "p3", name: "Linus", color: "#b43e3e" },
-      { draftId: "p4", name: "Margaret", color: "#2f7551" },
+      { draftId: "p4", name: "Margaret", color: "#f2efe6" },
     ],
     firstPlayerDraftId: "p1",
     twoPlayerHouseMode: false,

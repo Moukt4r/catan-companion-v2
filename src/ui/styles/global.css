@@ -1482,9 +1482,13 @@ h3 {
   width: 1.05rem;
   height: 1.05rem;
   flex: 0 0 auto;
-  border: 2px solid white;
+  /*
+   * A translucent ring rather than a solid white one: white is a valid player
+   * colour, and a white border around a white swatch reads as nothing at all.
+   */
+  border: 2px solid rgb(255 255 255 / 55%);
   border-radius: 50%;
-  box-shadow: 0 0 0 1px rgb(12 31 49 / 32%);
+  box-shadow: 0 0 0 1px rgb(12 31 49 / 45%);
 }
 
 .player-marker--small {

@@ -393,16 +393,16 @@ export function validateBoardDesign(
   }
 
   const overloaded = overloadedVertices(design.hexes);
-  if (overloaded.length > 0) {
-    const worst = overloaded[0]?.pips ?? 0;
+  const worst = overloaded[0];
+  if (worst) {
     issues.push(
       issue({
         code: "vertex-pip-overload",
         severity: "warning",
         message:
           overloaded.length === 1
-            ? `One building spot totals ${worst} pips, above the limit of ${MAX_VERTEX_PIPS}.`
-            : `${overloaded.length} building spots exceed ${MAX_VERTEX_PIPS} pips; the highest totals ${worst}.`,
+            ? `One building spot totals ${worst.pips} pips, above the limit of ${MAX_VERTEX_PIPS}.`
+            : `${overloaded.length} building spots exceed ${MAX_VERTEX_PIPS} pips; the highest totals ${worst.pips}.`,
         coordinates: overloaded.flatMap((vertex) => vertex.coordinates),
       }),
     );

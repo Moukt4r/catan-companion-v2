@@ -18,7 +18,7 @@ export const colorNames: Record<string, string> = {
   "#b66a1f": "Amber",
   "#286b9b": "Ocean blue",
   "#b43e3e": "Crimson",
-  "#2f7551": "Forest green",
+  "#f2efe6": "White",
 };
 
 export function errorMessage(error: unknown): string {

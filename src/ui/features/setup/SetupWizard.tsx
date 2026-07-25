@@ -45,7 +45,7 @@ const playerColors = [
   { name: "Amber", value: "#b66a1f" },
   { name: "Ocean blue", value: "#286b9b" },
   { name: "Crimson", value: "#b43e3e" },
-  { name: "Forest green", value: "#2f7551" },
+  { name: "White", value: "#f2efe6" },
 ];
 
 const worldEventPackOptions: ReadonlyArray<{

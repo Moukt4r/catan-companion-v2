@@ -325,48 +325,44 @@ function repairVertexPipOverload(source: BoardHex[]): BoardHex[] {
     ...hex,
     coordinate: { ...hex.coordinate },
   }));
-  const numbered: number[] = [];
-  for (const [index, hex] of hexes.entries()) {
-    if (hex.numberToken !== null) {
-      numbered.push(index);
-    }
-  }
+  // Hold the hexes themselves rather than indices: every lookup would
+  // otherwise need a defensive fallback that can never actually be reached.
+  const numbered = hexes.filter((hex) => hex.numberToken !== null);
   if (numbered.length < 2) {
     return hexes;
   }
 
   // Geometry is fixed for the whole walk, so resolve it once instead of
   // rebuilding the vertex list on every candidate swap.
-  const indexByKey = new Map(
-    hexes.map((hex, index) => [coordinateKey(hex.coordinate), index]),
+  const hexByKey = new Map(
+    hexes.map((hex) => [coordinateKey(hex.coordinate), hex]),
   );
   const vertexGroups = boardVertices(hexes.map((hex) => hex.coordinate)).map(
     (vertex) =>
       vertex.coordinates.flatMap((coordinate) => {
-        const index = indexByKey.get(coordinateKey(coordinate));
-        return index === undefined ? [] : [index];
+        const hex = hexByKey.get(coordinateKey(coordinate));
+        return hex ? [hex] : [];
       }),
   );
-  const redPairs: Array<[number, number]> = [];
-  for (const [index, hex] of hexes.entries()) {
+  const redPairs: Array<[BoardHex, BoardHex]> = [];
+  for (const hex of hexes) {
     for (const coordinate of neighbors(hex.coordinate)) {
-      const other = indexByKey.get(coordinateKey(coordinate));
-      if (other !== undefined && index < other) {
-        redPairs.push([index, other]);
+      const other = hexByKey.get(coordinateKey(coordinate));
+      if (
+        other &&
+        coordinateKey(hex.coordinate) < coordinateKey(other.coordinate)
+      ) {
+        redPairs.push([hex, other]);
       }
     }
   }
 
-  const pipsAt = (index: number): number => {
-    const token = hexes[index]?.numberToken;
-    return token ? NUMBER_TOKEN_PIPS[token] : 0;
-  };
   const cost = (): number => {
     let overloaded = 0;
     for (const group of vertexGroups) {
       let pips = 0;
-      for (const index of group) {
-        pips += pipsAt(index);
+      for (const hex of group) {
+        pips += hex.numberToken ? NUMBER_TOKEN_PIPS[hex.numberToken] : 0;
       }
       if (pips > MAX_VERTEX_PIPS) {
         overloaded += 1;
@@ -374,10 +370,7 @@ function repairVertexPipOverload(source: BoardHex[]): BoardHex[] {
     }
     let reds = 0;
     for (const [left, right] of redPairs) {
-      if (
-        isRedNumber(hexes[left]?.numberToken ?? null) &&
-        isRedNumber(hexes[right]?.numberToken ?? null)
-      ) {
+      if (isRedNumber(left.numberToken) && isRedNumber(right.numberToken)) {
         reds += 1;
       }
     }
@@ -388,7 +381,7 @@ function repairVertexPipOverload(source: BoardHex[]): BoardHex[] {
   if (current === 0) {
     return hexes;
   }
-  let bestTokens = numbered.map((index) => hexes[index]?.numberToken ?? null);
+  let bestTokens = numbered.map((hex) => hex.numberToken);
   let bestCost = current;
 
   // A private generator seeded from the board itself. Restarts need randomness
@@ -396,54 +389,48 @@ function repairVertexPipOverload(source: BoardHex[]): BoardHex[] {
   // consume its budget and couple generation cost to this repair pass, so the
   // stream is derived from the layout instead: same board, same repair.
   let state = numbered.reduce(
-    (seed, index) =>
-      (Math.imul(seed, 31) + (hexes[index]?.numberToken ?? 0)) >>> 0,
+    (seed, hex) => (Math.imul(seed, 31) + (hex.numberToken ?? 0)) >>> 0,
     numbered.length >>> 0,
   );
   const nextInt = (bound: number): number => {
     state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
     return state % bound;
   };
+  const applyTokens = (tokens: readonly (NumberTokenValue | null)[]): void => {
+    for (const [position, hex] of numbered.entries()) {
+      hex.numberToken = tokens[position] ?? hex.numberToken;
+    }
+  };
 
   const walkLength = Math.min(4_000, 30 * numbered.length * numbered.length);
   for (let restart = 0; restart < 10 && bestCost > 0; restart += 1) {
     if (restart > 0) {
       // Reshuffle the tokens among their hexes for a fresh starting point.
-      const tokens = numbered.map((index) => hexes[index]?.numberToken ?? null);
-      for (let i = tokens.length - 1; i > 0; i -= 1) {
-        const j = nextInt(i + 1);
-        const carried = tokens[i] as NumberTokenValue | null;
-        tokens[i] = tokens[j] as NumberTokenValue | null;
-        tokens[j] = carried;
+      const tokens = numbered.map((hex) => hex.numberToken);
+      for (let index = tokens.length - 1; index > 0; index -= 1) {
+        const swap = nextInt(index + 1);
+        const carried = tokens[index] as NumberTokenValue | null;
+        tokens[index] = tokens[swap] as NumberTokenValue | null;
+        tokens[swap] = carried;
       }
-      for (const [position, index] of numbered.entries()) {
-        const hex = hexes[index];
-        if (hex) {
-          hex.numberToken = tokens[position] ?? hex.numberToken;
-        }
-      }
+      applyTokens(tokens);
       current = cost();
     }
 
     for (let step = 0; step < walkLength && current > 0; step += 1) {
       const left = numbered[nextInt(numbered.length)];
       const right = numbered[nextInt(numbered.length)];
-      if (left === undefined || right === undefined || left === right) {
+      if (!left || !right || left === right) {
         continue;
       }
-      const leftHex = hexes[left];
-      const rightHex = hexes[right];
-      if (!leftHex || !rightHex) {
-        continue;
-      }
-      const leftValue = leftHex.numberToken;
-      const rightValue = rightHex.numberToken;
+      const leftValue = left.numberToken;
+      const rightValue = right.numberToken;
       if (leftValue === rightValue) {
         continue;
       }
 
-      leftHex.numberToken = rightValue;
-      rightHex.numberToken = leftValue;
+      left.numberToken = rightValue;
+      right.numberToken = leftValue;
       const next = cost();
 
       // Ties are accepted so the walk can cross plateaus where no single swap
@@ -452,23 +439,16 @@ function repairVertexPipOverload(source: BoardHex[]): BoardHex[] {
         current = next;
         if (next < bestCost) {
           bestCost = next;
-          bestTokens = numbered.map(
-            (index) => hexes[index]?.numberToken ?? null,
-          );
+          bestTokens = numbered.map((hex) => hex.numberToken);
         }
       } else {
-        leftHex.numberToken = leftValue;
-        rightHex.numberToken = rightValue;
+        left.numberToken = leftValue;
+        right.numberToken = rightValue;
       }
     }
   }
 
-  for (const [position, index] of numbered.entries()) {
-    const hex = hexes[index];
-    if (hex) {
-      hex.numberToken = bestTokens[position] ?? hex.numberToken;
-    }
-  }
+  applyTokens(bestTokens);
   return hexes;
 }
 

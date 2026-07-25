@@ -1361,7 +1361,8 @@ h1 {
 }
 
 .player-marker__swatch {
-  border-color: var(--surface-raised);
+  /* Keeps white player markers legible against the light tabletop surface. */
+  border-color: rgb(255 255 255 / 55%);
   box-shadow: 0 0 0 1px var(--line-strong);
 }
 
