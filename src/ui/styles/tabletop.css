@@ -941,7 +941,6 @@ h1 {
   gap: clamp(0.25rem, 0.7vw, 0.45rem);
 }
 
-.dice-row .dice-total,
 .resolution-dice .dice-total {
   min-width: auto;
   padding: 0.42rem 0.62rem;

@@ -431,9 +431,6 @@ export function GameTable({
               rolling={view.rolling}
             />
           </div>
-          <span className="dice-total">
-            {view.lastRoll ? `Production ${view.lastRoll.total}` : ""}
-          </span>
         </div>
 
         {view.canRoll ? (
