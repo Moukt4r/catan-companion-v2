@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const previewPort = Number(process.env.PLAYWRIGHT_PORT ?? 4173);
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
@@ -8,13 +10,13 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: `http://127.0.0.1:${previewPort}`,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: "pnpm build && pnpm preview --port 4173",
-    url: "http://127.0.0.1:4173",
+    command: `pnpm build && pnpm preview --port ${previewPort}`,
+    url: `http://127.0.0.1:${previewPort}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

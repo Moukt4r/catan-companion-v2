@@ -19,6 +19,7 @@ interface HomeScreenProps {
   error: string | null;
   onResume: () => void;
   onNewGame: () => void;
+  onBoardDesigner: () => void;
   onImport: (file: File) => void;
   onSettings: () => void;
   onViewArchive: () => void;
@@ -30,6 +31,7 @@ export function HomeScreen({
   error,
   loading,
   onImport,
+  onBoardDesigner,
   onNewGame,
   onResume,
   onSettings,
@@ -134,6 +136,13 @@ export function HomeScreen({
       )}
 
       <section className="home-actions" aria-label="More actions">
+        <button type="button" className="home-action" onClick={onBoardDesigner}>
+          <span className="home-action__index" aria-hidden="true">
+            01
+          </span>
+          <strong>Board designer</strong>
+          <span>Build custom terrain, number, sea, and port layouts.</span>
+        </button>
         <button
           type="button"
           className="home-action"
@@ -142,7 +151,7 @@ export function HomeScreen({
           }}
         >
           <span className="home-action__index" aria-hidden="true">
-            01
+            02
           </span>
           <strong>Import backup</strong>
           <span>Restore a validated JSON game export.</span>
@@ -163,7 +172,7 @@ export function HomeScreen({
         />
         <button type="button" className="home-action" onClick={onViewArchive}>
           <span className="home-action__index" aria-hidden="true">
-            02
+            03
           </span>
           <strong>Saved games</strong>
           <span>

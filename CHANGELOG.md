@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Added a local-first Board Designer with custom terrain, sea, number-token,
+  and port inventories; connected manual placement; balanced generation;
+  rules-aware warnings; undo/redo; saved designs; and JSON/SVG/PNG/print
+  export.
+- Added Gold Field terrain and mixed land/sea generation so generated layouts
+  can form archipelagos, internal waterways, and adjacent sea regions.
+- Prevented automatic generation from creating land islands smaller than three
+  hexes and added a warning for undersized manually arranged islands.
+- Re-optimized number tokens and coastline ports after topology repairs, and
+  kept valid saved designs visible when another local record is malformed.
+- Added a border-first workflow with persisted 180-degree symmetric
+  footprints, mirrored pair add/remove tools, and generation constrained to
+  the adjusted border.
+- Added fixed-count width × height border controls and changed the default
+  inventory to five of each base resource, two Gold Fields, ten sea, no desert,
+  and evenly distributed number tokens.
 - Refreshed the full interface with a cleaner warm-tabletop visual system and
   original locally generated frontier illustrations.
 - Improved active-game hierarchy, setup flow, responsive touch targets, and

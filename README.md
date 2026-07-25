@@ -37,6 +37,10 @@ this implementation.
 - Immutable IndexedDB revisions with undo, redo, branch retention, integrity
   hashes, and verified-ancestor recovery.
 - Versioned JSON export/import that never overwrites an existing game.
+- A standalone board designer for custom terrain, Gold Field, and sea layouts;
+  width × height 180-degree symmetric borders; balanced archipelago
+  generation; manual hex placement; evenly distributed number defaults;
+  coastline ports; local autosave; and JSON/SVG/PNG/print export.
 - Explicit single-tab control with read-only mirrored tabs and takeover.
 - Responsive mobile/tablet/desktop layouts, keyboard support, high contrast,
   reduced motion, synthesized sound cues, and sanitized diagnostics.

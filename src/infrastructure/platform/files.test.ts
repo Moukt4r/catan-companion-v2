@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { downloadJson, makeBackupFilename, readJsonFile } from "./files";
+import {
+  downloadJson,
+  makeBackupFilename,
+  makeBoardDesignFilename,
+  readJsonFile,
+} from "./files";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -66,6 +71,17 @@ describe("file helpers", () => {
     );
     expect(makeBackupFilename("A".repeat(100), date)).toBe(
       `catan-companion-2026-07-12-${"a".repeat(48)}.json`,
+    );
+  });
+
+  it("creates board-design filenames for supported export formats", () => {
+    const date = new Date("2026-07-23T12:00:00.000Z");
+
+    expect(makeBoardDesignFilename("Wild Coast", "svg", date)).toBe(
+      "catan-board-2026-07-23-wild-coast.svg",
+    );
+    expect(makeBoardDesignFilename(" !!! ", "png", date)).toBe(
+      "catan-board-2026-07-23-island.png",
     );
   });
 });

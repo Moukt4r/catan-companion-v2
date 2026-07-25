@@ -50,6 +50,7 @@ starts. Runtime and package-manager versions are committed through
       rolls/              balanced decks and secure shuffle ports
       cities-knights/     progress and barbarian rules
       thematic-events/    trigger and selection decks
+      board-designer/     axial geometry, inventory, generation, validation
     application/          use cases and transaction orchestration
     infrastructure/
       persistence/        IndexedDB repository and migrations
@@ -58,7 +59,7 @@ starts. Runtime and package-manager versions are committed through
       pwa/                service-worker update integration
     ui/
       components/         reusable accessible primitives
-      features/           setup, game table, attack, history, settings
+      features/           setup, game, board designer, history, settings
       styles/             tokens and global reset
     assets/               original icons and optional audio
     test/                 shared test builders and fakes
@@ -253,6 +254,31 @@ interface GameRepository {
 
 IndexedDB implementation details are specified in
 [data and reliability](data-and-reliability.md).
+
+The board designer uses a separate `BoardDesignRepository` port with CRUD
+operations over complete versioned design documents. Its controller mirrors
+the external-store subscription shape of `GameController`, but it does not use
+the game revision graph, active-game lock, or game import format. Board
+generation and validation remain pure domain functions, while SVG rendering
+and browser export stay in the UI/platform layers.
+
+The designer creates or accepts a persisted 180-degree rotationally symmetric
+axial-coordinate footprint and assigns all terrain types, including sea and
+Gold Field, within it. Width × height rebuilding starts from the requested
+centered axial bounds and removes symmetric boundary pairs until the fixed tile
+count is reached. Candidate removal preserves exact bounds and connectivity,
+prefers hex-convex results, then minimizes weak cells, perimeter, and distance
+from the rotation center. Incompatible capacity or odd/even parity is rejected
+before mutation. Explicit mirrored pair add/remove remains available for small
+manual edits. This keeps the physical layout connected without requiring land
+itself to be connected, allowing archipelagos and sea clusters. Candidate
+layouts with land components smaller than three hexes are rejected by
+generation scoring and final invariant checks.
+
+Each board document carries a monotonically increasing revision number.
+Updates and deletes compare the caller's expected revision inside one
+IndexedDB transaction. A stale editor therefore reloads the latest durable
+document instead of overwriting another tab's accepted edits.
 
 ## 11. Multi-tab coordination
 

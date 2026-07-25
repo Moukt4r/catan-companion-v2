@@ -22,6 +22,7 @@ The UI prioritizes:
 Home
   Resume game
   New game
+  Board designer
   Import backup
   Completed games
   Settings / About
@@ -44,6 +45,13 @@ Game complete
   Summary
   Export
   Archive
+
+Board designer
+  Saved designs
+  Inventory
+  Generated or manual hex layout
+  Board checks
+  Export
 ```
 
 The implementation uses screen state rather than path-based navigation, which
@@ -112,6 +120,67 @@ toggleable.
 
 Show player order, initial public scores, active house rules, and event cadence.
 The Start game button creates and saves the game before navigating to the table.
+
+## 4.1 Board designer
+
+The board designer is independent from the active-game lifecycle. Opening or
+editing a design never archives or replaces a game.
+
+### Saved designs
+
+- Start with the default balanced inventory or an empty custom inventory.
+- Reopen, duplicate, import, or permanently delete local designs.
+- Show placed-hex count, last save time, and the number of structural or
+  balance findings that need review.
+
+### Inventory and tools
+
+- Expose totals and remaining counts for standard terrain, Gold Field, sea,
+  number tokens, and port types.
+- Create a centered 180-degree symmetric border from the total terrain count.
+- Show empty border cells before terrain is filled.
+- Provide Add mirrored pair and Remove mirrored pair tools. Border editing may
+  temporarily differ from inventory capacity, but generation stays unavailable
+  until the counts match.
+- Provide Width and Height number inputs for exact axial column × row bounds.
+  Applying dimensions keeps the selected terrain-tile count fixed and rebuilds
+  a connected 180-degree symmetric footprint. Explain insufficient capacity
+  and odd/even parity conflicts inline before submission.
+- Use Select, Move, Erase, terrain, number, and port tools.
+- Place terrain directly into any empty cell of the prebuilt border.
+- Attach ports to land-sea edges rather than treating ports as hexes.
+
+### Canvas and inspector
+
+- Render the board as a scalable SVG inside a scrollable, zoomable workspace.
+- Every placed hex, empty border cell, mirrored border candidate, dimension
+  input, and port edge is keyboard operable and has a descriptive accessible
+  name.
+- Provide equivalent form controls for selecting a coordinate, changing
+  terrain or number tokens, moving in all six directions, and assigning ports.
+- Removing or changing a tile returns invalidated tokens and ports to the
+  inventory through the same undoable action.
+
+### Generation and checks
+
+- Generate from the selected inventory and allow immediate manual editing.
+- Fill only cells inside the saved border; regenerating contents preserves the
+  adjusted border.
+- Keep the complete hex footprint connected while allowing sea to divide land
+  into multiple islands and allowing adjacent sea tiles or internal waterways.
+- Require every automatically generated land island to contain at least three
+  hexes; smaller manual islands appear as a board warning.
+- Confirm before replacing or clearing a non-empty layout.
+- Report disconnected geometry, invalid attachments, unplaced inventory,
+  adjacent 6/8 tokens, large terrain clusters, production hotspots, uneven
+  resource production, and clustered ports.
+- Warnings never block saving or export.
+
+### Export
+
+- Autosave after every accepted edit.
+- Support versioned JSON import/export, original SVG, PNG, and print output.
+- Keep export controls available without requiring an active game.
 
 ## 5. Table view
 

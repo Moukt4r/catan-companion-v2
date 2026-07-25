@@ -1,4 +1,5 @@
 import type {
+  BoardDesignId,
   CommandId,
   EventId,
   EventOccurrenceId,
@@ -12,6 +13,8 @@ import type {
 } from "./types";
 
 export const asGameId = (value: string): GameId => value as GameId;
+export const asBoardDesignId = (value: string): BoardDesignId =>
+  value as BoardDesignId;
 export const asPlayerId = (value: string): PlayerId => value as PlayerId;
 export const asRevisionId = (value: string): RevisionId => value as RevisionId;
 export const asRollId = (value: string): RollId => value as RollId;

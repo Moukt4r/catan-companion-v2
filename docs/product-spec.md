@@ -38,6 +38,8 @@ These decisions define the first release:
 ## 3. Goals
 
 - Make one turn's roll and shared resolution clear in a single interaction.
+- Let players prepare and preserve custom physical-board layouts without
+  coupling those designs to an active game.
 - Guarantee exact coverage of the selected balanced roll cycles.
 - Correctly assist with event-die progress eligibility and barbarian attacks.
 - Track only public information that reduces table bookkeeping.
@@ -52,7 +54,8 @@ These decisions define the first release:
 
 The first release will not:
 
-- render or simulate the game board;
+- simulate play on the game board or validate roads, buildings, and player
+  starting positions;
 - track private resource, commodity, development, or progress-card hands;
 - perform trades or validate building placement;
 - implement online multiplayer, accounts, cloud backup, or spectators;
@@ -331,6 +334,37 @@ and vulnerable city count are derived rather than independently editable.
 - Undo and redo restore the corresponding turn owner, so live elapsed time is
   attributed according to the selected game-state timeline.
 
+### FR-17: Board designer
+
+- Provide a standalone board-design library that does not archive, replace, or
+  mutate the active companion game.
+- Let the user choose counts for forest, pasture, fields, hills, mountains,
+  Gold Field, desert, and sea hexes; number tokens from 2 through 12 excluding
+  7; generic 3:1 ports; and each resource-specific 2:1 port.
+- Support fully custom connected axial-grid footprints through manual
+  placement, movement, replacement, and removal.
+- Create a connected 180-degree rotationally symmetric border from the selected
+  terrain-tile count before filling it. Let the operator enter exact axial
+  width × height bounds while keeping the selected tile count fixed. Reject
+  dimensions with insufficient capacity, excessive capacity, incompatible
+  parity, or no connected symmetric solution. Also support explicit mirrored
+  pair add/remove for small manual adjustments.
+- Default to five each of forest, pasture, fields, hills, and mountains; two
+  Gold Fields; ten sea; no desert; and number-token counts distributed as
+  evenly as possible across all producing tiles.
+- Generate one connected hex-grid footprint from the selected inventory, then
+  distribute land and sea together inside the saved border so water may
+  separate landmasses or form adjacent sea regions. Every generated land
+  island contains at least three hexes. Avoid adjacent 6 and 8 tokens where
+  feasible, reduce production and terrain clustering, and spread ports around
+  eligible land-sea edges.
+- Keep generated layouts fully editable. Balance findings are warnings and do
+  not block manual overrides, saving, or export.
+- Persist designs independently from game records and provide bounded
+  undo/redo within the current editor session.
+- Import and export versioned JSON without overwriting an existing design.
+- Export the visible layout as original SVG artwork, PNG, or a print view.
+
 ## 9. UX acceptance scenarios
 
 The first release is acceptable only when all scenarios pass:
@@ -351,6 +385,9 @@ The first release is acceptable only when all scenarios pass:
 11. Importing malformed or incompatible data leaves the current game intact.
 12. A keyboard-only user can complete setup, roll, resolve, adjust state, undo,
     and export.
+13. A board design can be generated or manually assembled, reopened offline,
+    reviewed for structural and balance issues, and exported without changing
+    an active game.
 
 ## 10. Release success criteria
 

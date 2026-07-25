@@ -12,9 +12,9 @@ one.
 
 ## 2. Storage choice
 
-Use IndexedDB for all games and revision history. Use local storage only for
-non-critical device preferences that can safely reset, such as the last
-selected theme.
+Use IndexedDB for all games, revision history, and board designs. Use local
+storage only for non-critical device preferences that can safely reset, such
+as the last selected theme.
 
 IndexedDB is required because it offers:
 
@@ -42,6 +42,39 @@ Logical stores:
 | `quarantine` | generated ID          | Invalid imports or failed migration source records      |
 
 One installation may retain one active game and multiple archived games.
+
+Board designs use a separate database,
+`catan-table-companion-board-designs`, with one `designs` object store keyed by
+board-design ID. This separation keeps board-document migrations, imports, and
+deletions from changing the game database schema or touching active-game
+records.
+
+Each board document stores its version, name, timestamps, selected inventory,
+axial-coordinate hex placements, attached number tokens, and edge-based ports.
+The current document is saved after every accepted edit. The editor keeps a
+bounded in-memory undo/redo history; reopening restores the latest durable
+document without claiming that transient history is persistent.
+
+Board document version 2 adds Gold Field inventory. Version 1 records are
+migrated on read with a Gold Field count of zero and are written back in the
+new shape after their next accepted edit.
+
+Board document version 3 stores the editable footprint separately from filled
+hexes. Version 1 and 2 records migrate into a deterministic connected symmetric
+border produced after recentering, mirroring, and connecting their placed hex
+coordinates. The border expands to match existing inventory; when containment
+or parity requires additional cells, those cells are added to sea inventory.
+Port land coordinates receive the same translation.
+
+Library reads validate each board document independently. A malformed or
+unsupported record is reported to the user without preventing valid saved
+designs from being listed and opened.
+
+Board documents also carry a monotonically increasing revision number. Save
+and delete operations read the current record, compare the expected revision,
+and write within one IndexedDB transaction. When another tab has already
+changed or deleted the design, the stale mutation is rejected and the editor
+loads the latest durable record rather than overwriting it.
 
 ## 4. Versioning
 

@@ -34,6 +34,50 @@ test("home and setup have no detectable accessibility violations", async ({
   expect(setupResults.violations).toEqual([]);
 });
 
+test("the board designer has no detectable accessibility violations", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Board designer/ }).click();
+  const libraryResults = await new AxeBuilder({ page }).analyze();
+  expect(libraryResults.violations).toEqual([]);
+
+  await page.getByRole("button", { name: "Start default board" }).click();
+  await page.getByRole("button", { name: "Generate board" }).click();
+  await expect(
+    page.getByRole("group", {
+      name: "Untitled island board layout with 37 placed hexes",
+    }),
+  ).toBeVisible();
+  const normalResults = await new AxeBuilder({ page })
+    .include("main.board-designer-layout")
+    .analyze();
+  expect(normalResults.violations).toEqual([]);
+  await page.evaluate(() => {
+    document.documentElement.dataset.theme = "high-contrast";
+  });
+  const tokenColors = await page
+    .locator(".board-number-token")
+    .first()
+    .evaluate((token) => ({
+      disc: getComputedStyle(token.querySelector(".board-number-token__disc")!)
+        .fill,
+      pips: getComputedStyle(token.querySelector(".board-number-token__pips")!)
+        .fill,
+      value: getComputedStyle(
+        token.querySelector(".board-number-token__value")!,
+      ).fill,
+    }));
+  expect(tokenColors.disc).toMatch(/rgb\(255, 255, 255\)|#fff/i);
+  expect(tokenColors.value).toMatch(/rgb\(0, 0, 0\)|#000/i);
+  expect(tokenColors.pips).toMatch(/rgb\(0, 0, 0\)|#000/i);
+  await expect(page.locator("main.board-designer-layout")).toBeVisible();
+  const highContrastResults = await new AxeBuilder({ page })
+    .include("main.board-designer-layout")
+    .analyze();
+  expect(highContrastResults.violations).toEqual([]);
+});
+
 test("the inline roll result has no detectable accessibility violations", async ({
   page,
 }) => {

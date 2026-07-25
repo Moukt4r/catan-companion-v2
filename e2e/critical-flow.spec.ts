@@ -8,20 +8,25 @@ async function resetBrowserState(page: Page) {
     await Promise.all(
       registrations.map((registration) => registration.unregister()),
     );
-    await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.deleteDatabase("catan-table-companion");
-      request.onsuccess = () => {
-        resolve();
-      };
-      request.onerror = () => {
-        reject(
-          request.error ?? new Error("Unable to delete the test database."),
-        );
-      };
-      request.onblocked = () => {
-        resolve();
-      };
-    });
+    for (const name of [
+      "catan-table-companion",
+      "catan-table-companion-board-designs",
+    ]) {
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.deleteDatabase(name);
+        request.onsuccess = () => {
+          resolve();
+        };
+        request.onerror = () => {
+          reject(
+            request.error ?? new Error("Unable to delete the test database."),
+          );
+        };
+        request.onblocked = () => {
+          resolve();
+        };
+      });
+    }
   });
   await page.reload();
 }
@@ -64,6 +69,50 @@ function durationSeconds(value: string | null): number {
   if (!value) return 0;
   const [hours, minutes, seconds] = value.split(":").map(Number);
   return (hours ?? 0) * 3_600 + (minutes ?? 0) * 60 + (seconds ?? 0);
+}
+
+async function readFootprint(
+  page: Page,
+): Promise<Array<{ q: number; r: number }>> {
+  return page.locator(".board-hex--footprint").evaluateAll((elements) =>
+    elements.map((element) => ({
+      q: Number(element.getAttribute("data-q")),
+      r: Number(element.getAttribute("data-r")),
+    })),
+  );
+}
+
+function footprintSpans(
+  footprint: ReadonlyArray<{ q: number; r: number }>,
+): [number, number, number] {
+  return [
+    coordinateSpan(footprint.map(({ q }) => q)),
+    coordinateSpan(footprint.map(({ r }) => r)),
+    coordinateSpan(footprint.map(({ q, r }) => q + r)),
+  ];
+}
+
+function coordinateSpan(values: readonly number[]): number {
+  return Math.max(...values) - Math.min(...values) + 1;
+}
+
+function isRotationallySymmetric(
+  footprint: ReadonlyArray<{ q: number; r: number }>,
+): boolean {
+  const keys = new Set(footprint.map(({ q, r }) => `${q},${r}`));
+  const first = footprint[0];
+  return (
+    first !== undefined &&
+    footprint.some((candidate) => {
+      const offset = {
+        q: first.q + candidate.q,
+        r: first.r + candidate.r,
+      };
+      return footprint.every(({ q, r }) =>
+        keys.has(`${offset.q - q},${offset.r - r}`),
+      );
+    })
+  );
 }
 
 async function storedClock(page: Page) {
@@ -135,6 +184,413 @@ async function storedClock(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   await resetBrowserState(page);
+});
+
+test("creates, edits, and restores a custom board design", async ({ page }) => {
+  await page.getByRole("button", { name: /Board designer/ }).click();
+  await expect(
+    page.getByRole("heading", { name: "Board Designer" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Start blank inventory" }).click();
+
+  await page
+    .getByRole("button", { name: "Increase Forest" })
+    .evaluate((button: HTMLButtonElement) => {
+      button.click();
+      button.click();
+    });
+  await expect(page.getByRole("spinbutton", { name: "Forest" })).toHaveValue(
+    "2",
+  );
+  await page.getByRole("button", { name: "Increase Forest" }).click();
+  await page.getByRole("button", { name: "Increase Gold Field" }).click();
+  await page.getByRole("button", { name: "Increase Sea" }).click();
+  await expect(page.getByRole("spinbutton", { name: "Forest" })).toHaveValue(
+    "3",
+  );
+  await expect(
+    page.getByRole("spinbutton", { name: "Gold Field" }),
+  ).toHaveValue("1");
+  await expect(page.getByRole("spinbutton", { name: "Sea" })).toHaveValue("1");
+  await page.getByText("Number tokens", { exact: true }).click();
+  await page.getByRole("button", { name: "Increase Number 6" }).click();
+  await page.getByText("Ports", { exact: true }).click();
+  await page.getByRole("button", { name: "Increase Forest 2:1" }).click();
+  await page.getByRole("spinbutton", { name: "Width" }).fill("5");
+  await page.getByRole("spinbutton", { name: "Height" }).fill("1");
+  await expect(page.getByRole("spinbutton", { name: "Width" })).toHaveValue(
+    "5",
+  );
+  await expect(page.getByRole("spinbutton", { name: "Height" })).toHaveValue(
+    "1",
+  );
+  await expect(
+    page.getByText("Width × height must have the same odd or even parity"),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Apply width × height" }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Apply width × height" }).click();
+  await expect(page.getByText("5 cells / 5 terrain tiles")).toBeVisible();
+  await page.getByRole("button", { name: "Add mirrored pair" }).click();
+  const addPair = page
+    .getByRole("button", { name: /Add mirrored border pair at q/ })
+    .first();
+  const addPairLabel = await addPair.getAttribute("aria-label");
+  const addedCoordinate = addPairLabel?.match(/q (-?\d+), r (-?\d+)/);
+  if (!addedCoordinate) {
+    throw new Error("The mirrored border coordinate was not available.");
+  }
+  await addPair.click();
+  await expect(page.getByText("7 cells / 5 terrain tiles")).toBeVisible();
+  await page.getByRole("button", { name: "Remove mirrored pair" }).click();
+  await page
+    .getByRole("button", {
+      name: `Empty border cell q ${addedCoordinate[1]}, r ${addedCoordinate[2]}`,
+    })
+    .click();
+  await expect(page.getByText("5 cells / 5 terrain tiles")).toBeVisible();
+
+  await page.getByRole("button", { name: "Forest, 3 left" }).click();
+  await page
+    .getByRole("button", { name: "Empty border cell q 0, r 0" })
+    .click();
+  await page.getByRole("button", { name: "Sea, 1 left" }).click();
+  await page
+    .getByRole("button", { name: "Empty border cell q 1, r 0" })
+    .click();
+  await page.getByRole("button", { name: "Gold Field, 1 left" }).click();
+  await page
+    .getByRole("button", { name: /Empty border cell/ })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "6, 1 left" }).click();
+  await page
+    .getByRole("button", {
+      name: /Gold Field hex at q .* no number token/,
+    })
+    .click();
+  await page.getByRole("button", { name: "Forest 2:1, 1 left" }).click();
+  await page
+    .getByRole("button", {
+      name: /Empty port edge between land q 0, r 0 and sea q 1, r 0, east edge/,
+    })
+    .click();
+
+  await expect(
+    page.getByRole("button", {
+      name: /Forest 2:1 between land q 0, r 0 and sea q 1, r 0, east edge/,
+    }),
+  ).toBeVisible();
+  await page.getByRole("textbox", { name: "Design name" }).fill("E2E coast");
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+  await expect(page.getByText("Saved locally")).toBeVisible();
+  await page.getByRole("button", { name: "Saved designs" }).click();
+  await expect(page.getByRole("heading", { name: "E2E coast" })).toBeVisible();
+  await expect(page.getByText("3 placed hexes")).toBeVisible();
+  await page.getByRole("button", { name: "Open" }).click();
+  await expect(
+    page.getByRole("group", {
+      name: "E2E coast board layout with 3 placed hexes",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", {
+      name: /Gold Field hex at q .* number 6/,
+    }),
+  ).toBeVisible();
+});
+
+test("auto-generates a complete classic board", async ({ page }) => {
+  await page.getByRole("button", { name: /Board designer/ }).click();
+  await page.getByRole("button", { name: "Start default board" }).click();
+  await page.getByRole("button", { name: "Generate board" }).click();
+
+  await expect(
+    page.getByRole("group", {
+      name: "Untitled island board layout with 37 placed hexes",
+    }),
+  ).toBeVisible();
+  const topology = await page
+    .locator(".board-hex[data-terrain]")
+    .evaluateAll((elements) => {
+      const directions = [
+        [1, 0],
+        [1, -1],
+        [0, -1],
+        [-1, 0],
+        [-1, 1],
+        [0, 1],
+      ] as const;
+      const cells = elements.map((element) => ({
+        q: Number(element.getAttribute("data-q")),
+        r: Number(element.getAttribute("data-r")),
+        terrain: element.getAttribute("data-terrain"),
+      }));
+      const land = new Set(
+        cells
+          .filter(({ terrain }) => terrain !== "sea")
+          .map(({ q, r }) => `${q},${r}`),
+      );
+      const sea = new Set(
+        cells
+          .filter(({ terrain }) => terrain === "sea")
+          .map(({ q, r }) => `${q},${r}`),
+      );
+      const visited = new Set<string>();
+      let landComponents = 0;
+      for (const key of land) {
+        if (visited.has(key)) {
+          continue;
+        }
+        landComponents += 1;
+        const queue = [key];
+        visited.add(key);
+        while (queue.length > 0) {
+          const current = queue.shift();
+          if (!current) {
+            continue;
+          }
+          const [q, r] = current.split(",").map(Number);
+          for (const [dq, dr] of directions) {
+            const neighbor = `${(q ?? 0) + dq},${(r ?? 0) + dr}`;
+            if (land.has(neighbor) && !visited.has(neighbor)) {
+              visited.add(neighbor);
+              queue.push(neighbor);
+            }
+          }
+        }
+      }
+      const adjacentSea = cells.some(
+        ({ q, r, terrain }) =>
+          terrain === "sea" &&
+          directions.some(([dq, dr]) => sea.has(`${q + dq},${r + dr}`)),
+      );
+      const componentSizes: number[] = [];
+      visited.clear();
+      for (const key of land) {
+        if (visited.has(key)) {
+          continue;
+        }
+        let size = 0;
+        const queue = [key];
+        visited.add(key);
+        while (queue.length > 0) {
+          const current = queue.shift();
+          if (!current) {
+            continue;
+          }
+          size += 1;
+          const [q, r] = current.split(",").map(Number);
+          for (const [dq, dr] of directions) {
+            const neighbor = `${(q ?? 0) + dq},${(r ?? 0) + dr}`;
+            if (land.has(neighbor) && !visited.has(neighbor)) {
+              visited.add(neighbor);
+              queue.push(neighbor);
+            }
+          }
+        }
+        componentSizes.push(size);
+      }
+      return {
+        adjacentSea,
+        landComponents,
+        minimumIslandSize: Math.min(...componentSizes),
+        symmetric: cells.every(({ q, r }) =>
+          cells.some((candidate) => candidate.q === -q && candidate.r === -r),
+        ),
+      };
+    });
+  expect(topology.minimumIslandSize).toBeGreaterThanOrEqual(3);
+  expect(topology.symmetric).toBe(true);
+  expect(topology.adjacentSea).toBe(true);
+
+  for (const format of ["JSON", "SVG", "PNG"] as const) {
+    const dismissUpdate = page.getByRole("button", { name: "Dismiss" });
+    if (await dismissUpdate.isVisible()) {
+      await dismissUpdate.click();
+    }
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: format, exact: true }).click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(
+      new RegExp(
+        `^catan-board-\\d{4}-\\d{2}-\\d{2}-untitled-island\\.${format.toLowerCase()}$`,
+      ),
+    );
+  }
+});
+
+test("uses balanced board-designer defaults", async ({ page }) => {
+  await page.getByRole("button", { name: /Board designer/ }).click();
+  await page.getByRole("button", { name: "Start default board" }).click();
+
+  for (const [label, value] of [
+    ["Forest", "5"],
+    ["Pasture", "5"],
+    ["Fields", "5"],
+    ["Hills", "5"],
+    ["Mountains", "5"],
+    ["Gold Field", "2"],
+    ["Desert", "0"],
+    ["Sea", "10"],
+  ] as const) {
+    await expect(page.getByRole("spinbutton", { name: label })).toHaveValue(
+      value,
+    );
+  }
+  await page.getByText("Number tokens", { exact: true }).click();
+  const expectedNumbers: Record<string, string> = {
+    "Number 2": "2",
+    "Number 3": "3",
+    "Number 4": "3",
+    "Number 5": "3",
+    "Number 6": "3",
+    "Number 8": "3",
+    "Number 9": "3",
+    "Number 10": "3",
+    "Number 11": "2",
+    "Number 12": "2",
+  };
+  for (const [label, value] of Object.entries(expectedNumbers)) {
+    await expect(page.getByRole("spinbutton", { name: label })).toHaveValue(
+      value,
+    );
+  }
+});
+
+test("resizes the border with width and height inputs", async ({ page }) => {
+  await page.getByRole("button", { name: /Board designer/ }).click();
+  await page.getByRole("button", { name: "Start default board" }).click();
+  await expect(page.locator(".board-hex--footprint")).toHaveCount(37);
+  const before = await readFootprint(page);
+
+  await page.getByRole("spinbutton", { name: "Width" }).fill("9");
+  await page.getByRole("spinbutton", { name: "Height" }).fill("5");
+  await page.getByRole("button", { name: "Apply width × height" }).click();
+  await expect(page.locator("main.board-designer-layout")).toHaveAttribute(
+    "data-design-revision",
+    "1",
+  );
+  const after = await readFootprint(page);
+  expect(after).toHaveLength(before.length);
+  expect(footprintSpans(after).slice(0, 2)).toEqual([9, 5]);
+  expect(isRotationallySymmetric(after)).toBe(true);
+
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.locator("main.board-designer-layout")).toHaveAttribute(
+    "data-design-revision",
+    "2",
+  );
+  await expect.poll(() => readFootprint(page)).toEqual(before);
+});
+
+test("rejects stale board-designer writes across tabs", async ({
+  context,
+  page,
+}) => {
+  await page.getByRole("button", { name: /Board designer/ }).click();
+  await page.getByRole("button", { name: "Start blank inventory" }).click();
+
+  const secondPage = await context.newPage();
+  await secondPage.goto("/");
+  await secondPage.getByRole("button", { name: /Board designer/ }).click();
+  await secondPage.getByRole("button", { name: "Open" }).click();
+  const secondEditor = secondPage.locator("main.board-designer-layout");
+  await expect(secondEditor).toBeVisible();
+  await expect(secondEditor).toHaveAttribute("data-design-revision", "0");
+
+  await page.getByRole("button", { name: "Increase Forest" }).click();
+  await expect(page.locator("main.board-designer-layout")).toHaveAttribute(
+    "data-design-revision",
+    "1",
+  );
+  await expect(secondEditor).toHaveAttribute("data-design-revision", "0");
+  await secondPage
+    .getByRole("button", { name: "Increase Sea" })
+    .evaluate((button: HTMLButtonElement) => {
+      button.click();
+      button.click();
+    });
+
+  await expect(secondPage.getByRole("alert")).toContainText(
+    "changed in another tab",
+  );
+  await expect(
+    secondPage.getByRole("spinbutton", { name: "Forest" }),
+  ).toHaveValue("1");
+  await expect(secondPage.getByRole("spinbutton", { name: "Sea" })).toHaveValue(
+    "0",
+  );
+  await secondPage.close();
+});
+
+test("returns a stale editor to the library after remote deletion", async ({
+  context,
+  page,
+}) => {
+  await page.getByRole("button", { name: /Board designer/ }).click();
+  await page.getByRole("button", { name: "Start blank inventory" }).click();
+
+  const secondPage = await context.newPage();
+  await secondPage.goto("/");
+  await secondPage.getByRole("button", { name: /Board designer/ }).click();
+  await secondPage.getByRole("button", { name: "Open" }).click();
+  await expect(secondPage.locator("main.board-designer-layout")).toBeVisible();
+
+  await page.getByRole("button", { name: "Saved designs" }).click();
+  await page.getByRole("button", { name: "Delete" }).click();
+  await page
+    .getByRole("dialog", { name: "Delete this board design?" })
+    .getByRole("button", { name: "Delete permanently" })
+    .click();
+  await expect(page.getByText("No saved designs yet.")).toBeVisible();
+
+  await secondPage.getByRole("button", { name: "Increase Forest" }).click();
+  await expect(
+    secondPage.getByRole("heading", { name: "Board Designer" }),
+  ).toBeVisible();
+  await expect(secondPage.getByRole("alert")).toContainText(
+    "deleted in another tab",
+  );
+  await secondPage.close();
+});
+
+test("removes a stale library card after a conflicted delete", async ({
+  context,
+  page,
+}) => {
+  await page.getByRole("button", { name: /Board designer/ }).click();
+  await page.getByRole("button", { name: "Start blank inventory" }).click();
+  await page.getByRole("button", { name: "Saved designs" }).click();
+
+  const secondPage = await context.newPage();
+  await secondPage.goto("/");
+  await secondPage.getByRole("button", { name: /Board designer/ }).click();
+  await expect(
+    secondPage.getByRole("heading", { name: "Untitled island" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Delete" }).click();
+  await page
+    .getByRole("dialog", { name: "Delete this board design?" })
+    .getByRole("button", { name: "Delete permanently" })
+    .click();
+  await expect(page.getByText("No saved designs yet.")).toBeVisible();
+
+  await secondPage.getByRole("button", { name: "Delete" }).click();
+  await secondPage
+    .getByRole("dialog", { name: "Delete this board design?" })
+    .getByRole("button", { name: "Delete permanently" })
+    .click();
+  await expect(secondPage.getByRole("alert")).toContainText(
+    "deleted in another tab",
+  );
+  await expect(secondPage.getByText("No saved designs yet.")).toBeVisible();
+  await expect(
+    secondPage.getByRole("dialog", { name: "Delete this board design?" }),
+  ).toHaveCount(0);
+  await secondPage.close();
 });
 
 test("requests persistent storage when a game starts without wake lock", async ({

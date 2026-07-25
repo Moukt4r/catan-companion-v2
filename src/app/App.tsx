@@ -11,9 +11,11 @@ import {
   asIsoTimestamp,
   asPlayerId,
   currentTurnActiveMilliseconds,
+  createEmptyBoardInventory,
   totalActiveMilliseconds,
   winnerCandidates,
   type DieValue,
+  type BoardDesignId,
   type GameCommand,
   type GameSetup,
   type PlayerId,
@@ -21,8 +23,15 @@ import {
 import {
   downloadJson,
   makeBackupFilename,
+  makeBoardDesignFilename,
   readJsonFile,
 } from "../infrastructure/platform/files";
+import {
+  downloadBoardPng,
+  downloadBoardSvg,
+  printBoardDesign,
+} from "../infrastructure/platform/boardExport";
+import { parseBoardDesignExportDocument } from "../infrastructure/persistence";
 import {
   buildSanitizedDiagnostics,
   copyText,
@@ -78,14 +87,19 @@ import {
 } from "../ui/features/game/viewMappers";
 import { WinnerDialog } from "../ui/features/game/WinnerDialog";
 import { SettingsDialog } from "../ui/features/settings/SettingsDialog";
+import { BoardDesignLibraryScreen } from "../ui/features/board-designer/BoardDesignLibraryScreen";
+import { BoardDesignerScreen } from "../ui/features/board-designer/BoardDesignerScreen";
+import { boardDesignerController } from "./boardDesignerController";
 import { gameController } from "./gameController";
 import { PwaUpdate } from "./PwaUpdate";
 import { useDevicePreferences } from "./useDevicePreferences";
 import { useClockNow } from "./useClockNow";
+import { useBoardDesignerController } from "./useBoardDesignerController";
 import { useGameController } from "./useGameController";
 import { useOnlineStatus } from "./useOnlineStatus";
 
-type Screen = "home" | "setup" | "game" | "complete";
+type Screen =
+  "home" | "setup" | "game" | "complete" | "boards" | "board-designer";
 
 const colorNames: Record<string, string> = {
   "#b66a1f": "Amber",
@@ -96,6 +110,7 @@ const colorNames: Record<string, string> = {
 
 export function App() {
   const snapshot = useGameController();
+  const boardSnapshot = useBoardDesignerController();
   const { preferences, updatePreferences } = useDevicePreferences();
   const online = useOnlineStatus();
   const initialized = useRef(false);
@@ -115,6 +130,10 @@ export function App() {
   const [resolutionBusy, setResolutionBusy] = useState(false);
   const [newGameConfirmation, setNewGameConfirmation] = useState(false);
   const [deleteGameId, setDeleteGameId] = useState<string | null>(null);
+  const [deleteBoardDesign, setDeleteBoardDesign] = useState<{
+    id: BoardDesignId;
+    revision: number;
+  } | null>(null);
   const [resumeGameId, setResumeGameId] = useState<string | null>(null);
   const [rolling, setRolling] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -130,6 +149,9 @@ export function App() {
     }
     initialized.current = true;
     void gameController.initialize().catch((error: unknown) => {
+      setNotice(errorMessage(error));
+    });
+    void boardDesignerController.initialize().catch((error: unknown) => {
       setNotice(errorMessage(error));
     });
     void getStorageStatus()
@@ -508,6 +530,36 @@ export function App() {
     setNotice(`Exported ${game.title}.`);
   }
 
+  async function exportBoardDesign(
+    format: "json" | "svg" | "png" | "print",
+  ): Promise<void> {
+    const design = boardDesignerController.getSnapshot().activeDesign;
+    if (!design) {
+      throw new Error("No board design is open.");
+    }
+    if (format === "json") {
+      const document = await boardDesignerController.exportDesign(design.id);
+      downloadJson(
+        document,
+        makeBoardDesignFilename(design.name, "json"),
+        "application/vnd.catan-table-companion.board+json",
+      );
+      setNotice(`Exported ${design.name}.`);
+      return;
+    }
+    if (format === "svg") {
+      downloadBoardSvg(design);
+      setNotice(`Exported ${design.name} as SVG.`);
+      return;
+    }
+    if (format === "png") {
+      await downloadBoardPng(design);
+      setNotice(`Exported ${design.name} as PNG.`);
+      return;
+    }
+    printBoardDesign(design);
+  }
+
   async function handlePlayerSave(patch: PlayerEditorPatch): Promise<void> {
     if (!selectedPlayerId) {
       return;
@@ -540,6 +592,96 @@ export function App() {
   const page = renderPage();
 
   function renderPage(): ReactNode {
+    if (
+      screen === "boards" ||
+      (screen === "board-designer" && boardSnapshot.activeDesign === null)
+    ) {
+      return (
+        <BoardDesignLibraryScreen
+          designs={boardSnapshot.designs}
+          loading={!boardSnapshot.initialized || boardSnapshot.loading}
+          error={notice ?? boardSnapshot.error?.message ?? null}
+          onBack={() => {
+            setNotice(null);
+            setScreen("home");
+          }}
+          onCreateClassic={() => {
+            void runOperation(async () => {
+              await boardDesignerController.createDesign();
+              setScreen("board-designer");
+            });
+          }}
+          onCreateBlank={() => {
+            void runOperation(async () => {
+              await boardDesignerController.createDesign(
+                "Untitled island",
+                createEmptyBoardInventory(),
+              );
+              setScreen("board-designer");
+            });
+          }}
+          onOpen={(id) => {
+            void runOperation(async () => {
+              await boardDesignerController.openDesign(id);
+              setScreen("board-designer");
+            });
+          }}
+          onDuplicate={(id) => {
+            void runOperation(async () => {
+              await boardDesignerController.duplicateDesign(id);
+              setScreen("board-designer");
+            });
+          }}
+          onDelete={(id, revision) => {
+            setDeleteBoardDesign({ id, revision });
+          }}
+          onImport={(file) => {
+            void runOperation(async () => {
+              const input = await readJsonFile(file);
+              const document = parseBoardDesignExportDocument(input);
+              await boardDesignerController.importDesign(document.design);
+              setScreen("board-designer");
+            });
+          }}
+        />
+      );
+    }
+
+    if (screen === "board-designer" && boardSnapshot.activeDesign !== null) {
+      return (
+        <BoardDesignerScreen
+          design={boardSnapshot.activeDesign}
+          saving={boardSnapshot.saving}
+          error={notice ?? boardSnapshot.error?.message ?? null}
+          canUndo={boardSnapshot.canUndo}
+          canRedo={boardSnapshot.canRedo}
+          onBack={() => {
+            boardDesignerController.closeDesign();
+            setNotice(null);
+            setScreen("boards");
+          }}
+          onCommand={boardDesignerController.dispatch}
+          onResizeFootprint={async (width, height) => {
+            await runOperation(() =>
+              boardDesignerController.resizeFootprint(width, height),
+            );
+          }}
+          onGenerate={async () => {
+            await runOperation(() => boardDesignerController.generate());
+          }}
+          onUndo={async () => {
+            await runOperation(() => boardDesignerController.undo());
+          }}
+          onRedo={async () => {
+            await runOperation(() => boardDesignerController.redo());
+          }}
+          onExport={(format) => {
+            void runOperation(() => exportBoardDesign(format));
+          }}
+        />
+      );
+    }
+
     if (screen === "setup") {
       return (
         <SetupWizard
@@ -704,6 +846,10 @@ export function App() {
             setScreen("setup");
           }
         }}
+        onBoardDesigner={() => {
+          setNotice(null);
+          setScreen("boards");
+        }}
         onImport={(file) => {
           void runOperation(async () => {
             const input = await readJsonFile(file);
@@ -726,7 +872,10 @@ export function App() {
 
       {(notice ?? snapshot.error?.message) &&
       snapshot.pendingSave === null &&
-      (screen !== "home" || snapshot.recovery !== null) ? (
+      ((screen !== "home" &&
+        screen !== "boards" &&
+        screen !== "board-designer") ||
+        snapshot.recovery !== null) ? (
         <aside
           className={`app-notice${snapshot.recovery ? " app-notice--danger" : ""}`}
           role="alert"
@@ -842,6 +991,30 @@ export function App() {
             await gameController.archiveActive();
             setNewGameConfirmation(false);
             setScreen("setup");
+          });
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteBoardDesign !== null}
+        title="Delete this board design?"
+        description="This permanently removes the local design. Export it first if you may need it later."
+        confirmLabel="Delete permanently"
+        danger
+        onCancel={() => {
+          setDeleteBoardDesign(null);
+        }}
+        onConfirm={() => {
+          const target = deleteBoardDesign;
+          if (!target) {
+            return;
+          }
+          setDeleteBoardDesign(null);
+          void runOperation(async () => {
+            await boardDesignerController.deleteDesign(
+              target.id,
+              target.revision,
+            );
           });
         }}
       />

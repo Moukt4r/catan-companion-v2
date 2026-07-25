@@ -1,5 +1,12 @@
-import { asCommandId, asGameId, asIsoTimestamp, asRevisionId } from "../domain";
+import {
+  asBoardDesignId,
+  asCommandId,
+  asGameId,
+  asIsoTimestamp,
+  asRevisionId,
+} from "../domain";
 import type {
+  BoardDesignId,
   CommandId,
   GameId,
   GeneratedIdKind,
@@ -13,6 +20,11 @@ export interface RuntimeDependencies extends ImportIdSource {
   domainIds(): IdSource;
 }
 
+export interface BoardDesignerRuntimeDependencies {
+  boardDesignId(): BoardDesignId;
+  now(): IsoTimestamp;
+}
+
 function requireCrypto(): Crypto {
   if (
     typeof globalThis.crypto === "undefined" ||
@@ -23,7 +35,13 @@ function requireCrypto(): Crypto {
   return globalThis.crypto;
 }
 
-export class BrowserRuntimeDependencies implements RuntimeDependencies {
+export class BrowserRuntimeDependencies
+  implements RuntimeDependencies, BoardDesignerRuntimeDependencies
+{
+  boardDesignId(): BoardDesignId {
+    return asBoardDesignId(requireCrypto().randomUUID());
+  }
+
   gameId(): GameId {
     return asGameId(requireCrypto().randomUUID());
   }

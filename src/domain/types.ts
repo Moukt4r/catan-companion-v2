@@ -1,6 +1,7 @@
 export type Brand<T, Name extends string> = T & { readonly __brand: Name };
 
 export type GameId = Brand<string, "GameId">;
+export type BoardDesignId = Brand<string, "BoardDesignId">;
 export type PlayerId = Brand<string, "PlayerId">;
 export type RevisionId = Brand<string, "RevisionId">;
 export type RollId = Brand<string, "RollId">;

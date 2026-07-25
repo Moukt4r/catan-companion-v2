@@ -1,4 +1,6 @@
 export * from "./broadcast";
+export * from "./boardDesignerController";
+export * from "./boardDesigns";
 export * from "./control";
 export * from "./controller";
 export * from "./devicePreferences";
