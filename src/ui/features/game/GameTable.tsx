@@ -86,10 +86,12 @@ export interface GameTableView {
     advancesUntilAttack: number;
     attackImminent: boolean;
     defended: boolean;
+    relevant: boolean;
     strength: number;
     defenderStrength: number;
     inactiveStrength: number;
     summary: string;
+    verdict: string;
     pillagedNames: string[];
     rewardNames: string[];
   };
@@ -188,6 +190,7 @@ export function GameTable({
   const playerControlsDisabled =
     busy || !view.canEditPublicState || view.readOnly || view.paused;
   const [barbarianOpen, setBarbarianOpen] = useState(barbarianPanelStartsOpen);
+  const [menuOpen, setMenuOpen] = useState(false);
   const rollStageArt = view.season
     ? SEASON_ART[view.season.current]
     : resourceIllustration;
@@ -273,39 +276,11 @@ export function GameTable({
           <span className={`save-pill save-pill--${view.saveTone}`}>
             {view.savedLabel}
           </span>
-          <Button
-            variant="quiet"
-            size="small"
-            disabled={view.paused}
-            onClick={onHistory}
-          >
-            History
-          </Button>
-          <Button
-            variant="quiet"
-            size="small"
-            disabled={view.paused}
-            onClick={onExport}
-          >
-            Export
-          </Button>
-          <Button
-            variant="quiet"
-            size="small"
-            disabled={view.paused || busy}
-            aria-pressed={soundEnabled}
-            onClick={onToggleSound}
-          >
-            Sound {soundEnabled ? "on" : "off"}
-          </Button>
-          <Button
-            variant="quiet"
-            size="small"
-            disabled={view.paused}
-            onClick={onSettings}
-          >
-            Settings
-          </Button>
+          {/*
+           * Only Pause is needed mid-turn. The rest are occasional, so they
+           * live behind a disclosure to keep the header from eating vertical
+           * space on every single turn.
+           */}
           <Button
             variant="secondary"
             size="small"
@@ -314,6 +289,74 @@ export function GameTable({
           >
             Pause
           </Button>
+          <div className="header-menu">
+            <Button
+              variant="quiet"
+              size="small"
+              disabled={view.paused}
+              aria-expanded={menuOpen}
+              aria-controls="game-header-menu"
+              aria-label="More actions"
+              onClick={() => {
+                setMenuOpen((open) => !open);
+              }}
+            >
+              ⋯
+            </Button>
+            {menuOpen ? (
+              <div
+                id="game-header-menu"
+                className="header-menu__panel"
+                role="group"
+                aria-label="More actions"
+              >
+                <Button
+                  variant="quiet"
+                  size="small"
+                  disabled={view.paused}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onHistory();
+                  }}
+                >
+                  History
+                </Button>
+                <Button
+                  variant="quiet"
+                  size="small"
+                  disabled={view.paused}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onExport();
+                  }}
+                >
+                  Export
+                </Button>
+                <Button
+                  variant="quiet"
+                  size="small"
+                  disabled={view.paused || busy}
+                  aria-pressed={soundEnabled}
+                  onClick={() => {
+                    onToggleSound?.();
+                  }}
+                >
+                  Sound {soundEnabled ? "on" : "off"}
+                </Button>
+                <Button
+                  variant="quiet"
+                  size="small"
+                  disabled={view.paused}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onSettings();
+                  }}
+                >
+                  Settings
+                </Button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -552,28 +595,23 @@ export function GameTable({
               </div>
               <p
                 className={`barbarian-distance barbarian-forecast barbarian-forecast--${
-                  view.forecast.defended
-                    ? "held"
-                    : view.forecast.attackImminent
-                      ? "imminent"
-                      : "falls"
+                  !view.forecast.relevant
+                    ? "quiet"
+                    : view.forecast.defended
+                      ? "held"
+                      : view.forecast.attackImminent
+                        ? "imminent"
+                        : "falls"
                 }`}
               >
                 {spacesLabel} until attack · barbarians{" "}
                 {view.barbarian.strength} vs defense{" "}
                 {view.barbarian.defenderStrength}
-                <span className="barbarian-forecast__verdict">
-                  {view.forecast.defended
-                    ? view.forecast.rewardNames.length === 1
-                      ? `Held · ${view.forecast.rewardNames[0]} takes the Defender point`
-                      : `Held · ${view.forecast.rewardNames.join(" and ")} each draw a progress card`
-                    : view.forecast.pillagedNames.length === 0
-                      ? "Falls · no recorded city is exposed"
-                      : `Falls · ${view.forecast.pillagedNames.join(" and ")} lose a city`}
-                  {view.forecast.inactiveStrength > 0
-                    ? ` (${view.forecast.inactiveStrength} defense inactive)`
-                    : ""}
-                </span>
+                {view.forecast.relevant ? (
+                  <span className="barbarian-forecast__verdict">
+                    {view.forecast.verdict}
+                  </span>
+                ) : null}
               </p>
             </div>
           </details>

@@ -515,6 +515,38 @@ h3 {
   gap: 0.45rem;
 }
 
+/*
+ * Occasional actions live behind a disclosure so the header keeps a single
+ * compact row. Anchored to the header so the panel cannot widen it.
+ */
+.header-menu {
+  position: relative;
+}
+
+.header-menu__panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 0.2rem;
+  min-width: 11rem;
+  padding: 0.35rem;
+  border: 1px solid rgb(23 50 77 / 14%);
+  border-radius: var(--radius-medium);
+  background: var(--surface, #f7f2e8);
+  box-shadow: 0 12px 28px rgb(23 50 77 / 18%);
+}
+
+.header-menu__panel .button {
+  justify-content: flex-start;
+  width: 100%;
+}
+
+:root[data-theme="dark"] .header-menu__panel {
+  background: #0d1c2a;
+}
+
 .game-meta {
   margin: 0.35rem 0 0;
   color: var(--color-navy-700);
@@ -1698,6 +1730,42 @@ h3 {
   }
 }
 
+@media (max-width: 1100px) {
+  /*
+   * Tablet portrait and landscape: the header is sticky, so every pixel it
+   * takes is lost on every turn, and a landscape tablet is short enough that
+   * a four-row header costs real space. Collapse the left column to a single
+   * wrapping line and drop the game title to screen readers only — mid-game
+   * the table already knows which game it is.
+   */
+  .game-header {
+    padding: 0.5rem 0.65rem;
+  }
+
+  .game-header > div:first-child {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.1rem 0.65rem;
+  }
+
+  .game-header .eyebrow {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .game-header .game-meta,
+  .game-header .game-clock-row {
+    margin: 0;
+  }
+}
+
 @media (max-width: 900px) {
   .game-layout--turn-action {
     padding-bottom: calc(6rem + env(safe-area-inset-bottom));
@@ -1883,16 +1951,17 @@ h3 {
   }
 
   .player-strip {
-    display: flex;
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    padding-bottom: 0.4rem;
-    scrollbar-width: thin;
+    /*
+     * Tablet portrait: four cards do not fit side by side, and horizontal
+     * scrolling hides a player from a table that is meant to be shared.
+     * Wrap to a 2x2 grid so every score stays visible at once.
+     */
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
   }
 
   .player-card {
     min-width: 0;
-    flex: 0 0 230px;
-    scroll-snap-align: start;
   }
 }

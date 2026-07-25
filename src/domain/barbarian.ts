@@ -32,6 +32,15 @@ export interface BarbarianForecast {
   inactiveStrength: number;
   /** Players who would lose an ordinary city if the attack resolved now. */
   pillagedPlayerIds: readonly PlayerId[];
+  /**
+   * Whether the forecast carries information worth showing.
+   *
+   * At the opening position nobody has built a knight and the ship has not
+   * moved, so the outcome is always "Catan falls". That is technically true
+   * but tells the table nothing it can act on, so the forecast stays quiet
+   * until the ship advances or somebody actually has a knight.
+   */
+  relevant: boolean;
 }
 
 const FORECAST_PROPOSAL_ID = "forecast" as ProposalId;
@@ -62,6 +71,7 @@ export function forecastBarbarianAttack(
       proposal.outcome.type === "barbarians-win"
         ? proposal.outcome.pillagedPlayerIds
         : [],
+    relevant: state.barbarian.shipPosition > 0 || potential > 0,
   };
 }
 

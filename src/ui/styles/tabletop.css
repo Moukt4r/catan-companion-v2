@@ -803,6 +803,22 @@ h1 {
   color: #fff;
 }
 
+/*
+ * The disclosure panel sits on a light surface, so it must opt out of the
+ * light-on-dark treatment the rest of the header uses.
+ */
+.game-header .header-menu__panel .button--quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+}
+
+.game-header .header-menu__panel .button--quiet:hover:not(:disabled) {
+  border-color: var(--accent-strong);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+
 .game-header .button--secondary {
   border-color: #f3c875;
   background: #f3c875;

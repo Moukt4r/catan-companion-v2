@@ -268,12 +268,21 @@ export interface BarbarianForecastView {
   advancesUntilAttack: number;
   attackImminent: boolean;
   defended: boolean;
+  relevant: boolean;
   strength: number;
   defenderStrength: number;
   inactiveStrength: number;
   summary: string;
+  /** Ready-to-render one-line verdict, empty when the forecast is not useful. */
+  verdict: string;
   pillagedNames: string[];
   rewardNames: string[];
+}
+
+/** Join names the way a person would: "Ada, Grace and Linus". */
+function listNames(names: readonly string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
 function toBarbarianForecastView(state: GameState): BarbarianForecastView {
@@ -287,11 +296,30 @@ function toBarbarianForecastView(state: GameState): BarbarianForecastView {
         ? [nameOf(forecast.outcome.reward.playerId)]
         : forecast.outcome.reward.playerIds.map(nameOf)
       : [];
+  const pillagedNames = forecast.pillagedPlayerIds.map(nameOf);
+  const defended = forecast.outcome.type === "defenders-win";
+
+  const held =
+    rewardNames.length === 1
+      ? `Held \u00b7 ${rewardNames[0]} takes the Defender point`
+      : `Held \u00b7 ${listNames(rewardNames)} each draw a progress card`;
+  const falls =
+    pillagedNames.length === 0
+      ? "Falls \u00b7 no recorded city is exposed"
+      : `Falls \u00b7 ${listNames(pillagedNames)} lose a city`;
+  const inactiveNote =
+    forecast.inactiveStrength > 0
+      ? ` (${forecast.inactiveStrength} defense inactive)`
+      : "";
 
   return {
     advancesUntilAttack: forecast.advancesUntilAttack,
     attackImminent: forecast.attackImminent,
-    defended: forecast.outcome.type === "defenders-win",
+    defended,
+    relevant: forecast.relevant,
+    verdict: forecast.relevant
+      ? `${defended ? held : falls}${inactiveNote}`
+      : "",
     strength: forecast.strengths.barbarian,
     defenderStrength: forecast.strengths.defenders,
     inactiveStrength: forecast.inactiveStrength,

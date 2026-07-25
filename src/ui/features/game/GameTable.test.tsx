@@ -41,11 +41,13 @@ function view(): GameTableView {
       advancesUntilAttack: 7,
       attackImminent: false,
       defended: false,
+      relevant: true,
       strength: 3,
       defenderStrength: 0,
       inactiveStrength: 0,
       summary:
         "The barbarians win; the lowest vulnerable strength group loses one ordinary city each.",
+      verdict: "Falls · Ada loses a city",
       pillagedNames: ["Ada"],
       rewardNames: [],
     },
@@ -103,6 +105,8 @@ describe("GameTable", () => {
     const onToggleSound = vi.fn();
     const { rerender, props } = renderTable({}, { onToggleSound });
 
+    // Occasional actions live behind the header disclosure.
+    await user.click(screen.getByRole("button", { name: "More actions" }));
     const muted = screen.getByRole("button", { name: "Sound off" });
     expect(muted).toHaveAttribute("aria-pressed", "false");
     await user.click(muted);
@@ -215,7 +219,7 @@ describe("GameTable", () => {
     expect(onEditPlayer).toHaveBeenCalledWith("ada");
   });
 
-  it("disables every state-changing table control in read-only mode", () => {
+  it("disables every state-changing table control in read-only mode", async () => {
     render(
       <GameTable
         view={{
@@ -256,6 +260,8 @@ describe("GameTable", () => {
     expect(
       screen.getByRole("button", { name: "Confirm winner" }),
     ).toBeDisabled();
+    // Read-only blocks state changes but must not hide read-only actions.
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
     expect(screen.getByRole("button", { name: "History" })).toBeEnabled();
   });
 
