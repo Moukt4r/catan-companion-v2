@@ -61,6 +61,50 @@ export function neighbors(coordinate: HexCoordinate): HexCoordinate[] {
   );
 }
 
+/**
+ * A corner of the hex grid, together with the board hexes that touch it.
+ *
+ * A vertex is where a settlement or city is placed, so it is the unit that
+ * production limits apply to. Consecutive hex directions are mutually
+ * adjacent, so every hex contributes six vertices; each interior vertex is
+ * reached from three different hexes and is de-duplicated by key.
+ */
+export interface BoardVertex {
+  key: string;
+  coordinates: HexCoordinate[];
+}
+
+export function boardVertices(
+  coordinates: readonly HexCoordinate[],
+): BoardVertex[] {
+  const present = new Set(coordinates.map(coordinateKey));
+  const vertices = new Map<string, BoardVertex>();
+
+  for (const coordinate of coordinates) {
+    for (let direction = 0; direction < 6; direction += 1) {
+      const triple = [
+        coordinate,
+        neighbor(coordinate, direction as HexDirection),
+        neighbor(coordinate, ((direction + 1) % 6) as HexDirection),
+      ];
+      // Identify the vertex by all three corners, including ones off the
+      // board, so coastal vertices stay distinct from each other.
+      const key = triple.map(coordinateKey).sort().join("|");
+      if (vertices.has(key)) {
+        continue;
+      }
+      vertices.set(key, {
+        key,
+        coordinates: triple.filter((candidate) =>
+          present.has(coordinateKey(candidate)),
+        ),
+      });
+    }
+  }
+
+  return [...vertices.values()];
+}
+
 export function hexDistance(
   left: HexCoordinate,
   right: HexCoordinate = { q: 0, r: 0 },

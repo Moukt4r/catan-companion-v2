@@ -2,6 +2,7 @@ import type { BoundedIntSource, RandomSource } from "../types";
 import { fisherYates, toBoundedInt } from "../random";
 import {
   areAdjacent,
+  boardVertices,
   connectedHexGroups,
   coordinateKey,
   edgeKey,
@@ -11,7 +12,7 @@ import {
 } from "./coordinates";
 import { isSymmetricFootprint } from "./footprint";
 import { isProducingTerrain, totalTerrain } from "./inventory";
-import { NUMBER_TOKEN_PIPS } from "./validation";
+import { MAX_VERTEX_PIPS, NUMBER_TOKEN_PIPS } from "./validation";
 import {
   MAX_BOARD_HEXES,
   NUMBER_TOKEN_VALUES,
@@ -202,7 +203,39 @@ function numberPlacementScore(hexes: readonly BoardHex[]): number {
       score += (localPips - 18) ** 2;
     }
   }
+
+  // A settlement collects from every hex touching its corner, so an overloaded
+  // vertex is a genuinely unbalanced building spot. Weighted well above the
+  // soft balance terms so the optimizer treats it as near-forbidden, but below
+  // the red-adjacency weight so it never trades one hard rule for another.
+  score += vertexPipPenalty(hexes);
+
   return score;
+}
+
+/** Combined pip count for each vertex on the board. */
+function vertexPipSums(hexes: readonly BoardHex[]): number[] {
+  const byKey = new Map(
+    hexes.map((hex) => [coordinateKey(hex.coordinate), hex]),
+  );
+  return boardVertices(hexes.map((hex) => hex.coordinate)).map((vertex) =>
+    vertex.coordinates.reduce((total, coordinate) => {
+      const hex = byKey.get(coordinateKey(coordinate));
+      return (
+        total + (hex?.numberToken ? NUMBER_TOKEN_PIPS[hex.numberToken] : 0)
+      );
+    }, 0),
+  );
+}
+
+function vertexPipPenalty(hexes: readonly BoardHex[]): number {
+  let penalty = 0;
+  for (const pips of vertexPipSums(hexes)) {
+    if (pips > MAX_VERTEX_PIPS) {
+      penalty += 1_000 + (pips - MAX_VERTEX_PIPS) ** 2;
+    }
+  }
+  return penalty;
 }
 
 function assignNumberTokens(
@@ -264,7 +297,179 @@ function optimizeNumberTokens(
     }
   }
 
-  return repairRedNumberAdjacency(best ?? [], boundedInt);
+  return repairVertexPipOverload(
+    repairRedNumberAdjacency(best ?? [], boundedInt),
+  );
+}
+
+/**
+ * Swap number tokens until no vertex exceeds {@link MAX_VERTEX_PIPS}.
+ *
+ * The weighted score already discourages overloaded vertices, but it balances
+ * them against resource spread and repeat-token penalties, so a scored search
+ * settles for layouts that still leave corners over the limit.
+ *
+ * This pass optimises for that single constraint with a deterministic greedy
+ * walk: at each step it takes the swap that most reduces the combined cost,
+ * accepting ties so it can cross plateaus where no single swap helps but a
+ * pair of them does. It draws no randomness, so generation stays reproducible
+ * for a given seed and the caller's draw budget is untouched.
+ *
+ * Red adjacency is folded into the same cost rather than forbidden outright,
+ * weighted far above a single overloaded corner. That lets the walk pass
+ * through a red-adjacent layout on the way to a better one without ever
+ * settling on it.
+ */
+function repairVertexPipOverload(source: BoardHex[]): BoardHex[] {
+  const hexes = source.map((hex) => ({
+    ...hex,
+    coordinate: { ...hex.coordinate },
+  }));
+  const numbered: number[] = [];
+  for (const [index, hex] of hexes.entries()) {
+    if (hex.numberToken !== null) {
+      numbered.push(index);
+    }
+  }
+  if (numbered.length < 2) {
+    return hexes;
+  }
+
+  // Geometry is fixed for the whole walk, so resolve it once instead of
+  // rebuilding the vertex list on every candidate swap.
+  const indexByKey = new Map(
+    hexes.map((hex, index) => [coordinateKey(hex.coordinate), index]),
+  );
+  const vertexGroups = boardVertices(hexes.map((hex) => hex.coordinate)).map(
+    (vertex) =>
+      vertex.coordinates.flatMap((coordinate) => {
+        const index = indexByKey.get(coordinateKey(coordinate));
+        return index === undefined ? [] : [index];
+      }),
+  );
+  const redPairs: Array<[number, number]> = [];
+  for (const [index, hex] of hexes.entries()) {
+    for (const coordinate of neighbors(hex.coordinate)) {
+      const other = indexByKey.get(coordinateKey(coordinate));
+      if (other !== undefined && index < other) {
+        redPairs.push([index, other]);
+      }
+    }
+  }
+
+  const pipsAt = (index: number): number => {
+    const token = hexes[index]?.numberToken;
+    return token ? NUMBER_TOKEN_PIPS[token] : 0;
+  };
+  const cost = (): number => {
+    let overloaded = 0;
+    for (const group of vertexGroups) {
+      let pips = 0;
+      for (const index of group) {
+        pips += pipsAt(index);
+      }
+      if (pips > MAX_VERTEX_PIPS) {
+        overloaded += 1;
+      }
+    }
+    let reds = 0;
+    for (const [left, right] of redPairs) {
+      if (
+        isRedNumber(hexes[left]?.numberToken ?? null) &&
+        isRedNumber(hexes[right]?.numberToken ?? null)
+      ) {
+        reds += 1;
+      }
+    }
+    return reds * 100 + overloaded;
+  };
+
+  let current = cost();
+  if (current === 0) {
+    return hexes;
+  }
+  let bestTokens = numbered.map((index) => hexes[index]?.numberToken ?? null);
+  let bestCost = current;
+
+  // A private generator seeded from the board itself. Restarts need randomness
+  // to escape local minima, but drawing from the caller's source would both
+  // consume its budget and couple generation cost to this repair pass, so the
+  // stream is derived from the layout instead: same board, same repair.
+  let state = numbered.reduce(
+    (seed, index) =>
+      (Math.imul(seed, 31) + (hexes[index]?.numberToken ?? 0)) >>> 0,
+    numbered.length >>> 0,
+  );
+  const nextInt = (bound: number): number => {
+    state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+    return state % bound;
+  };
+
+  const walkLength = Math.min(4_000, 30 * numbered.length * numbered.length);
+  for (let restart = 0; restart < 10 && bestCost > 0; restart += 1) {
+    if (restart > 0) {
+      // Reshuffle the tokens among their hexes for a fresh starting point.
+      const tokens = numbered.map((index) => hexes[index]?.numberToken ?? null);
+      for (let i = tokens.length - 1; i > 0; i -= 1) {
+        const j = nextInt(i + 1);
+        const carried = tokens[i] as NumberTokenValue | null;
+        tokens[i] = tokens[j] as NumberTokenValue | null;
+        tokens[j] = carried;
+      }
+      for (const [position, index] of numbered.entries()) {
+        const hex = hexes[index];
+        if (hex) {
+          hex.numberToken = tokens[position] ?? hex.numberToken;
+        }
+      }
+      current = cost();
+    }
+
+    for (let step = 0; step < walkLength && current > 0; step += 1) {
+      const left = numbered[nextInt(numbered.length)];
+      const right = numbered[nextInt(numbered.length)];
+      if (left === undefined || right === undefined || left === right) {
+        continue;
+      }
+      const leftHex = hexes[left];
+      const rightHex = hexes[right];
+      if (!leftHex || !rightHex) {
+        continue;
+      }
+      const leftValue = leftHex.numberToken;
+      const rightValue = rightHex.numberToken;
+      if (leftValue === rightValue) {
+        continue;
+      }
+
+      leftHex.numberToken = rightValue;
+      rightHex.numberToken = leftValue;
+      const next = cost();
+
+      // Ties are accepted so the walk can cross plateaus where no single swap
+      // helps but a pair of them does.
+      if (next <= current) {
+        current = next;
+        if (next < bestCost) {
+          bestCost = next;
+          bestTokens = numbered.map(
+            (index) => hexes[index]?.numberToken ?? null,
+          );
+        }
+      } else {
+        leftHex.numberToken = leftValue;
+        rightHex.numberToken = rightValue;
+      }
+    }
+  }
+
+  for (const [position, index] of numbered.entries()) {
+    const hex = hexes[index];
+    if (hex) {
+      hex.numberToken = bestTokens[position] ?? hex.numberToken;
+    }
+  }
+  return hexes;
 }
 
 function repairRedNumberAdjacency(

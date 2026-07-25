@@ -113,6 +113,7 @@ export type BoardValidationCode =
   | "missing-number-token"
   | "invalid-port"
   | "adjacent-red-numbers"
+  | "vertex-pip-overload"
   | "terrain-cluster"
   | "production-hotspot"
   | "uneven-resource-production"

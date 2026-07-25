@@ -1,5 +1,6 @@
 import {
   areAdjacent,
+  boardVertices,
   connectedHexGroups,
   coordinateKey,
   edgeKey,
@@ -42,6 +43,47 @@ export const NUMBER_TOKEN_PIPS: Record<NumberTokenValue, number> = {
   11: 2,
   12: 1,
 };
+
+/**
+ * Highest combined pip count allowed on a single vertex.
+ *
+ * A settlement collects from every hex touching its corner, so the pip sum at
+ * a vertex is what a player actually earns there. Capping it keeps any one
+ * building spot from dominating the board: 8 + 4 + 2 sums to 9 and is fine,
+ * while 6 + 10 + 3 sums to 11 and is not.
+ */
+export const MAX_VERTEX_PIPS = 9;
+
+/** Pip value of a hex, treating unnumbered and desert hexes as zero. */
+function hexPips(hex: BoardHex | undefined): number {
+  return hex?.numberToken ? NUMBER_TOKEN_PIPS[hex.numberToken] : 0;
+}
+
+/**
+ * Vertices whose combined pip count exceeds {@link MAX_VERTEX_PIPS}, together
+ * with the sum, worst first.
+ */
+export function overloadedVertices(
+  hexes: readonly BoardHex[],
+): Array<{ pips: number; coordinates: HexCoordinate[] }> {
+  const byKey = new Map(
+    hexes.map((hex) => [coordinateKey(hex.coordinate), hex]),
+  );
+  const overloaded: Array<{ pips: number; coordinates: HexCoordinate[] }> = [];
+
+  for (const vertex of boardVertices(hexes.map((hex) => hex.coordinate))) {
+    const pips = vertex.coordinates.reduce(
+      (total, coordinate) =>
+        total + hexPips(byKey.get(coordinateKey(coordinate))),
+      0,
+    );
+    if (pips > MAX_VERTEX_PIPS) {
+      overloaded.push({ pips, coordinates: vertex.coordinates });
+    }
+  }
+
+  return overloaded.sort((left, right) => right.pips - left.pips);
+}
 
 function issue(
   value: Omit<BoardValidationIssue, "coordinates"> & {
@@ -346,6 +388,22 @@ export function validateBoardDesign(
         severity: "warning",
         message: "High-production 6 or 8 tokens are adjacent.",
         coordinates: redPairs,
+      }),
+    );
+  }
+
+  const overloaded = overloadedVertices(design.hexes);
+  if (overloaded.length > 0) {
+    const worst = overloaded[0]?.pips ?? 0;
+    issues.push(
+      issue({
+        code: "vertex-pip-overload",
+        severity: "warning",
+        message:
+          overloaded.length === 1
+            ? `One building spot totals ${worst} pips, above the limit of ${MAX_VERTEX_PIPS}.`
+            : `${overloaded.length} building spots exceed ${MAX_VERTEX_PIPS} pips; the highest totals ${worst}.`,
+        coordinates: overloaded.flatMap((vertex) => vertex.coordinates),
       }),
     );
   }
