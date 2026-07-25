@@ -85,7 +85,8 @@ function game(): GameState {
       ],
       firstPlayerId: ADA,
       victoryTarget: 13,
-      thematicCadence: "standard",
+      thematicEventPercent: 8,
+      numberedReshuffleThreshold: 0,
       thematicEventsEnabled: true,
       thematicEventCatalog: BUILT_IN_THEMATIC_EVENTS.map((event) => ({
         ...event,
@@ -156,6 +157,7 @@ describe("toGameTableView", () => {
       canContinueRoll: false,
       showNextRoll: false,
       canRollNextTurn: false,
+      canEditPublicState: false,
       canPause: true,
       currentTurnMs: 0,
       totalGameMs: 0,
@@ -169,13 +171,13 @@ describe("toGameTableView", () => {
         defenderStrength: 6,
         attackPending: false,
       },
-      houseEvent: null,
+      worldEventPending: false,
+      worldEvent: null,
+      activeEvents: [],
     });
     expect(view.players[0]).toMatchObject({
       name: "Ada",
       victoryPoints: 3,
-      ordinaryCities: 2,
-      activeKnightStrength: 3,
       activeTimeMs: 0,
       current: true,
     });
@@ -213,6 +215,7 @@ describe("toGameTableView", () => {
 
     expect(view.showNextRoll).toBe(true);
     expect(view.canRollNextTurn).toBe(true);
+    expect(view.canEditPublicState).toBe(true);
     expect(view.lastRoll).toEqual({
       red: 3,
       yellow: 4,
@@ -228,7 +231,6 @@ describe("toGameTableView", () => {
         robberActivated: false,
       },
     });
-    expect(view.players[0]?.metropolisDisciplines).toEqual(["science"]);
     expect(view.winnerCandidateName).toBe("Ada");
 
     const pending = toGameTableView(
@@ -251,6 +253,7 @@ describe("toGameTableView", () => {
     );
     expect(pending.showNextRoll).toBe(true);
     expect(pending.canRollNextTurn).toBe(false);
+    expect(pending.canEditPublicState).toBe(false);
   });
 });
 
@@ -336,9 +339,6 @@ describe("other view mappers", () => {
         robberActivated: false,
       },
       attack: null,
-      thematicEvent: {
-        title: event.title,
-      },
     });
   });
 
@@ -373,17 +373,10 @@ describe("other view mappers", () => {
     };
     expect(toBarbarianAttackView(state, defendersWin)).toMatchObject({
       proposalId: defendersWin.id,
-      outcome: "defenders-win",
-      uniqueDefenderId: null,
-      tiedDefenderIds: [ADA, GRACE],
-      pillagedPlayerIds: [],
       firstAttack: true,
     });
     expect(toBarbarianAttackView(state, defendersWin).players[0]).toMatchObject(
-      {
-        activeKnights: "1 basic, 1 strong",
-        activeStrength: 3,
-      },
+      {},
     );
 
     const barbariansWin: BarbarianAttackProposal = {
@@ -393,9 +386,7 @@ describe("other view mappers", () => {
       firstAttack: false,
     };
     expect(toBarbarianAttackView(state, barbariansWin)).toMatchObject({
-      outcome: "barbarians-win",
-      tiedDefenderIds: [],
-      pillagedPlayerIds: [GRACE],
+      firstAttack: false,
     });
   });
 
@@ -439,5 +430,86 @@ describe("other view mappers", () => {
       id: GRACE,
       activeTimeMs: 0,
     });
+  });
+});
+
+describe("season view mapping", () => {
+  const saveLabel = {
+    savedLabel: "Saved" as const,
+    saveTone: "success" as const,
+  };
+  it("returns null season when seasonConfig is absent", () => {
+    const state = game();
+    const view = toGameTableView(state, saveLabel);
+    expect(view.season).toBeNull();
+  });
+
+  it("returns null season when seasonConfig.enabled is false", () => {
+    const state = game();
+    state.setup.seasonConfig = {
+      enabled: false,
+      roundsPerSeason: 3,
+      startingSeason: "spring",
+    };
+    const view = toGameTableView(state, saveLabel);
+    expect(view.season).toBeNull();
+  });
+
+  it("returns season info when enabled", () => {
+    const state = game();
+    state.setup.seasonConfig = {
+      enabled: true,
+      roundsPerSeason: 3,
+      startingSeason: "spring",
+    };
+    state.turn.round = 4; // summer
+    const view = toGameTableView(state, saveLabel);
+    expect(view.season).toMatchObject({
+      current: "summer",
+      label: "Summer",
+      icon: "☀️",
+      roundInSeason: 1,
+      roundsPerSeason: 3,
+    });
+  });
+
+  it("detects season transition", () => {
+    const state = game();
+    state.setup.seasonConfig = {
+      enabled: true,
+      roundsPerSeason: 3,
+      startingSeason: "spring",
+    };
+    state.turn.round = 4; // first round of summer
+    const view = toGameTableView(state, saveLabel);
+    expect(view.season?.transitioned).toBe(true);
+  });
+
+  it("keeps the transition for the first player's turn, then hides it", () => {
+    const state = game();
+    state.setup.seasonConfig = {
+      enabled: true,
+      roundsPerSeason: 3,
+      startingSeason: "spring",
+    };
+    state.turn.round = 4;
+    state.turn.phase = "action-phase";
+    expect(toGameTableView(state, saveLabel).season?.transitioned).toBe(true);
+
+    state.turn.phase = "awaiting-roll";
+    state.turn.currentPlayerIndex = 1;
+    expect(toGameTableView(state, saveLabel).season?.transitioned).toBe(false);
+  });
+
+  it("no transition within season", () => {
+    const state = game();
+    state.setup.seasonConfig = {
+      enabled: true,
+      roundsPerSeason: 3,
+      startingSeason: "spring",
+    };
+    state.turn.round = 2; // still spring
+    const view = toGameTableView(state, saveLabel);
+    expect(view.season?.transitioned).toBe(false);
   });
 });

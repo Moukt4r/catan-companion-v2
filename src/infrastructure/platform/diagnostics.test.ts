@@ -23,6 +23,7 @@ describe("diagnostics", () => {
         activeRevision: "revision-1",
         lastSavedAt: "2026-07-12T12:00:00.000Z",
         storage: { persisted: true, quota: 100, usage: 25 },
+        season: { name: "autumn", roundInSeason: 2, roundsPerSeason: 3 },
       }),
     ) as Record<string, unknown>;
 
@@ -31,6 +32,7 @@ describe("diagnostics", () => {
       schemaVersion: 4,
       activeRevision: "revision-1",
       storage: { persisted: true, quota: 100, usage: 25 },
+      season: { name: "autumn", roundInSeason: 2, roundsPerSeason: 3 },
       online: navigator.onLine,
       capabilities: {
         indexedDb: true,

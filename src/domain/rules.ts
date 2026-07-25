@@ -2,7 +2,6 @@ import type {
   EventFace,
   ImprovementLevel,
   ProgressDiscipline,
-  ThematicCadence,
   ThematicEventDefinition,
 } from "./types";
 
@@ -35,97 +34,100 @@ export const DISCIPLINES: readonly ProgressDiscipline[] = [
   "politics",
 ];
 
-export const THEMATIC_TRIGGER_BAG_SIZE: Readonly<
-  Record<ThematicCadence, number>
-> = {
-  subtle: 18,
-  standard: 12,
-  lively: 8,
-};
+/**
+ * Number of slots in the percent-based trigger bag. One slot is consumed per
+ * eligible turn, so bag size 100 yields exact 1% granularity.
+ */
+export const THEMATIC_TRIGGER_BAG_SLOTS = 100;
 
-export const BUILT_IN_THEMATIC_EVENTS: readonly ThematicEventDefinition[] = [
-  {
-    id: "event-harbor-festival" as ThematicEventDefinition["id"],
-    contentVersion: 1,
-    title: "Harbor Festival",
-    instruction:
-      "Until this turn ends, announce each maritime trade as part of the harbor festival.",
-  },
-  {
-    id: "event-surveyors-call" as ThematicEventDefinition["id"],
-    contentVersion: 1,
-    title: "Surveyor's Call",
-    instruction:
-      "Before continuing, each player points out one route they hope to develop.",
-  },
-  {
-    id: "event-market-day" as ThematicEventDefinition["id"],
-    contentVersion: 1,
-    title: "Market Day",
-    instruction:
-      "Open the action phase with one round of table-wide trade offers.",
-  },
-  {
-    id: "event-city-bells" as ThematicEventDefinition["id"],
-    contentVersion: 1,
-    title: "City Bells",
-    instruction:
-      "Pause briefly and have the current player recap the public state of the cities.",
-  },
-  {
-    id: "event-favorable-winds" as ThematicEventDefinition["id"],
-    contentVersion: 1,
-    title: "Favorable Winds",
-    instruction:
-      "The current player may make one bank trade at a 3:1 rate during this action phase.",
-  },
-  {
-    id: "event-builders-truce" as ThematicEventDefinition["id"],
-    contentVersion: 1,
-    title: "Builders' Truce",
-    instruction:
-      "No player may interrupt the current action phase with table talk until one build or trade is complete.",
-  },
-  {
-    id: "event-open-ledger" as ThematicEventDefinition["id"],
-    contentVersion: 1,
-    title: "Open Ledger",
-    instruction:
-      "Each player states only their public victory-point total before the action phase continues.",
-  },
-  {
-    id: "event-traveling-broker" as ThematicEventDefinition["id"],
-    contentVersion: 1,
-    title: "Traveling Broker",
-    instruction:
-      "The current player may offer one two-card-for-two-card trade to the whole table before any other action.",
-  },
-  {
-    id: "event-watch-fires" as ThematicEventDefinition["id"],
-    contentVersion: 1,
-    title: "Watch Fires",
-    instruction:
-      "Review every active knight at the physical board and correct the companion if needed.",
-  },
-  {
-    id: "event-civic-pride" as ThematicEventDefinition["id"],
-    contentVersion: 1,
-    title: "Civic Pride",
-    instruction:
-      "Every player with a city names the city improvement they most want to advance.",
-  },
-  {
-    id: "event-quiet-market" as ThematicEventDefinition["id"],
-    contentVersion: 1,
-    title: "Quiet Market",
-    instruction:
-      "The next trade offer must be stated once and answered only with yes, no, or a counteroffer.",
-  },
-  {
-    id: "event-roadside-feast" as ThematicEventDefinition["id"],
-    contentVersion: 1,
-    title: "Roadside Feast",
-    instruction:
-      "Before ending the turn, the current player thanks another player for one memorable trade or rivalry.",
-  },
+/** Default World Event frequency for a fresh setup, in percent per turn. */
+export const DEFAULT_THEMATIC_EVENT_PERCENT = 8;
+
+/** Clamp any input to an integer percent within 0-100. */
+export function clampThematicPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+/**
+ * Minimum completed turns between two World Events.
+ *
+ * The historical fixed 2-turn gap silently caps high frequencies: at 100% it
+ * would allow at most one event every third turn. The gap therefore relaxes as
+ * the requested frequency rises, so the slider stays truthful.
+ */
+export function thematicCooldownTurns(percent: number): number {
+  const clamped = clampThematicPercent(percent);
+  if (clamped >= 50) {
+    return 0;
+  }
+  if (clamped >= 25) {
+    return 1;
+  }
+  return 2;
+}
+
+/** Largest allowed "cards remaining" reshuffle threshold for the 36-card deck. */
+export const MAX_NUMBERED_RESHUFFLE_THRESHOLD = 12;
+
+/** Clamp a numbered-deck reshuffle threshold to a supported integer value. */
+export function clampNumberedReshuffleThreshold(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(
+    MAX_NUMBERED_RESHUFFLE_THRESHOLD,
+    Math.max(0, Math.round(value)),
+  );
+}
+
+import { WORLD_EVENTS_CATALOG, toThematicDefinition } from "./worldEvents";
+
+/**
+ * The built-in thematic event catalog, projected from the typed World Events
+ * catalog to the persistence-compatible ThematicEventDefinition shape.
+ *
+ * This replaces the legacy 30-event catalog with a curated set of 20
+ * coherent, balanced, lifecycle-aware events.
+ */
+export const BUILT_IN_THEMATIC_EVENTS: readonly ThematicEventDefinition[] =
+  WORLD_EVENTS_CATALOG.map(toThematicDefinition);
+
+/**
+ * Legacy event catalog for migration purposes.
+ * Existing saves may reference these event IDs.
+ */
+export const LEGACY_EVENT_IDS: readonly string[] = [
+  "event-earthquake",
+  "event-good-harvest",
+  "event-trade-winds",
+  "event-pirates",
+  "event-market-day",
+  "event-storm",
+  "event-discovery",
+  "event-rebellion",
+  "event-festival",
+  "event-drought",
+  "event-time-of-abundance",
+  "event-peace-treaty",
+  "event-innovation",
+  "event-epidemic",
+  "event-progress",
+  "event-dense-fog",
+  "event-resource-windfall",
+  "event-tax-collection",
+  "event-good-fortune",
+  "event-sabotage",
+  "event-celebration",
+  "event-diplomacy",
+  "event-creative-solutions",
+  "event-raider-attack",
+  "event-cooperation",
+  "event-competition",
+  "event-ancient-wisdom",
+  "event-mystical-event",
+  "event-investment",
+  "event-isolation",
 ];

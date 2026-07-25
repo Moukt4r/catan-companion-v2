@@ -96,20 +96,21 @@ and saves locally. The main action is Start new game.
 
 Display a comparison panel:
 
-| Setting         | Default                               |
-| --------------- | ------------------------------------- |
-| Ruleset         | Base game + Cities & Knights          |
-| Numbered dice   | Balanced 36-outcome deck (house rule) |
-| Event die       | Balanced six-face deck (house rule)   |
-| Thematic events | Standard cadence (house rule)         |
-| Victory target  | 13                                    |
+| Setting        | Default                               |
+| -------------- | ------------------------------------- |
+| Ruleset        | Base game + Cities & Knights          |
+| Numbered dice  | Balanced 36-outcome deck (house rule) |
+| Event die      | Balanced six-face deck (house rule)   |
+| World Events   | Standard, all five packs (house rule) |
+| Victory target | 13                                    |
 
 The balanced modes are fixed for this release and explained rather than
 toggleable.
 
 ### Step 3: Preferences
 
-- Sound: off by default until enabled through a user gesture.
+- Sound effects: off by default until enabled through a user gesture; volume is
+  persisted per device and can be previewed before play.
 - Motion: system preference by default.
 - Theme: system, light, dark, or high contrast.
 - Keep screen awake: request only after the game starts and explain browser
@@ -226,6 +227,26 @@ After rolling:
 
 The UI never displays decorative dice that disagree with the text result.
 
+### 5.2.1 Sound feedback
+
+Sound is an optional enhancement and never the only carrier of game state:
+
+- the first roll gesture synchronously unlocks Web Audio for Safari/iOS;
+- a tactile rattle represents the physical dice before the persisted result;
+- Science, Trade, and Politics each use a distinct short signature;
+- barbarian movement gains urgency near the city, while an attack uses drums,
+  impact, and an outcome-aware final phrase;
+- World Events combine category, tone, impact, and an event-specific identity
+  note into a short procedural cue;
+- each season transition uses its own chime palette;
+- all effects are synthesized locally, add no network requests, and remain
+  available offline;
+- a table-level Sound on/off control, Settings volume slider, and explicit
+  preview keep control with the device owner.
+
+Every audible state also remains visible in text, color-independent symbols,
+and the existing live-region announcements.
+
 ### 5.3 Barbarian panel
 
 Always visible on tablet and desktop; collapsible but status-visible on mobile.
@@ -241,29 +262,29 @@ Risk uses icon, text, and shape in addition to color.
 
 ### 5.4 Player strip
 
-Each player card shows:
+Each compact player tile shows:
 
 - name and color label;
 - public victory points;
-- ordinary cities and derived discipline-specific metropolises;
-- active knight strength;
-- three improvement levels;
+- elapsed active-play time;
 - current-player marker.
 
-Tap or keyboard-activate a card to open its editor. On wide screens, all cards
-are visible in turn order. On narrow screens, use a horizontal snap list with
-the current player first in the viewport; do not hide other players behind a
-carousel with inaccessible controls.
+One-tap minus and plus controls adjust public points during the action phase.
+The Details action opens the full editor for corrections, cities, knights, and
+improvement levels. On wide screens, all tiles are visible in turn order. On
+narrow screens, use a compact horizontal snap list with the current player
+first in the viewport; do not hide other players behind a carousel with
+inaccessible controls.
 
 ### 5.5 Action controls
 
-The action phase presents quick actions for the current player:
+The action phase presents:
 
-- score adjustment;
-- ordinary-city adjustment;
-- active knight counters;
-- improvement levels, with a confirmed metropolis proposal when applicable;
-- **Next: PLAYER & roll**, which is the only action-phase turn transition.
+- one-tap score adjustment on every player tile;
+- a points-first editor with Cities & Knights state behind an advanced
+  disclosure;
+- a viewport-fixed turn dock with **Next: PLAYER** for the normal one-click
+  advance-and-roll path and **Alchemy: PLAYER** as the direct alternative.
 
 Every adjustment previews the resulting derived strength or score and supports
 Cancel. High-frequency plus/minus controls must also allow direct numeric entry
@@ -271,32 +292,21 @@ for keyboard and assistive-technology users.
 
 ## 6. Roll result flow
 
-Each roll opens one consolidated modal. It contains all applicable sections at
-once rather than opening a sequence of progress, production, attack, and
-thematic-event dialogs:
+Ordinary rolls resolve inline on the game table:
 
-1. **Event result**
-   - Barbarian: animate one track step.
-   - Progress discipline: show icon and discipline name.
-2. **Official consequence**
-   - Attack resolution, or eligible progress-card players.
-3. **Numbered result**
-   - Production total or 7 guidance.
-4. **House event**
-   - Show only when scheduled, with an unmistakable House event label.
+1. Show numbered dice, official event-die result, production/7 guidance, and
+   progress eligibility.
+2. If the barbarian ship reaches the final space, announce and log the attack
+   without asking the table to duplicate its physical-board resolution.
+3. After official resolution completes, show a scheduled World Event inline
+   with an unmistakable **World Event (house rule)** label.
+4. The table acknowledges the World Event before entering the action phase.
+5. **Next: PLAYER** records the turn boundary and rolls for the next player in
+   one click. **Alchemy: PLAYER** records the same boundary and opens Alchemy
+   for that player instead of rolling.
 
-The footer has two actions:
-
-- **Continue current turn** acknowledges the displayed information and enters
-  the current player's action phase.
-- **Next: PLAYER & quick roll** acknowledges the displayed information, ends
-  the current turn, and immediately rolls for the next player. Its helper text
-  makes clear that the current player should first finish physical-board
-  actions.
-
-The modal stays open while attack choices or persistence are incomplete. A
-quick roll replaces its content with the next player's result instead of
-opening another modal.
+Controls remain disabled while persistence is incomplete. No blocking dialog
+is used for a new barbarian attack.
 
 ## 7. Progress eligibility sheet
 
@@ -314,61 +324,38 @@ dialog.
 
 ## 8. Barbarian attack experience
 
-Attack resolution occupies one section of the consolidated roll modal and
-prevents the footer actions until required tie choices are complete.
+The app does not present an attack-resolution form. When the ship reaches the
+final space, it announces the attack, resets the app's ship cycle, activates
+the robber after the first attack, and continues the normal roll-resolution
+flow.
 
-### Step 1: Verify inputs
+The physical table remains authoritative for active knights, the outcome,
+Defender points, tied progress rewards, city losses, and all scoring. The app
+does not ask players to enter those decisions and does not change player
+scores, cities, or knight counters as a side effect of the attack.
 
-Show a per-player table:
+Legacy saves already paused in the old attack-resolution phase recover
+automatically without showing the form or changing player state. New attacks
+never enter that phase.
 
-| Player | Ordinary cities | Held metropolises | Active knights | Strength |
-| ------ | --------------- | ----------------- | -------------- | -------- |
+## 9. World Event experience
 
-Each value has an Edit link. The operator confirms that the physical board and
-app match before calculation is accepted.
+A pending World Event appears inline only after official resolution:
 
-### Step 2: Outcome
+- persistent **World Event (house rule)** label;
+- original title and precise physical-table instruction;
+- tone, impact, and timing/expiry copy;
+- explicit acknowledgement; no countdown or auto-dismiss.
 
-Show barbarian and defender strengths with the comparison.
+After acknowledgement, non-immediate events move to the persistent **Active
+World Events** section. Deferred full-round events say when they activate;
+automatic durations show their expiry; `until-resolved` events alone expose a
+**Mark resolved** action. Read-only, paused, and saving states disable that
+action.
 
-For a successful defense:
-
-- identify the unique highest contributor and proposed +1 point; or
-- list tied highest contributors and instruct each to choose a progress deck.
-
-For a barbarian victory:
-
-- list proposed players whose ordinary cities are pillaged;
-- explain why protected-metropolis-only players were skipped;
-- let the operator correct city selection before confirmation.
-
-### Step 3: Confirm through the modal footer
-
-The footer action summarizes and commits every mutation:
-
-- score changes;
-- ordinary city changes;
-- ship reset;
-- all active knight counters reset;
-- robber activation when applicable.
-
-The operator may temporarily open the public-state editor from an attack row;
-closing it returns to the same recalculated result modal.
-
-## 9. Thematic event experience
-
-The house-event section inside the consolidated modal must look visually
-distinct from official resolution:
-
-- persistent House event label;
-- original title and concise instruction;
-- optional category and intensity marker;
-- no countdown or auto-dismiss;
-- acknowledgement through the same modal footer as the official result.
-
-The event must fit without scrolling at 320 CSS pixels wide when text is at
-200 percent zoom, or provide a clear internal scroll region with focus
-management.
+The pending card and active-event list must remain readable at 320 CSS pixels
+and 200 percent zoom without viewport overflow. High-contrast presentation
+must not rely on tone color alone.
 
 ## 10. History and undo
 
@@ -431,8 +418,9 @@ Explain the schema version and validation issue. Do not modify existing data.
 - Single-column flow.
 - Sticky current-player header.
 - Dice and primary action above the fold.
-- Player cards in horizontal snap list.
+- Compact points-and-time tiles in a horizontal snap list.
 - Barbarian panel collapses to a status row.
+- Next-turn action remains fixed above the bottom safe area.
 - Bottom sheets use the full viewport and safe-area insets.
 
 ### Tablet and small desktop: 600-1199 px
@@ -458,9 +446,22 @@ resolution, or alter domain state.
   and focus rings.
 - Player colors come from a tested palette and always pair with a name or
   symbol.
-- Dice use original SVG geometry and symbols.
-- Avoid parchment textures, copied hex art, official iconography, and branded
-  audio.
+- Numeric dice use original CSS geometry. Event-die outcomes pair an original
+  symbol with decorative FLUX.2 art while retaining a complete textual label.
+- The core 13-image FLUX.2 system uses four official-event motifs, four seasonal
+  landscapes, and five World Event pack illustrations. Each of the 20 built-in
+  World Events additionally has a unique illustration loaded on demand.
+- Unique event art is excluded from the install-time precache and stored in a
+  20-entry CacheFirst runtime cache after first use. Precached pack art is the
+  offline fallback when an event image has not been seen yet.
+- Artwork is a subdued accent: consequence text, timing, controls, and
+  house-rule labels always remain visually and semantically primary.
+- Decorative imagery uses empty alt text, is hidden in high-contrast and
+  forced-colors modes, and never becomes the only carrier of state.
+- Responsive crops use shallow banners or stamps below 600 px so imagery never
+  pushes the primary roll/continue action out of the usable flow.
+- Avoid parchment textures, copied hex art, official iconography, recognizable
+  commercial pieces, and branded audio.
 
 ## 14. Motion and audio
 
@@ -496,8 +497,8 @@ resolution, or alter domain state.
 
 ## 16. Content style
 
-- Use short imperative labels: Roll, Continue current turn, Next: PLAYER &
-  roll.
+- Use short imperative labels: Roll, Continue current turn, Next: PLAYER,
+  Alchemy: PLAYER.
 - Name official and house behavior explicitly.
 - State consequences before confirmation.
 - Avoid jargon such as cursor, revision conflict, or IndexedDB in normal UI.

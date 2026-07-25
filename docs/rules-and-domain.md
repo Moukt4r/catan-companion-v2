@@ -17,7 +17,9 @@ The app combines official assistance with explicit house rules.
 
 - Balanced 36-outcome numbered-dice deck.
 - Balanced six-face event-die deck.
-- Original thematic event system.
+- World Events v0.2.0: typed 20-event engine with five selectable packs,
+  Off/Subtle/Standard/Lively cadence, tone/impact balance, five lifecycle
+  durations, persistent UI, manual resolution, and legacy v1 compatibility.
 - Optional two-player and custom-victory-target modes.
 
 The UI must display a "House rule" label anywhere a required house system is
@@ -45,7 +47,7 @@ The repository may summarize mechanics but must not copy rulebook or card text.
 | Event deck             | Shuffled event-die faces in a 3/1/1/1 distribution                    |
 | Roll transaction       | One accepted numbered result, event result, and all derived prompts   |
 | Official resolution    | Event movement/progress guidance followed by production or 7 guidance |
-| Thematic event         | Original house-rule instruction shown after official resolution       |
+| World Event            | Original house-rule instruction shown after official resolution       |
 | Vulnerable city        | An ordinary city without a metropolis                                 |
 | Active knight strength | Basic count + 2 x strong count + 3 x mighty count                     |
 | Barbarian strength     | Ordinary cities + metropolises across all players                     |
@@ -57,7 +59,6 @@ The repository may summarize mechanics but must not copy rulebook or card text.
 setup
   -> awaiting-roll
   -> resolving-official-result
-       -> resolving-barbarian-attack (conditional)
        -> resolving-thematic-event (conditional)
        -> action-phase
   -> turn-complete
@@ -66,7 +67,9 @@ setup
 ```
 
 Invalid phase transitions are rejected by the domain engine with a typed error.
-The UI must surface the error and retain the last durable revision.
+The UI must surface the error and retain the last durable revision. The
+`resolving-barbarian-attack` phase is retained only for recovering legacy saves;
+new attacks remain in the normal official-result flow.
 
 ## 4. Balanced numbered-dice deck
 
@@ -108,6 +111,11 @@ shuffle.
 
 Alchemy is entered before the roll:
 
+- In the action phase, **Alchemy: PLAYER** ends the current turn and opens
+  Alchemy directly for the next player; **Next: PLAYER** uses the normal
+  one-click advance-and-roll path.
+- `awaiting-roll` still presents both Roll and Use Alchemy at game start and in
+  resumed or recovered states.
 - The player chooses red and yellow values from 1 through 6.
 - The selected pair becomes the production result.
 - The numbered-deck cursor does not move.
@@ -158,7 +166,7 @@ The app then presents results in this order:
 1. event die;
 2. barbarian movement and attack, or progress eligibility;
 3. numbered-dice production total or 7 reminder;
-4. thematic event, if scheduled;
+4. World Event, if scheduled;
 5. action phase.
 
 ## 7. Progress-card eligibility
@@ -226,15 +234,20 @@ improvement was purchased.
 ## 8. Barbarian track and first attack
 
 - A barbarian event advances the ship one space.
-- Reaching the final space opens attack resolution immediately.
-- The table cannot activate more knights after attack resolution begins.
-- The first completed attack sets `robberActivated` to true.
+- Reaching the final space records an attack immediately without opening a
+  separate resolution phase.
+- The first recorded attack sets `robberActivated` to true.
 - Before that first attack, a rolled 7 must explain that the robber is not yet
   active under Cities & Knights setup.
 
 Track length is edition rules data, not a magic number in UI code.
 
-## 9. Barbarian attack algorithm
+## 9. Barbarian attack ownership
+
+The physical board owns the complete attack resolution: knight state,
+strength comparison, winner, Defender points, tied progress rewards, city
+losses, and score changes. The app does not calculate or collect a new attack
+outcome and does not mutate those player-owned values.
 
 ### 9.1 Strengths
 
@@ -258,35 +271,31 @@ defenderStrength = sum(activeStrength)
 
 Metropolises add to barbarian strength but cannot be pillaged.
 
-### 9.2 Defenders win
+### 9.2 Physical-board resolution
 
-The defenders win when:
+The official comparison is:
 
 ```text
 defenderStrength >= barbarianStrength
 ```
 
-- Find the maximum contributed active strength.
-- If exactly one player has that maximum, propose one Defender victory point
-  for that player.
-- If multiple players share that maximum, no Defender point is proposed. In
-  current-player order, each tied player is prompted to draw one progress card
-  from a deck of that player's choice.
-- The operator confirms before the score ledger changes.
+- Players apply the official rules directly on the board.
+- Defender points and tied progress-card rewards are handled manually.
+- No app form or score-ledger mutation is required.
 
 The tied-player progress-card reward is verified against page 11 of the current
 2025 rulebook. It is not derived from the event-die face, which is necessarily
 the barbarian face during an attack.
 
-### 9.3 Barbarians win
+### 9.3 Barbarians win on the physical board
 
-The barbarians win when:
+The official comparison is:
 
 ```text
 barbarianStrength > defenderStrength
 ```
 
-Pillage candidates are selected as follows:
+The physical rules select pillage candidates as follows:
 
 1. Group players by contributed active strength, ascending.
 2. Start with the lowest group.
@@ -300,19 +309,21 @@ The fall-through in step 4 is explicit in page 11 of the current 2025 rulebook:
 selection continues until a strength group contains a city that can be
 pillaged.
 
-The operator confirms the selected players and resulting city counts.
+The players selected by the physical rules downgrade their cities on the board.
+The app does not request or persist a duplicate selection.
 
 ### 9.4 Return home
 
-After either outcome is confirmed:
+When the ship reaches the final space:
 
 - reset the barbarian ship to its start;
-- set all active knight counters to zero;
-- preserve inactive board pieces outside app state;
 - mark the robber active if this was the first attack;
-- append one attack summary to history.
+- append one board-authoritative attack summary to history;
+- leave player scores, city counts, and knight counters unchanged.
 
-The entire confirmed attack is one reversible command.
+Old saves already paused in `resolving-barbarian-attack` are automatically
+confirmed with a board-authoritative outcome, preserving player state while
+returning the save to the normal roll flow.
 
 ## 10. Public player-state invariants
 
@@ -339,46 +350,136 @@ The entire confirmed attack is one reversible command.
 
 When an edit violates an invariant, the command fails without changing state.
 
-## 11. Thematic event engine
+## 11. World Events engine (v0.2.0)
 
-Thematic events are original house-rule content. They are intentionally
-separate from official event-die outcomes.
+World Events are original house-rule events that enrich the game. They are
+entirely separate from the official Cities & Knights event die (barbarian /
+progress cards) and from the balanced numbered-dice deck.
 
-### 11.1 Trigger cadence
+### 11.1 Catalog
 
-The setup choices are:
+The built-in catalog contains **20 typed events** distributed across five
+category packs:
+
+| User-facing pack     | Category ID | Events |
+| -------------------- | ----------- | ------ |
+| Weather & Harvest    | `nature`    | 4      |
+| Trade & Markets      | `economy`   | 4      |
+| Conflict & Defense   | `military`  | 4      |
+| Diplomacy & Intrigue | `diplomacy` | 4      |
+| Festivals & Progress | `society`   | 4      |
+
+Each event carries metadata: `tone` (boon / mixed / setback), `impact` (1–3),
+`category`, `scope` (all / active-player / conditional), `duration`, and
+`compatibility` (including a two-player safety flag).
+
+Distribution targets for a balanced experience:
+
+- Tone: ~7 boon, ~6 mixed, ~7 setback
+- Impact: ~8 × 1, ~8 × 2, ~4 × 3 (pyramid)
+
+### 11.2 Separation from official systems
+
+World Events never interact with the C&K event die or balanced dice decks.
+They trigger on their own cadence schedule after all official resolution
+(production, barbarian, progress) has completed.
+
+### 11.3 Cadence (trigger frequency)
+
+The setup UI exposes four options:
 
 | Cadence  | Trigger bag             |
 | -------- | ----------------------- |
+| Off      | No world events         |
 | Subtle   | 1 trigger and 17 blanks |
 | Standard | 1 trigger and 11 blanks |
 | Lively   | 1 trigger and 7 blanks  |
 
-Standard is enabled by default.
+Standard is the default. The trigger bag is securely shuffled (Fisher-Yates
+with `crypto.getRandomValues`) and drawn without replacement. At least two
+completed turns separate events; conflicts with the cooldown are deferred.
 
-The trigger bag is securely shuffled without replacement. The first event
-cannot occur before every player has completed one turn, and at least two
-completed turns separate events. If a trigger conflicts with a cooldown, it is
-deferred to the next eligible turn without drawing a second trigger.
+### 11.4 Pack selection
 
-### 11.2 Event selection
+Players select which packs to include during game setup (default: all five).
+Events from unselected packs are excluded from the event deck. In two-player
+mode, events without the `twoPlayer: true` compatibility flag are also
+filtered.
 
-- Shuffle all enabled event IDs into an event deck.
+### 11.5 Event selection deck
+
+- Shuffle enabled event IDs into an event deck.
 - Draw without replacement.
-- Do not repeat the previous event across a deck boundary when at least two
-  events are enabled.
-- Store content by stable event ID and content version.
-- A saved history entry retains the displayed title and instruction so later
-  wording changes do not rewrite past games.
+- Prevent the previous event from repeating across a deck boundary when at
+  least two events are enabled.
+- Store content by stable `EventId` and `contentVersion`.
+- Saved history retains displayed title/instruction so later wording edits do
+  not rewrite past games.
 
-### 11.3 Resolution
+### 11.6 Event lifecycles (duration)
 
-- Official event and production guidance completes first.
-- A barbarian attack completes before a thematic event appears.
-- The event is instruction-only in v1; it does not mutate player counters
-  automatically.
-- The operator acknowledges completion before entering the action phase.
-- Event content must not require revealing private information to the app.
+| Duration                | Behavior                                           |
+| ----------------------- | -------------------------------------------------- |
+| `immediate`             | Effect applies instantly; no tracking needed       |
+| `rest-of-turn`          | Active until the triggering player's turn ends     |
+| `full-round`            | Active for one full round after activation         |
+| `until-next-occurrence` | Active until the next world event fires            |
+| `until-resolved`        | Active until manually marked resolved by the table |
+
+Non-immediate events are persisted as `ActiveWorldEventRecord` in the game
+state and automatically expire or require explicit manual resolution.
+
+### 11.7 Persistent UI and manual resolution
+
+Active events are displayed persistently in the game UI. Events with
+`until-resolved` duration show a "Mark resolved" button. The engine validates
+that immediate events are never tracked and that full-round events maintain
+consistent activation state.
+
+### 11.8 Tone/impact balance
+
+The shuffled ordering guardrails prevent tone and impact clumps
+deterministically, including across deck-cycle boundaries.
+
+### 11.9 Legacy v1 save compatibility
+
+`ThematicEventDefinition` in v2+ saves includes full metadata. Legacy v1 saves
+omit metadata fields (`tone`, `impact`, `category`, `scope`, `duration`,
+`compatibility`) and remain loadable — the engine falls back to catalog lookups
+for missing metadata. The `activeEvents` array is optional and absent in
+legacy saves.
+
+### 11.10 Test expectations
+
+Engine integration tests cover:
+
+- Round-boundary activation of full-round events
+- Full-round expiry after their active round
+- Rest-of-turn expiry after turn end
+- `event.resolved` command for until-resolved events
+- Legacy-save parsing (v1 definitions without metadata)
+- Validation of active event invariants
+
+### 11.11 Seasons Mode (v0.3.0)
+
+Seasons Mode is an optional original house-rule layer over World Events. It is
+unavailable when World Events are Off and never changes event cadence, the
+numbered-production deck, or the official Cities & Knights event deck.
+
+- The current season is derived from immutable setup plus the round number; no
+  mutable season state is persisted.
+- Seasons last 2, 3, or 4 complete rounds and advance only at a round boundary.
+- The configured starting season may be Spring, Summer, Autumn, or Winter.
+- At each World Event trigger, the active season weights the IDs still
+  remaining in the current without-replacement cycle: favored `1.5`, neutral
+  `1.0`, reduced `0.5`, with no category made impossible.
+- Compatibility, immediate-repeat, tone-run, and impact-3 guardrails filter
+  candidates before seasonal weighting.
+- Active and deferred events retain their normal lifecycle across a season
+  transition.
+- The transition is included in the turn-boundary journal entry and announced
+  accessibly during the first player's turn of the new season.
+- Missing `seasonConfig` in older saves means Seasons Off.
 
 ## 12. Turn and victory rules
 

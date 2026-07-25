@@ -73,7 +73,8 @@ function setup(overrides: Partial<GameSetup> = {}): GameSetup {
     })),
     firstPlayerId: PLAYER_IDS[0] as PlayerId,
     victoryTarget: 13,
-    thematicCadence: "standard",
+    thematicEventPercent: 8,
+    numberedReshuffleThreshold: 0,
     thematicEventsEnabled: true,
     thematicEventCatalog: BUILT_IN_THEMATIC_EVENTS.map((event) => ({
       ...event,
@@ -286,7 +287,7 @@ describe("2025 progress eligibility", () => {
 });
 
 describe("barbarian attacks", () => {
-  it("awards a sole top defender and atomically resets the attack state", () => {
+  it("auto-resolves the attack and resets only the app-owned cycle", () => {
     let state = newGame({ barbarianTrackLength: 1 });
     state = withNextEventFace(state, "barbarian");
     state = {
@@ -299,122 +300,49 @@ describe("barbarian attacks", () => {
             : player.activeKnights,
       })),
     };
-    state = run(state, { type: "roll.draw" }, "attack-win-roll");
-    const proposal = state.barbarian.pendingAttack;
-    expect(proposal?.outcome).toMatchObject({
-      type: "defenders-win",
-      reward: { type: "defender-point", playerId: PLAYER_IDS[0] },
-    });
-    state = run(
-      state,
-      { type: "attack.confirmed", proposalId: proposal?.id as never },
-      "attack-win-confirm",
-    );
-    expect(scoreForPlayer(state, PLAYER_IDS[0] as PlayerId)).toBe(4);
+    state = run(state, { type: "roll.draw" }, "attack-auto-resolve");
+
+    // No pending attack — auto-resolved during the roll.
+    expect(state.barbarian.pendingAttack).toBeNull();
+    expect(state.turn.phase).toBe("resolving-official-result");
     expect(state.barbarian).toMatchObject({
       shipPosition: 0,
       robberActivated: true,
       attacksCompleted: 1,
-      pendingAttack: null,
     });
-    expect(
-      state.players.every((player) =>
-        Object.values(player.activeKnights).every((count) => count === 0),
-      ),
-    ).toBe(true);
+    // Physical-board state is untouched by the app.
+    expect(state.players[0]?.activeKnights).toEqual({
+      basic: 0,
+      strong: 0,
+      mighty: 1,
+    });
+    // A board-authoritative history record is created.
+    expect(state.barbarian.history).toHaveLength(1);
+    expect(state.barbarian.history[0]?.outcome).toEqual({
+      type: "board-authoritative",
+    });
   });
 
-  it("requires each tied top contributor to choose a progress deck", () => {
+  it("does not modify player scores or cities (board is authoritative)", () => {
+    let state = withNextEventFace(
+      newGame({ barbarianTrackLength: 1 }),
+      "barbarian",
+    );
+    const citiesBefore = state.players.map((p) => p.ordinaryCities);
+    const scoresBefore = state.players.map((p) => scoreForPlayer(state, p.id));
+    state = run(state, { type: "roll.draw" }, "attack-no-side-effects");
+    expect(state.players.map((p) => p.ordinaryCities)).toEqual(citiesBefore);
+    expect(state.players.map((p) => scoreForPlayer(state, p.id))).toEqual(
+      scoresBefore,
+    );
+  });
+
+  it("does not enter resolving-barbarian-attack phase", () => {
     let state = newGame({ barbarianTrackLength: 1 });
     state = withNextEventFace(state, "barbarian");
-    state = {
-      ...state,
-      players: state.players.map((player, index) => ({
-        ...player,
-        activeKnights:
-          index < 2 ? { basic: 0, strong: 1, mighty: 0 } : player.activeKnights,
-      })),
-    };
-    state = run(state, { type: "roll.draw" }, "attack-tie-roll");
-    const proposal = state.barbarian.pendingAttack;
-    expect(proposal?.outcome).toMatchObject({
-      type: "defenders-win",
-      reward: {
-        type: "progress-choice",
-        playerIds: [PLAYER_IDS[0], PLAYER_IDS[1]],
-      },
-    });
-    const choices = [
-      { playerId: PLAYER_IDS[0] as PlayerId, discipline: "science" as const },
-      { playerId: PLAYER_IDS[1] as PlayerId, discipline: "trade" as const },
-    ];
-    state = run(
-      state,
-      {
-        type: "attack.confirmed",
-        proposalId: proposal?.id as never,
-        progressChoices: choices,
-      },
-      "attack-tie-confirm",
-    );
-    expect(state.barbarian.history[0]?.progressChoices).toEqual(choices);
-    expect(
-      state.scoreLedger.filter((entry) => entry.reason === "defender"),
-    ).toHaveLength(0);
-  });
-
-  it("confirms a barbarian victory by pillaging the vulnerable group", () => {
-    let state = withNextEventFace(
-      newGame({ barbarianTrackLength: 1 }),
-      "barbarian",
-    );
-    state = run(state, { type: "roll.draw" }, "attack-loss-roll");
-    const proposal = state.barbarian.pendingAttack;
-    expect(proposal?.outcome).toEqual({
-      type: "barbarians-win",
-      pillagedPlayerIds: PLAYER_IDS,
-    });
-    state = run(
-      state,
-      { type: "attack.confirmed", proposalId: proposal?.id as never },
-      "attack-loss-confirm",
-    );
-    expect(state.players.map((player) => player.ordinaryCities)).toEqual([
-      0, 0, 0,
-    ]);
-    expect(state.statistics.barbarianAttacksLost).toBe(1);
-    expect(state.barbarian.shipPosition).toBe(0);
-  });
-
-  it("recalculates the pending attack after a board-state correction", () => {
-    let state = withNextEventFace(
-      newGame({ barbarianTrackLength: 1 }),
-      "barbarian",
-    );
-    state = run(state, { type: "roll.draw" }, "attack-correction-roll");
-    const staleProposalId = state.barbarian.pendingAttack?.id;
-
-    state = run(
-      state,
-      {
-        type: "player.publicStateAdjusted",
-        playerId: PLAYER_IDS[0] as PlayerId,
-        patch: {
-          activeKnights: { mighty: 1 },
-        },
-      },
-      "attack-correction",
-    );
-
-    expect(state.turn.phase).toBe("resolving-barbarian-attack");
-    expect(state.barbarian.pendingAttack?.id).not.toBe(staleProposalId);
-    expect(state.barbarian.pendingAttack?.outcome).toMatchObject({
-      type: "defenders-win",
-      reward: {
-        type: "defender-point",
-        playerId: PLAYER_IDS[0],
-      },
-    });
+    state = run(state, { type: "roll.draw" }, "attack-skip-phase");
+    expect(state.turn.phase).not.toBe("resolving-barbarian-attack");
+    expect(state.turn.phase).toBe("resolving-official-result");
   });
 
   it("falls through protected lowest strength groups to vulnerable ordinary cities", () => {
@@ -588,6 +516,167 @@ describe("thematic cadence and cooldown", () => {
     };
   }
 
+  it("uses the active season for each World Event trigger", () => {
+    const nature = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "nature",
+    )!;
+    const military = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "military",
+    )!;
+    const base = newGame({
+      setup: setup({
+        thematicEventCatalog: [{ ...nature }, { ...military }],
+        seasonConfig: {
+          enabled: true,
+          roundsPerSeason: 2,
+          startingSeason: "spring",
+        },
+      }),
+    });
+    const thematic: ThematicEventState = {
+      ...base.thematicEvents,
+      enabledEvents: [{ ...nature }, { ...military }],
+      eventDeck: {
+        ...base.thematicEvents.eventDeck,
+        cursor: 0,
+        order: [nature.id, military.id],
+      },
+      deferredTrigger: true,
+    };
+    const middleRoll = (upperExclusive: number) =>
+      Math.floor(upperExclusive * 0.45);
+    const config = base.setup.seasonConfig!;
+
+    const spring = unwrap(
+      scheduleThematicEvent(
+        thematic,
+        3,
+        base.players.length,
+        middleRoll,
+        asRevisionId("season-spring"),
+        "season-spring-occurrence" as never,
+        config,
+        1,
+      ),
+    );
+    expect(spring.event?.eventId).toBe(nature.id);
+
+    const summer = unwrap(
+      scheduleThematicEvent(
+        thematic,
+        3,
+        base.players.length,
+        middleRoll,
+        asRevisionId("season-summer"),
+        "season-summer-occurrence" as never,
+        config,
+        3,
+      ),
+    );
+    expect(summer.event?.eventId).toBe(military.id);
+  });
+
+  it("starts a new seasonal deck cycle and preserves cross-cycle balance", () => {
+    const nature = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "nature",
+    )!;
+    const military = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "military",
+    )!;
+    const base = newGame();
+    const thematic: ThematicEventState = {
+      ...base.thematicEvents,
+      enabledEvents: [{ ...nature }, { ...military }],
+      eventDeck: {
+        ...base.thematicEvents.eventDeck,
+        cursor: 2,
+        order: [nature.id, military.id],
+      },
+      previousEventId: military.id,
+      deferredTrigger: true,
+    };
+    const result = unwrap(
+      scheduleThematicEvent(
+        thematic,
+        3,
+        base.players.length,
+        () => 0,
+        asRevisionId("season-cycle"),
+        "season-cycle-occurrence" as never,
+        { enabled: true, roundsPerSeason: 3, startingSeason: "spring" },
+        1,
+      ),
+    );
+    expect(result.event?.eventId).toBe(nature.id);
+    expect(result.state.eventDeck).toMatchObject({ cycle: 2, cursor: 1 });
+  });
+
+  it("tolerates missing previous-event metadata in a persisted deck", () => {
+    const nature = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "nature",
+    )!;
+    const military = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "military",
+    )!;
+    const base = newGame();
+    const result = unwrap(
+      scheduleThematicEvent(
+        {
+          ...base.thematicEvents,
+          enabledEvents: [{ ...nature }, { ...military }],
+          eventDeck: {
+            ...base.thematicEvents.eventDeck,
+            cursor: 0,
+            order: [military.id, nature.id],
+          },
+          previousEventId: asEventId("legacy-previous-event"),
+          deferredTrigger: true,
+        },
+        3,
+        base.players.length,
+        () => 0,
+        asRevisionId("season-prefix"),
+        "season-prefix-occurrence" as never,
+        { enabled: true, roundsPerSeason: 3, startingSeason: "spring" },
+        1,
+      ),
+    );
+    expect(result.event?.eventId).toBe(military.id);
+  });
+
+  it("rejects unknown content in a seasonal event deck", () => {
+    const nature = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "nature",
+    )!;
+    const military = BUILT_IN_THEMATIC_EVENTS.find(
+      (event) => event.category === "military",
+    )!;
+    const base = newGame();
+    const result = scheduleThematicEvent(
+      {
+        ...base.thematicEvents,
+        enabledEvents: [{ ...nature }, { ...military }],
+        eventDeck: {
+          ...base.thematicEvents.eventDeck,
+          cursor: 0,
+          order: [asEventId("missing-season-event"), nature.id],
+        },
+        deferredTrigger: true,
+      },
+      3,
+      base.players.length,
+      () => 0,
+      asRevisionId("season-corrupt"),
+      "season-corrupt-occurrence" as never,
+      { enabled: true, roundsPerSeason: 3, startingSeason: "spring" },
+      1,
+    );
+    expect(result).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_THEMATIC_STATE" },
+    });
+  });
+
   it("defers an early trigger and enforces two completed turns between events", () => {
     const game = newGame();
     let thematic = forcedTriggerState(game.thematicEvents, 1);
@@ -644,17 +733,15 @@ describe("thematic cadence and cooldown", () => {
     expect(scheduled.event).not.toBeNull();
   });
 
-  it("has exact cadence bag sizes and avoids an immediate event repeat across a boundary", () => {
-    for (const [cadence, size] of [
-      ["subtle", 18],
-      ["standard", 12],
-      ["lively", 8],
-    ] as const) {
-      const state = newGame({ setup: setup({ thematicCadence: cadence }) });
-      expect(state.thematicEvents.triggerBag.order).toHaveLength(size);
+  it("builds percent-based trigger bags and avoids an immediate event repeat across a boundary", () => {
+    for (const percent of [3, 8, 25, 50, 100] as const) {
+      const state = newGame({
+        setup: setup({ thematicEventPercent: percent }),
+      });
+      expect(state.thematicEvents.triggerBag.order).toHaveLength(100);
       expect(
         state.thematicEvents.triggerBag.order.filter((token) => token.trigger),
-      ).toHaveLength(1);
+      ).toHaveLength(percent);
     }
     const events = [
       {
@@ -728,6 +815,30 @@ describe("turns, invariants, and completion", () => {
       turnNumber: 4,
     });
     expect(state.statistics.completedRounds).toBe(1);
+  });
+
+  it("journals a season transition at the round boundary", () => {
+    let state = actionPhase(
+      newGame({
+        setup: setup({
+          seasonConfig: {
+            enabled: true,
+            roundsPerSeason: 2,
+            startingSeason: "spring",
+          },
+        }),
+      }),
+    );
+    for (let index = 0; index < 5; index += 1) {
+      state = run(state, { type: "turn.ended" }, `season-turn-${index}`);
+      state = actionPhase(state);
+    }
+    const decision = unwrap(
+      decide(state, { type: "turn.ended" }, deps("season-transition")),
+    );
+    expect(decision.nextState.turn.round).toBe(3);
+    expect(decision.summary).toMatchObject({ kind: "turn-ended" });
+    expect(decision.summary.text).toContain("Summer began.");
   });
 
   it("rejects corrupt state before deciding and invalid edits without clamping", () => {
@@ -828,5 +939,96 @@ describe("deterministic replay", () => {
       ),
       { numRuns: 50 },
     );
+  });
+});
+
+describe("year changes from an early deck reshuffle", () => {
+  /** Draw `count` numbered cards, walking through each turn's resolution. */
+  function drawCards(state: GameState, count: number, prefix: string) {
+    let current = state;
+    for (let index = 0; index < count; index += 1) {
+      current = run(current, { type: "roll.draw" }, `${prefix}-roll-${index}`);
+      const rollId = current.lastRoll?.id as never;
+      if (current.resolution.official?.progressPending) {
+        current = run(
+          current,
+          { type: "resolution.progressAcknowledged", rollId },
+          `${prefix}-prog-${index}`,
+        );
+      }
+      if (current.resolution.official?.productionPending) {
+        current = run(
+          current,
+          { type: "resolution.productionAcknowledged", rollId },
+          `${prefix}-prod-${index}`,
+        );
+      }
+      if (current.turn.phase === "resolving-thematic-event") {
+        const occurrenceId = current.thematicEvents.pendingEvent
+          ?.occurrenceId as never;
+        current = run(
+          current,
+          { type: "event.acknowledged", occurrenceId },
+          `${prefix}-event-${index}`,
+        );
+      }
+      if (current.turn.phase === "action-phase") {
+        current = run(
+          current,
+          { type: "turn.ended" },
+          `${prefix}-end-${index}`,
+        );
+      }
+    }
+    return current;
+  }
+
+  it("plays a full 36-card year when the threshold is off", () => {
+    const state = newGame({
+      setup: setup({ numberedReshuffleThreshold: 0 }),
+      prefix: "year-off",
+    });
+    const played = drawCards(state, 36, "year-off");
+    expect(played.numberedDeck.cycle).toBe(1);
+    expect(played.history.yearChanges ?? []).toEqual([]);
+    expect(played.lastYearChange ?? null).toBeNull();
+  });
+
+  it("starts year two at card 32 and records the skipped cards", () => {
+    const state = newGame({
+      setup: setup({ numberedReshuffleThreshold: 4 }),
+      prefix: "year-four",
+    });
+    const expectedSkipped = state.numberedDeck.order.slice(32);
+
+    const beforeBoundary = drawCards(state, 32, "year-four");
+    expect(beforeBoundary.numberedDeck.cycle).toBe(1);
+    expect(beforeBoundary.history.yearChanges ?? []).toEqual([]);
+
+    const afterBoundary = drawCards(beforeBoundary, 1, "year-four-boundary");
+    expect(afterBoundary.numberedDeck.cycle).toBe(2);
+
+    const changes = afterBoundary.history.yearChanges ?? [];
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.cycle).toBe(2);
+    expect(changes[0]?.skipped).toEqual(expectedSkipped);
+    expect(afterBoundary.lastYearChange?.cycle).toBe(2);
+    expect(afterBoundary.lastYearChange?.skipped).toHaveLength(4);
+  });
+
+  it("keeps the year change out of alchemy rolls", () => {
+    const state = newGame({
+      setup: setup({ numberedReshuffleThreshold: 4 }),
+      prefix: "year-alchemy",
+    });
+    const played = drawCards(state, 32, "year-alchemy");
+    const alchemy = run(
+      played,
+      { type: "roll.alchemy", red: 3, yellow: 4 },
+      "year-alchemy-roll",
+    );
+    // Alchemy preserves the deck cursor, so no year boundary is crossed.
+    expect(alchemy.numberedDeck.cycle).toBe(1);
+    expect(alchemy.history.yearChanges ?? []).toEqual([]);
   });
 });

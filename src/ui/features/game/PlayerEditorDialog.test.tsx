@@ -29,8 +29,17 @@ describe("PlayerEditorDialog", () => {
     expect(
       screen.getByRole("dialog", { name: "Edit Ada" }),
     ).toHaveAccessibleDescription(
-      "Public table information only. Every saved change appears in history.",
+      "Adjust points first. Cities and Knights details are available when needed, and every saved change appears in history.",
     );
+    const advanced = screen
+      .getByText("Advanced Cities & Knights state")
+      .closest("details");
+    expect(advanced).not.toHaveAttribute("open");
+    expect(
+      screen.getByRole("button", { name: "Increase Point change" }),
+    ).toBeVisible();
+
+    await user.click(screen.getByText("Advanced Cities & Knights state"));
     expect(
       screen.getByText(/Metropolises are tracked by discipline/),
     ).toHaveTextContent("Held: science.");
@@ -41,14 +50,16 @@ describe("PlayerEditorDialog", () => {
     );
     await user.click(screen.getByRole("button", { name: "Increase Strong" }));
     await user.click(screen.getByRole("button", { name: "Increase Science" }));
-    await user.click(screen.getByRole("button", { name: "Increase Change" }));
+    await user.click(
+      screen.getByRole("button", { name: "Increase Point change" }),
+    );
     await user.type(
       screen.getByRole("textbox", { name: "Reason" }),
       "  Longest road  ",
     );
 
     expect(screen.getByText("Strength 3")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Save public state" }));
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(onSave).toHaveBeenCalledWith({
       ordinaryCities: 2,
@@ -75,6 +86,7 @@ describe("PlayerEditorDialog", () => {
       />,
     );
 
+    await user.click(screen.getByText("Advanced Cities & Knights state"));
     expect(
       screen.getByRole("button", { name: "Increase Ordinary cities" }),
     ).toBeDisabled();

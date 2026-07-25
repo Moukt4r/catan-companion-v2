@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { SettingsDialog } from "./SettingsDialog";
 
@@ -7,8 +8,28 @@ const preferences = {
   theme: "system" as const,
   motion: "system" as const,
   soundEnabled: false,
+  soundVolume: 0.55,
   keepAwake: false,
 };
+
+function renderSettings(
+  overrides: Partial<ComponentProps<typeof SettingsDialog>> = {},
+) {
+  const props: ComponentProps<typeof SettingsDialog> = {
+    open: true,
+    preferences,
+    storageStatus: null,
+    appVersion: "test",
+    schemaVersion: 1,
+    onChange: vi.fn(),
+    onPreviewSound: vi.fn(),
+    onRequestPersistentStorage: vi.fn().mockResolvedValue(undefined),
+    onCopyDiagnostics: vi.fn().mockResolvedValue(undefined),
+    onClose: vi.fn(),
+    ...overrides,
+  };
+  return { ...render(<SettingsDialog {...props} />), props };
+}
 
 describe("SettingsDialog", () => {
   it("updates accessible device preferences and invokes storage actions", async () => {
@@ -17,23 +38,18 @@ describe("SettingsDialog", () => {
     const onRequestPersistentStorage = vi.fn().mockResolvedValue(undefined);
     const onCopyDiagnostics = vi.fn().mockResolvedValue(undefined);
 
-    render(
-      <SettingsDialog
-        open
-        preferences={preferences}
-        storageStatus={{
-          persisted: false,
-          usage: 512 * 1024,
-          quota: 2.5 * 1024 * 1024,
-        }}
-        appVersion="2.4.0"
-        schemaVersion={7}
-        onChange={onChange}
-        onRequestPersistentStorage={onRequestPersistentStorage}
-        onCopyDiagnostics={onCopyDiagnostics}
-        onClose={vi.fn()}
-      />,
-    );
+    renderSettings({
+      storageStatus: {
+        persisted: false,
+        usage: 512 * 1024,
+        quota: 2.5 * 1024 * 1024,
+      },
+      appVersion: "2.4.0",
+      schemaVersion: 7,
+      onChange,
+      onRequestPersistentStorage,
+      onCopyDiagnostics,
+    });
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Theme" }), [
       "dark",
@@ -41,7 +57,7 @@ describe("SettingsDialog", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: "Motion" }), [
       "reduced",
     ]);
-    await user.click(screen.getByRole("checkbox", { name: /sound cues/i }));
+    await user.click(screen.getByRole("checkbox", { name: /sound effects/i }));
     await user.click(
       screen.getByRole("checkbox", { name: /keep screen awake/i }),
     );
@@ -66,20 +82,29 @@ describe("SettingsDialog", () => {
     expect(onCopyDiagnostics).toHaveBeenCalledOnce();
   });
 
+  it("offers persisted volume and an explicit sound preview", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onPreviewSound = vi.fn();
+
+    renderSettings({
+      preferences: { ...preferences, soundEnabled: true, soundVolume: 0.7 },
+      onChange,
+      onPreviewSound,
+    });
+
+    const volume = screen.getByRole("slider", { name: "Sound volume" });
+    expect(volume).toHaveValue("0.7");
+    expect(screen.getByText("70%")).toBeVisible();
+    fireEvent.change(volume, { target: { value: "0.75" } });
+    await user.click(screen.getByRole("button", { name: "Preview sound" }));
+
+    expect(onChange).toHaveBeenCalledWith({ soundVolume: 0.75 });
+    expect(onPreviewSound).toHaveBeenCalledOnce();
+  });
+
   it("shows loading and protected-storage states without an unnecessary action", () => {
-    const { rerender } = render(
-      <SettingsDialog
-        open
-        preferences={preferences}
-        storageStatus={null}
-        appVersion="test"
-        schemaVersion={1}
-        onChange={vi.fn()}
-        onRequestPersistentStorage={vi.fn()}
-        onCopyDiagnostics={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
+    const { rerender, props } = renderSettings();
 
     expect(
       screen.getByText(/storage details will appear/i),
@@ -87,15 +112,8 @@ describe("SettingsDialog", () => {
 
     rerender(
       <SettingsDialog
-        open
-        preferences={preferences}
+        {...props}
         storageStatus={{ persisted: true, usage: null, quota: null }}
-        appVersion="test"
-        schemaVersion={1}
-        onChange={vi.fn()}
-        onRequestPersistentStorage={vi.fn()}
-        onCopyDiagnostics={vi.fn()}
-        onClose={vi.fn()}
       />,
     );
 

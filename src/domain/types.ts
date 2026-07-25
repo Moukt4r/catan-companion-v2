@@ -17,7 +17,6 @@ export type ImprovementLevel = 0 | 1 | 2 | 3 | 4 | 5;
 export type MetropolisDiscipline = "science" | "trade" | "politics";
 export type ProgressDiscipline = MetropolisDiscipline;
 export type EventFace = "barbarian" | ProgressDiscipline;
-export type ThematicCadence = "subtle" | "standard" | "lively";
 export type GameStatus = "active" | "completed";
 export type GameMode = "standard" | "two-player-house-rule";
 export type GamePhase =
@@ -28,6 +27,63 @@ export type GamePhase =
   | "action-phase"
   | "turn-complete"
   | "completed";
+
+// ---------------------------------------------------------------------------
+// World Event metadata types (shared across domain, persistence, UI)
+// ---------------------------------------------------------------------------
+
+/** Tone describes the net effect on the table. */
+export type WorldEventTone = "boon" | "mixed" | "setback";
+
+/** Impact 1–3: how game-altering the event is. */
+export type WorldEventImpact = 1 | 2 | 3;
+
+/** Category groups events thematically for filtering / pack selection. */
+export type WorldEventCategory =
+  "economy" | "military" | "diplomacy" | "nature" | "society";
+
+/** Which players are affected. */
+export type WorldEventScope = "all" | "active-player" | "conditional";
+
+/**
+ * Duration describes how long the effect lasts:
+ * - immediate:              resolve once, done
+ * - rest-of-turn:           active until the current player ends their turn
+ * - full-round:             activates at the next round boundary, lasts one full round
+ * - until-next-occurrence:  persists until the same event (or any event) fires again
+ * - until-resolved:         requires explicit manual dismissal
+ */
+export type WorldEventDuration =
+  | "immediate"
+  | "rest-of-turn"
+  | "full-round"
+  | "until-next-occurrence"
+  | "until-resolved";
+
+/**
+ * Compatibility & prerequisite metadata.
+ * Pragmatic: covers two-player suitability and explicit C&K feature requirements
+ * for pack/setup filtering.
+ */
+export interface WorldEventCompatibility {
+  /** If true the event is safe with two-player house rules. */
+  twoPlayer: boolean;
+  /** C&K features the event interacts with; empty = no special requirements. */
+  requires?: WorldEventPrerequisite[];
+}
+
+/** Named prerequisites that an event may depend on. */
+export type WorldEventPrerequisite =
+  | "knights"
+  | "cities"
+  | "improvements"
+  | "progress-cards"
+  | "robber"
+  | "maritime-trade";
+
+// ---------------------------------------------------------------------------
+// Thematic event types
+// ---------------------------------------------------------------------------
 
 export interface PlayerColor {
   id: string;
@@ -46,11 +102,23 @@ export interface PlayerSetup {
   initialScore?: number;
 }
 
+/**
+ * Thematic event definition — the shape stored in game setup catalogs.
+ * V1 (legacy) saves carry only id/contentVersion/title/instruction.
+ * V2+ saves include full metadata for catalog-independent operation.
+ */
 export interface ThematicEventDefinition {
   id: EventId;
   contentVersion: number;
   title: string;
   instruction: string;
+  /** Present on v2+ definitions; absent on legacy saves. */
+  tone?: WorldEventTone;
+  impact?: WorldEventImpact;
+  category?: WorldEventCategory;
+  scope?: WorldEventScope;
+  duration?: WorldEventDuration;
+  compatibility?: WorldEventCompatibility;
 }
 
 export interface GameSetup {
@@ -59,9 +127,24 @@ export interface GameSetup {
   players: PlayerSetup[];
   firstPlayerId: PlayerId;
   victoryTarget: number;
-  thematicCadence: ThematicCadence;
+  /**
+   * World Event trigger chance per eligible turn, 0-100 (integer percent).
+   * 0 disables triggering; 100 fires on every eligible turn.
+   */
+  thematicEventPercent: number;
   thematicEventsEnabled: boolean;
   thematicEventCatalog: ThematicEventDefinition[];
+  /**
+   * How many numbered cards may remain undrawn before the deck reshuffles into
+   * a new year. 0 keeps the exact-coverage behaviour (all 36 cards drawn).
+   */
+  numberedReshuffleThreshold: number;
+  /** Optional Seasons Mode config. Missing or `{ enabled: false }` means off. */
+  seasonConfig?: {
+    enabled: boolean;
+    roundsPerSeason: 2 | 3 | 4;
+    startingSeason: "spring" | "summer" | "autumn" | "winter";
+  };
   rulesDataVersion: string;
   gameDocumentVersion: number;
 }
@@ -157,6 +240,10 @@ export interface TriggerToken {
   trigger: boolean;
 }
 
+/**
+ * Snapshot of a thematic event as it was when triggered.
+ * History records carry this shape; metadata is optional for legacy compat.
+ */
 export interface ThematicEventSnapshot {
   occurrenceId: EventOccurrenceId;
   eventId: EventId;
@@ -165,11 +252,39 @@ export interface ThematicEventSnapshot {
   instruction: string;
   triggeredAtCompletedTurn: number;
   acknowledged: boolean;
+  /** Present on v2+ snapshots; absent on legacy saves. */
+  tone?: WorldEventTone;
+  impact?: WorldEventImpact;
+  category?: WorldEventCategory;
+  scope?: WorldEventScope;
+  duration?: WorldEventDuration;
+}
+
+/**
+ * A lifecycle-tracked active world event.
+ * Content snapshot — stable, no catalog lookup needed at read time.
+ */
+export interface ActiveWorldEventRecord {
+  occurrenceId: string;
+  eventId: EventId;
+  contentVersion: number;
+  title: string;
+  instruction: string;
+  tone: WorldEventTone;
+  impact: WorldEventImpact;
+  category: WorldEventCategory;
+  scope: WorldEventScope;
+  duration: WorldEventDuration;
+  compatibility: WorldEventCompatibility;
+  activeRound: number | null;
+  triggeredAtCompletedTurn: number;
+  activated: boolean;
 }
 
 export interface ThematicEventState {
   enabled: boolean;
-  cadence: ThematicCadence;
+  /** Trigger chance per eligible turn, 0-100 (integer percent). */
+  percent: number;
   enabledEvents: ThematicEventDefinition[];
   triggerBag: DeckState<TriggerToken>;
   eventDeck: DeckState<EventId>;
@@ -177,6 +292,8 @@ export interface ThematicEventState {
   lastTriggeredAtCompletedTurn: number | null;
   previousEventId: EventId | null;
   pendingEvent: ThematicEventSnapshot | null;
+  /** Active lifecycle-tracked events. */
+  activeEvents: ActiveWorldEventRecord[];
 }
 
 export interface BarbarianRules {
@@ -197,7 +314,8 @@ export type BarbarianAttackOutcome =
         | { type: "defender-point"; playerId: PlayerId }
         | { type: "progress-choice"; playerIds: PlayerId[] };
     }
-  | { type: "barbarians-win"; pillagedPlayerIds: PlayerId[] };
+  | { type: "barbarians-win"; pillagedPlayerIds: PlayerId[] }
+  | { type: "board-authoritative" };
 
 export interface BarbarianAttackProposal {
   id: ProposalId;
@@ -299,9 +417,23 @@ export interface GameStatistics {
   thematicEventsTriggered: number;
 }
 
+/**
+ * Records the moment the numbered deck reshuffled into a new year, including
+ * any cards that were never drawn because of an early-reshuffle threshold.
+ */
+export interface YearChangeRecord {
+  cycle: number;
+  turnNumber: number;
+  round: number;
+  skipped: NumberedOutcome[];
+  createdAt: IsoTimestamp;
+}
+
 export interface GameHistory {
   rolls: RollRecord[];
   thematicEvents: ThematicEventSnapshot[];
+  /** Year (deck cycle) boundaries. */
+  yearChanges: YearChangeRecord[];
 }
 
 export interface GameState {
@@ -312,7 +444,7 @@ export interface GameState {
   winnerId: PlayerId | null;
   setup: GameSetup;
   turn: TurnState;
-  clock?: GameClockState;
+  clock: GameClockState;
   players: PlayerState[];
   metropolises: MetropolisState;
   numberedDeck: NumberedDeckState;
@@ -322,6 +454,8 @@ export interface GameState {
   resolution: ResolutionState;
   scoreLedger: ScoreEntry[];
   lastRoll: RollRecord | null;
+  /** Most recent year change, surfaced for announcement. Null before any. */
+  lastYearChange: YearChangeRecord | null;
   statistics: GameStatistics;
   history: GameHistory;
   createdAt: IsoTimestamp;
@@ -370,6 +504,7 @@ export type GameCommand =
   | {
       type: "attack.confirmed";
       proposalId: ProposalId;
+      manualOutcome: BarbarianAttackOutcome;
       progressChoices?: Array<{
         playerId: PlayerId;
         discipline: ProgressDiscipline;
@@ -377,6 +512,10 @@ export type GameCommand =
     }
   | {
       type: "event.acknowledged";
+      occurrenceId: EventOccurrenceId;
+    }
+  | {
+      type: "event.resolved";
       occurrenceId: EventOccurrenceId;
     }
   | { type: "turn.ended" }
@@ -426,6 +565,7 @@ export type JournalSummaryKind =
   | "metropolis-cancelled"
   | "attack-confirmed"
   | "thematic-event-acknowledged"
+  | "thematic-event-resolved"
   | "turn-ended"
   | "game-completed";
 

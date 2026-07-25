@@ -31,7 +31,7 @@ Use table-driven tests for:
 - first-attack robber activation;
 - public-state invariant enforcement;
 - winner confirmation;
-- thematic event cooldown and ordering;
+- World Event cadence, balanced ordering, lifecycle, and legacy-save fallback;
 - Alchemy behavior.
 
 Domain tests use no DOM, fake timers only where necessary, and deterministic
@@ -97,7 +97,7 @@ Testing Library covers user-observable behavior:
 - progress eligibility presentation;
 - attack verification and confirmation;
 - public-state editing;
-- thematic event acknowledgement;
+- World Event setup, acknowledgement, persistent display, and manual resolution;
 - history, undo, redo, and branch warning;
 - save failure and recovery;
 - update prompt;
@@ -125,7 +125,7 @@ Critical flows:
 4. complete progress-card guidance;
 5. complete barbarian defense, tie, and defeat paths;
 6. use Alchemy and verify deck cursor behavior;
-7. trigger and acknowledge a thematic event;
+7. trigger, acknowledge, persist, resume, and resolve a World Event;
 8. undo and redo a roll and an attack;
 9. close and resume an active game;
 10. export, delete, and import;
@@ -203,8 +203,10 @@ CI checks:
 
 ### Tests
 
-- production bundle analysis in CI;
-- Lighthouse CI on home, setup, and active game;
+- deterministic gzip bundle-budget verification in CI against the built entry
+  JavaScript and CSS;
+- Lighthouse on home, setup, and active game as a manual release check rather
+  than a required CI gate;
 - 200-revision and 1,000-revision synthetic game benchmarks;
 - animation frame profiling on representative mobile hardware;
 - offline cold and warm start.
@@ -216,8 +218,8 @@ CI checks:
 - Verify Content Security Policy against the production build.
 - Confirm no runtime third-party requests.
 - Run dependency review on pull requests.
-- Run package audit as advisory unless a reachable high-severity issue exists;
-  reachable high or critical vulnerabilities block release.
+- Run `pnpm audit --prod --audit-level high` in CI; high or critical runtime
+  vulnerabilities block the workflow.
 - Review service-worker cache poisoning and stale-asset scenarios.
 
 ## 7. Browser support
@@ -240,33 +242,37 @@ usage and feature support, then committed to the README.
 
 One workflow runs:
 
-1. dependency install with frozen lockfile;
-2. format check;
-3. lint;
-4. type check;
-5. unit/property/component tests with enforced coverage thresholds;
-6. production build;
-7. desktop/mobile Chromium, desktop Firefox, and mobile WebKit Playwright
-   critical flows.
+1. dependency review on the pull request diff;
+2. dependency install with frozen lockfile;
+3. format check;
+4. lint;
+5. type check;
+6. production dependency audit with a high-severity threshold;
+7. unit/property/component tests with enforced coverage thresholds;
+8. production build;
+9. deterministic bundle-budget check;
+10. desktop/mobile Chromium, desktop Firefox, and mobile WebKit Playwright
+    critical flows.
 
 Cancel superseded runs on the same branch.
 
 ### Main branch
 
-CI and Pages deployment run as separate workflows on each push to `main`. The
-deployment workflow repeats the quality gates independently, then runs
-Chromium, Firefox, and mobile WebKit flows, the repository-path build, Pages
-artifact upload, deployment, and a public HTML smoke check. Pages deploys only
-after its build job succeeds.
+CI runs on each push to `main`. The Pages workflow is triggered only after that
+CI run completes successfully and checks out the exact tested commit SHA. It
+repeats the deterministic `pnpm check` and production-audit gates, creates the
+repository-path build, uploads the Pages artifact, deploys it, and performs a
+public HTML smoke check. The longer cross-browser Playwright matrix runs once in
+CI rather than racing a duplicate deployment copy. A manual Pages dispatch uses
+the same deterministic build and audit gates.
 
-Lighthouse and broader physical-device checks remain manual release checks
-until dedicated automation is added.
+Lighthouse and broader physical-device checks remain manual release checks.
 
 ### Planned scheduled checks
 
 The following checks are desirable but are not currently scheduled:
 
-- full dependency audit;
+- full dependency audit including devDependencies and license review;
 - latest supported browser matrix;
 - migration/import corpus;
 - offline PWA install/update flow.

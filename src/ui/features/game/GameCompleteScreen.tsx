@@ -81,7 +81,7 @@ export function GameCompleteScreen({
           <strong>{view.barbarianAttacks}</strong>
         </article>
         <article className="surface summary-card">
-          <span>House events</span>
+          <span>World events</span>
           <strong>{view.thematicEvents}</strong>
         </article>
       </section>

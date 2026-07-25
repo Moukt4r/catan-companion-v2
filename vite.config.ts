@@ -64,6 +64,23 @@ export default defineConfig({
         navigateFallback: `${base}index.html`,
         cleanupOutdatedCaches: true,
         globPatterns: ["**/*.{js,css,html,svg,png,webp,webmanifest}"],
+        globIgnores: ["**/world-events/*.webp"],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) =>
+              url.pathname.includes("/world-events/") &&
+              url.pathname.endsWith(".webp"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "world-event-art-v1",
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 * 365,
+              },
+            },
+          },
+        ],
       },
       devOptions: {
         enabled: false,

@@ -9,7 +9,7 @@ import type {
   RevisionId,
 } from "../domain";
 
-export const APPLICATION_VERSION = "0.1.4";
+export const APPLICATION_VERSION = "0.6.1";
 export const DATABASE_SCHEMA_VERSION = 1;
 export const EXPORT_VERSION = 1;
 export const EXPORT_FORMAT = "catan-table-companion";

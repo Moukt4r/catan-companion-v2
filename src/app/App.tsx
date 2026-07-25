@@ -3,21 +3,21 @@ import {
   APPLICATION_VERSION,
   DATABASE_SCHEMA_VERSION,
   type StoredGame,
-  type StoredRevision,
 } from "../application";
 import {
-  BUILT_IN_THEMATIC_EVENTS,
+  asEventOccurrenceId,
   asGameId,
   asIsoTimestamp,
   asPlayerId,
   currentTurnActiveMilliseconds,
   createEmptyBoardInventory,
+  deriveSeason,
   totalActiveMilliseconds,
   winnerCandidates,
   type DieValue,
   type BoardDesignId,
   type GameCommand,
-  type GameSetup,
+  type GameState,
   type PlayerId,
 } from "../domain";
 import {
@@ -41,55 +41,48 @@ import {
   requestPersistentStorage,
   type StorageStatus,
 } from "../infrastructure/platform/storage";
-import { AudioCues, type SoundCue } from "../infrastructure/platform/audio";
+import {
+  AudioCues,
+  type SoundCue,
+  type SoundPlayOptions,
+} from "../infrastructure/platform/audio";
 import { ScreenWakeLock } from "../infrastructure/platform/wakeLock";
 import { Button, ConfirmDialog } from "../ui/components";
-import {
-  CompletedGamesDialog,
-  type CompletedGameSummary,
-} from "../ui/features/home/CompletedGamesDialog";
-import {
-  HomeScreen,
-  type HomeGameSummary,
-} from "../ui/features/home/HomeScreen";
-import {
-  ImportPreviewDialog,
-  type ImportPreview,
-} from "../ui/features/home/ImportPreviewDialog";
+import { CompletedGamesDialog } from "../ui/features/home/CompletedGamesDialog";
+import { HomeScreen } from "../ui/features/home/HomeScreen";
+import { ImportPreviewDialog } from "../ui/features/home/ImportPreviewDialog";
 import { SetupWizard, type SetupDraft } from "../ui/features/setup/SetupWizard";
 import { AlchemyDialog } from "../ui/features/game/AlchemyDialog";
 import { GameCompleteScreen } from "../ui/features/game/GameCompleteScreen";
 import { GameTable } from "../ui/features/game/GameTable";
-import {
-  HistoryDialog,
-  type HistoryEntryView,
-} from "../ui/features/game/HistoryDialog";
+import { HistoryDialog } from "../ui/features/game/HistoryDialog";
 import { MetropolisCorrectionDialog } from "../ui/features/game/MetropolisCorrectionDialog";
-import {
-  MetropolisDialog,
-  type MetropolisProposalView,
-} from "../ui/features/game/MetropolisDialog";
+import { MetropolisDialog } from "../ui/features/game/MetropolisDialog";
 import {
   PlayerEditorDialog,
   type PlayerEditorPatch,
 } from "../ui/features/game/PlayerEditorDialog";
 import { PauseGameDialog } from "../ui/features/game/PauseGameDialog";
-import {
-  RollResolutionDialog,
-  type AttackProgressChoice,
-} from "../ui/features/game/RollResolutionDialog";
 import { SaveRecoveryDialog } from "../ui/features/game/SaveRecoveryDialog";
 import {
   toGameCompleteView,
   toGameTableView,
   toPlayerEditorValue,
-  toRollResolutionView,
 } from "../ui/features/game/viewMappers";
 import { WinnerDialog } from "../ui/features/game/WinnerDialog";
 import { SettingsDialog } from "../ui/features/settings/SettingsDialog";
 import { BoardDesignLibraryScreen } from "../ui/features/board-designer/BoardDesignLibraryScreen";
 import { BoardDesignerScreen } from "../ui/features/board-designer/BoardDesignerScreen";
 import { boardDesignerController } from "./boardDesignerController";
+import {
+  errorMessage,
+  setupFromDraft,
+  toHistoryEntries,
+  toHomeSummary,
+  toImportPreview,
+  toMetropolisProposalView,
+  toSavedGameSummary,
+} from "./appMappers";
 import { gameController } from "./gameController";
 import { PwaUpdate } from "./PwaUpdate";
 import { useDevicePreferences } from "./useDevicePreferences";
@@ -101,13 +94,6 @@ import { useOnlineStatus } from "./useOnlineStatus";
 type Screen =
   "home" | "setup" | "game" | "complete" | "boards" | "board-designer";
 
-const colorNames: Record<string, string> = {
-  "#b66a1f": "Amber",
-  "#286b9b": "Ocean blue",
-  "#b43e3e": "Crimson",
-  "#2f7551": "Forest green",
-};
-
 export function App() {
   const snapshot = useGameController();
   const boardSnapshot = useBoardDesignerController();
@@ -116,6 +102,8 @@ export function App() {
   const initialized = useRef(false);
   const previousScreen = useRef<Screen>("home");
   const clockStartRequests = useRef(new Set<string>());
+  const soundedEventOccurrences = useRef(new Set<string>());
+  const legacyAttackRecoveryRequests = useRef(new Set<string>());
   const [screen, setScreen] = useState<Screen>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savedGamesOpen, setSavedGamesOpen] = useState(false);
@@ -202,6 +190,11 @@ export function App() {
     };
   }, [preferences.keepAwake, screen, snapshot.activeState?.status, wakeLock]);
 
+  useEffect(() => {
+    audio.setVolume(preferences.soundVolume);
+    audio.setMuted(!preferences.soundEnabled);
+  }, [audio, preferences.soundEnabled, preferences.soundVolume]);
+
   useEffect(
     () => () => {
       audio.close();
@@ -278,6 +271,35 @@ export function App() {
     state?.status,
   ]);
 
+  useEffect(() => {
+    const attack = state?.barbarian.pendingAttack;
+    if (
+      screen !== "game" ||
+      state?.turn.phase !== "resolving-barbarian-attack" ||
+      !attack ||
+      snapshot.readOnly ||
+      snapshot.saving ||
+      legacyAttackRecoveryRequests.current.has(attack.id)
+    ) {
+      return;
+    }
+
+    legacyAttackRecoveryRequests.current.add(attack.id);
+    void gameController
+      .dispatch({
+        type: "attack.confirmed",
+        proposalId: attack.id,
+        manualOutcome: { type: "board-authoritative" },
+        progressChoices: [],
+      })
+      .catch((error: unknown) => {
+        legacyAttackRecoveryRequests.current.delete(attack.id);
+        setNotice(
+          `Could not recover the legacy attack: ${errorMessage(error)}`,
+        );
+      });
+  }, [screen, snapshot.readOnly, snapshot.saving, state]);
+
   async function runOperation(
     operation: () => Promise<void>,
   ): Promise<boolean> {
@@ -291,13 +313,95 @@ export function App() {
     }
   }
 
-  function playCue(cue: SoundCue): void {
+  function playCue(cue: SoundCue, options?: SoundPlayOptions): void {
     if (!preferences.soundEnabled) {
       return;
     }
-    void audio.play(cue).catch((error: unknown) => {
+    void audio.play(cue, options).catch((error: unknown) => {
       setNotice(`Sound unavailable: ${errorMessage(error)}`);
     });
+  }
+
+  function playRollOutcomeCue(current: GameState | null): void {
+    const result = current?.lastRoll;
+    if (!current || !result) return;
+
+    if (result.eventFace !== "barbarian") {
+      playCue({ type: "progress", discipline: result.eventFace });
+      return;
+    }
+
+    const attack = current.barbarian.pendingAttack;
+    if (attack) {
+      playCue({
+        type: "barbarian-attack",
+        outcome:
+          attack.outcome.type === "board-authoritative"
+            ? "defenders-win"
+            : attack.outcome.type,
+      });
+      return;
+    }
+
+    // Auto-resolved attack: ship was reset to 0 after reaching the end.
+    if (current.barbarian.shipPosition === 0) {
+      playCue({
+        type: "barbarian-attack",
+        outcome: "board-authoritative",
+      });
+      return;
+    }
+
+    playCue({
+      type: "barbarian-advance",
+      spacesRemaining: Math.max(
+        0,
+        current.barbarian.rules.trackLength - current.barbarian.shipPosition,
+      ),
+    });
+  }
+
+  function playPendingWorldEventCue(
+    current: GameState | null,
+    delaySeconds = 0.24,
+  ): void {
+    if (!preferences.soundEnabled) return;
+    const event = current?.thematicEvents.pendingEvent;
+    if (!event || soundedEventOccurrences.current.has(event.occurrenceId)) {
+      return;
+    }
+    soundedEventOccurrences.current.add(event.occurrenceId);
+    playCue(
+      {
+        type: "world-event",
+        eventId: event.eventId,
+        category: event.category ?? "society",
+        tone: event.tone ?? "mixed",
+        impact: event.impact ?? 1,
+      },
+      { delaySeconds },
+    );
+  }
+
+  function setSoundEnabled(enabled: boolean): void {
+    audio.setMuted(!enabled);
+    updatePreferences({ soundEnabled: enabled });
+    if (!enabled) return;
+    audio.setVolume(preferences.soundVolume);
+    void audio.play({ type: "confirm" }).catch((error: unknown) => {
+      setNotice(`Sound unavailable: ${errorMessage(error)}`);
+    });
+  }
+
+  function changePreferences(patch: Partial<typeof preferences>): void {
+    if (patch.soundVolume !== undefined) {
+      audio.setVolume(patch.soundVolume);
+    }
+    if (patch.soundEnabled !== undefined) {
+      setSoundEnabled(patch.soundEnabled);
+      return;
+    }
+    updatePreferences(patch);
   }
 
   function navigateToLoadedGame(): void {
@@ -325,13 +429,13 @@ export function App() {
 
   async function startGame(draft: SetupDraft): Promise<void> {
     updatePreferences(draft.preferences);
+    audio.setVolume(draft.preferences.soundVolume);
     const setup = setupFromDraft(draft);
     const started = await runOperation(async () => {
       await gameController.startGame(setup);
     });
     if (started) {
       setScreen("game");
-      playCue("confirm");
       void requestPersistentStorage()
         .then(() => getStorageStatus())
         .then(setStorageStatus)
@@ -355,10 +459,13 @@ export function App() {
   }
 
   async function roll(command: GameCommand): Promise<boolean> {
+    // This synchronous call unlocks Web Audio inside the user's gesture on
+    // Safari/iOS before the durable command crosses an async boundary.
+    playCue({ type: "dice-roll" });
     setRolling(true);
     let completed: boolean;
     try {
-      completed = await dispatch(command, "roll");
+      completed = await dispatch(command);
       if (completed) {
         await new Promise<void>((resolve) => {
           window.setTimeout(
@@ -366,6 +473,7 @@ export function App() {
             preferences.motion === "reduced" ? 1 : 650,
           );
         });
+        playRollOutcomeCue(gameController.getSnapshot().activeState);
       }
     } finally {
       setRolling(false);
@@ -377,7 +485,11 @@ export function App() {
 
     setResolutionBusy(true);
     try {
-      return await acknowledgeOfficialRollSteps();
+      const acknowledged = await acknowledgeOfficialRollSteps();
+      if (acknowledged) {
+        playPendingWorldEventCue(gameController.getSnapshot().activeState);
+      }
+      return acknowledged;
     } finally {
       setResolutionBusy(false);
     }
@@ -431,83 +543,14 @@ export function App() {
     }
   }
 
-  async function resolveRollResult(
-    quickRoll: boolean,
-    choices: AttackProgressChoice[],
-  ): Promise<void> {
-    setResolutionBusy(true);
-    try {
-      let current = gameController.getSnapshot().activeState;
-      if (!current?.lastRoll) {
-        throw new Error("There is no roll result to resolve.");
-      }
-
-      if (current.turn.phase === "resolving-barbarian-attack") {
-        const proposal = current.barbarian.pendingAttack;
-        if (!proposal) {
-          throw new Error("The barbarian attack proposal is missing.");
-        }
-        const confirmed = await dispatch(
-          {
-            type: "attack.confirmed",
-            proposalId: proposal.id,
-            ...(choices.length === 0
-              ? {}
-              : {
-                  progressChoices: choices.map((choice) => ({
-                    playerId: asPlayerId(choice.playerId),
-                    discipline: choice.discipline,
-                  })),
-                }),
-          },
-          "confirm",
-        );
-        if (!confirmed) {
-          return;
-        }
-        current = gameController.getSnapshot().activeState;
-      }
-
-      const officialAcknowledged = await acknowledgeOfficialRollSteps();
-      if (!officialAcknowledged) {
-        return;
-      }
-      current = gameController.getSnapshot().activeState;
-
-      if (
-        current?.turn.phase === "resolving-thematic-event" &&
-        current.thematicEvents.pendingEvent
-      ) {
-        const acknowledged = await dispatch(
-          {
-            type: "event.acknowledged",
-            occurrenceId: current.thematicEvents.pendingEvent.occurrenceId,
-          },
-          "event",
-        );
-        if (!acknowledged) {
-          return;
-        }
-        current = gameController.getSnapshot().activeState;
-      }
-
-      if (current?.turn.phase !== "action-phase") {
-        throw new Error("The roll could not reach the action phase.");
-      }
-
-      if (!quickRoll) {
-        return;
-      }
-
-      await rollNextTurn();
-    } catch (error) {
-      setNotice(errorMessage(error));
-    } finally {
-      setResolutionBusy(false);
-    }
-  }
-
   async function rollNextTurn(): Promise<void> {
+    if (preferences.soundEnabled) {
+      // A resumed game may not have an unlocked context yet. Do this before
+      // the turn-ending dispatch crosses the user's click boundary.
+      void audio.unlock().catch((error: unknown) => {
+        setNotice(`Sound unavailable: ${errorMessage(error)}`);
+      });
+    }
     const current = gameController.getSnapshot().activeState;
     if (current?.turn.phase !== "action-phase") {
       setNotice("The current roll must reach the action phase first.");
@@ -517,11 +560,62 @@ export function App() {
       setWinnerOpen(true);
       return;
     }
-    const ended = await dispatch({ type: "turn.ended" }, "confirm");
+    const previousSeason = current.setup.seasonConfig?.enabled
+      ? deriveSeason(current.setup.seasonConfig, current.turn.round).season
+      : null;
+    const ended = await dispatch({ type: "turn.ended" });
     if (!ended) {
       return;
     }
+
+    const next = gameController.getSnapshot().activeState;
+    const nextSeason = next?.setup.seasonConfig?.enabled
+      ? deriveSeason(next.setup.seasonConfig, next.turn.round).season
+      : null;
+    if (previousSeason && nextSeason && previousSeason !== nextSeason) {
+      playCue({ type: "season-change", season: nextSeason });
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, preferences.motion === "reduced" ? 1 : 520);
+      });
+    } else {
+      playCue({ type: "confirm" });
+    }
+
+    // Auto-roll for the next player (one-click turn advancement).
     await roll({ type: "roll.draw" });
+  }
+
+  async function alchemyNextTurn(): Promise<void> {
+    const current = gameController.getSnapshot().activeState;
+    if (current?.turn.phase !== "action-phase") {
+      setNotice("The current roll must reach the action phase first.");
+      return;
+    }
+    if (winnerCandidates(current).length > 0) {
+      setWinnerOpen(true);
+      return;
+    }
+    const previousSeason = current.setup.seasonConfig?.enabled
+      ? deriveSeason(current.setup.seasonConfig, current.turn.round).season
+      : null;
+    const ended = await dispatch({ type: "turn.ended" });
+    if (!ended) {
+      return;
+    }
+
+    const next = gameController.getSnapshot().activeState;
+    const nextSeason = next?.setup.seasonConfig?.enabled
+      ? deriveSeason(next.setup.seasonConfig, next.turn.round).season
+      : null;
+    if (previousSeason && nextSeason && previousSeason !== nextSeason) {
+      playCue({ type: "season-change", season: nextSeason });
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, preferences.motion === "reduced" ? 1 : 520);
+      });
+    }
+
+    // Open alchemy dialog for the next player instead of auto-rolling.
+    setAlchemyOpen(true);
   }
 
   async function exportStoredGame(game: StoredGame): Promise<void> {
@@ -774,11 +868,30 @@ export function App() {
               clockAt,
             )}
             busy={rolling || resolutionBusy || snapshot.saving}
+            soundEnabled={preferences.soundEnabled}
+            onToggleSound={() => {
+              setSoundEnabled(!preferences.soundEnabled);
+            }}
             onRoll={() => {
               void roll({ type: "roll.draw" });
             }}
             onAlchemy={() => {
               setAlchemyOpen(true);
+            }}
+            onAdjustScore={(id, delta) => {
+              void dispatch(
+                {
+                  type: "player.publicStateAdjusted",
+                  playerId: asPlayerId(id),
+                  patch: {
+                    scoreAdjustment: {
+                      delta,
+                      reason: "manual",
+                    },
+                  },
+                },
+                { type: "confirm" },
+              );
             }}
             onEditPlayer={(id) => {
               setSelectedPlayerId(asPlayerId(id));
@@ -786,23 +899,32 @@ export function App() {
             onNextRoll={() => {
               void rollNextTurn();
             }}
+            onAlchemyNextTurn={() => {
+              void alchemyNextTurn();
+            }}
             onContinueRoll={() => {
               void continueOfficialRoll();
             }}
             onAcknowledgeEvent={() => {
               const event = state.thematicEvents.pendingEvent;
               if (event) {
-                void dispatch(
-                  {
-                    type: "event.acknowledged",
-                    occurrenceId: event.occurrenceId,
-                  },
-                  "event",
-                );
+                void dispatch({
+                  type: "event.acknowledged",
+                  occurrenceId: event.occurrenceId,
+                });
               }
             }}
+            onResolveEvent={(occurrenceId) => {
+              void dispatch(
+                {
+                  type: "event.resolved",
+                  occurrenceId: asEventOccurrenceId(occurrenceId),
+                },
+                { type: "confirm" },
+              );
+            }}
             onPause={() => {
-              void dispatch({ type: "clock.paused" }, "confirm");
+              void dispatch({ type: "clock.paused" }, { type: "confirm" });
             }}
             onHistory={() => {
               setHistoryOpen(true);
@@ -914,7 +1036,16 @@ export function App() {
         storageStatus={storageStatus}
         appVersion={APPLICATION_VERSION}
         schemaVersion={DATABASE_SCHEMA_VERSION}
-        onChange={updatePreferences}
+        onChange={changePreferences}
+        onPreviewSound={() => {
+          playCue({
+            type: "world-event",
+            eventId: "preview-world-event",
+            category: "economy",
+            tone: "boon",
+            impact: 2,
+          });
+        }}
         onRequestPersistentStorage={async () => {
           await runOperation(async () => {
             const persisted = await requestPersistentStorage();
@@ -934,6 +1065,21 @@ export function App() {
               activeRevision: state?.revisionId ?? null,
               lastSavedAt: snapshot.lastSavedAt,
               storage: storageStatus,
+              season:
+                state?.setup.seasonConfig?.enabled === true
+                  ? (() => {
+                      const info = deriveSeason(
+                        state.setup.seasonConfig,
+                        state.turn.round,
+                      );
+                      return {
+                        name: info.season,
+                        roundInSeason: info.roundInSeason,
+                        roundsPerSeason:
+                          state.setup.seasonConfig.roundsPerSeason,
+                      };
+                    })()
+                  : null,
             });
             await copyText(text);
             setNotice("Sanitized diagnostics copied.");
@@ -1083,31 +1229,8 @@ export function App() {
             }}
           />
 
-          {!snapshot.readOnly &&
-          !clockPaused &&
-          !rolling &&
-          selectedPlayer === null &&
-          state.lastRoll &&
-          state.turn.phase === "resolving-barbarian-attack" ? (
-            <RollResolutionDialog
-              key={`${state.lastRoll.id}-${state.barbarian.pendingAttack?.id ?? "no-attack"}`}
-              open
-              view={toRollResolutionView(state, clockAt)}
-              busy={resolutionBusy || snapshot.saving}
-              onCorrectAttackPlayer={(id) => {
-                setSelectedPlayerId(asPlayerId(id));
-              }}
-              onPause={() => {
-                void dispatch({ type: "clock.paused" }, "confirm");
-              }}
-              onContinue={(choices) => {
-                void resolveRollResult(false, choices);
-              }}
-              onQuickRoll={(choices) => {
-                void resolveRollResult(true, choices);
-              }}
-            />
-          ) : null}
+          {/* Barbarian attacks are now auto-resolved; the physical board
+              is authoritative. The resolution dialog is no longer shown. */}
 
           {!snapshot.readOnly && !clockPaused && selectedPlayer ? (
             <PlayerEditorDialog
@@ -1139,7 +1262,7 @@ export function App() {
                       type: "metropolis.proposalConfirmed",
                       proposalId: proposal.id,
                     },
-                    "confirm",
+                    { type: "confirm" },
                   );
                 }
               }}
@@ -1233,7 +1356,7 @@ export function App() {
                   type: "game.completed",
                   winnerId: winnerCandidate.id,
                 },
-                "confirm",
+                { type: "confirm" },
               ).then((completed) => {
                 if (completed) {
                   setWinnerOpen(false);
@@ -1258,7 +1381,7 @@ export function App() {
             canResume={!snapshot.readOnly}
             busy={snapshot.saving}
             onResume={() => {
-              void dispatch({ type: "clock.resumed" }, "confirm");
+              void dispatch({ type: "clock.resumed" }, { type: "confirm" });
             }}
           />
         </>
@@ -1301,193 +1424,4 @@ export function App() {
       {!clockPaused ? <PwaUpdate safeToUpdate={safeToUpdate} /> : null}
     </>
   );
-}
-
-function setupFromDraft(draft: SetupDraft): GameSetup {
-  const ids = new Map(
-    draft.players.map((player) => [
-      player.draftId,
-      asPlayerId(crypto.randomUUID()),
-    ]),
-  );
-  const firstPlayerId = ids.get(draft.firstPlayerDraftId);
-  if (!firstPlayerId) {
-    throw new Error("First player is missing from setup.");
-  }
-
-  return {
-    title: draft.title,
-    mode: draft.twoPlayerHouseMode ? "two-player-house-rule" : "standard",
-    players: draft.players.map((player) => {
-      const id = ids.get(player.draftId);
-      if (!id) {
-        throw new Error("Player setup ID is missing.");
-      }
-      const colorLabel = colorNames[player.color] ?? player.color;
-      return {
-        id,
-        name: player.name.trim(),
-        color: {
-          id: colorLabel.toLocaleLowerCase().replaceAll(/\s+/g, "-"),
-          label: colorLabel,
-          hex: player.color,
-          distinguishabilityKey: player.color,
-        },
-      };
-    }),
-    firstPlayerId,
-    victoryTarget: draft.victoryTarget,
-    thematicCadence: draft.eventCadence,
-    thematicEventsEnabled: true,
-    thematicEventCatalog: BUILT_IN_THEMATIC_EVENTS.map((event) => ({
-      ...event,
-    })),
-    rulesDataVersion: "2025.1",
-    gameDocumentVersion: 1,
-  };
-}
-
-function toHomeSummary(game: StoredGame): HomeGameSummary {
-  const player =
-    game.players.find(
-      (candidate) => candidate.id === game.currentTurn.playerId,
-    ) ?? game.players[0];
-  return {
-    id: game.id,
-    title: game.title,
-    currentPlayerName: game.currentTurn.playerName,
-    currentPlayerColor: player?.colorHex ?? "#286b9b",
-    round: game.currentTurn.round,
-    updatedAt: game.updatedAt,
-    players: game.players.map((entry) => entry.name),
-  };
-}
-
-function toSavedGameSummary(game: StoredGame): CompletedGameSummary {
-  const winner = game.winnerId
-    ? game.players.find((player) => player.id === game.winnerId)
-    : undefined;
-  const current =
-    game.players.find((player) => player.id === game.currentTurn.playerId) ??
-    game.players[0];
-  return {
-    id: game.id,
-    title: game.title,
-    status: game.lifecycle === "completed" ? "completed" : "archived",
-    currentPlayerName: game.currentTurn.playerName,
-    currentPlayerColor: current?.colorHex ?? "#286b9b",
-    updatedAt: game.updatedAt,
-    rounds: game.currentTurn.round,
-    turns: Math.max(0, game.currentTurn.turnNumber - 1),
-    playerNames: game.players.map((player) => player.name),
-    ...(winner
-      ? {
-          winnerName: winner.name,
-          winnerColor: winner.colorHex,
-        }
-      : {}),
-  };
-}
-
-function toImportPreview(
-  preview: ReturnType<typeof gameController.getSnapshot>["importPreview"],
-): ImportPreview | null {
-  if (!preview) {
-    return null;
-  }
-  return {
-    title: preview.title,
-    players: preview.playerNames,
-    turns: preview.completedTurns,
-    updatedAt: preview.updatedAt,
-    sourceVersion: preview.sourceApplicationVersion,
-    status: "Validated backup",
-  };
-}
-
-function toHistoryEntries(
-  revisions: StoredRevision[],
-  activeRevisionId: string | null,
-): HistoryEntryView[] {
-  return revisions.map((revision) => {
-    const playerId = revision.summary.playerIds[0];
-    const player = playerId
-      ? revision.state.players.find((candidate) => candidate.id === playerId)
-      : undefined;
-    return {
-      id: revision.id,
-      sequence: revision.sequence,
-      createdAt: revision.createdAt,
-      playerName: player?.name ?? null,
-      title: historyTitle(revision),
-      detail: revision.summary.text,
-      houseRule:
-        revision.summary.kind === "roll-drawn" ||
-        revision.summary.kind === "alchemy-used" ||
-        revision.summary.kind === "thematic-event-acknowledged",
-      active: revision.id === activeRevisionId,
-    };
-  });
-}
-
-function historyTitle(revision: StoredRevision): string {
-  const titles: Record<StoredRevision["summary"]["kind"], string> = {
-    "alchemy-used": "Alchemy roll",
-    "attack-confirmed": "Barbarian attack",
-    "clock-paused": "Game paused",
-    "clock-resumed": "Game resumed",
-    "clock-started": "Game timer started",
-    "game-completed": "Game completed",
-    "game-created": "Game created",
-    "metropolis-cancelled": "Metropolis cancelled",
-    "metropolis-confirmed": "Metropolis confirmed",
-    "metropolis-proposed": "Metropolis proposed",
-    "player-adjusted": "Public state updated",
-    "resolution-acknowledged": "Resolution acknowledged",
-    "roll-drawn": "Balanced roll",
-    "thematic-event-acknowledged": "House event",
-    "turn-ended": "Turn ended",
-  };
-  return titles[revision.summary.kind];
-}
-
-function toMetropolisProposalView(
-  state: NonNullable<
-    ReturnType<typeof gameController.getSnapshot>["activeState"]
-  >,
-  proposal: NonNullable<
-    NonNullable<
-      ReturnType<typeof gameController.getSnapshot>["activeState"]
-    >["metropolises"]["pendingProposal"]
-  >,
-): MetropolisProposalView {
-  const next = proposal.to
-    ? state.players.find((player) => player.id === proposal.to?.holderId)
-    : null;
-  const previous =
-    proposal.from && proposal.from.holderId !== proposal.to?.holderId
-      ? state.players.find((player) => player.id === proposal.from?.holderId)
-      : null;
-  return {
-    discipline: proposal.discipline,
-    nextHolder: next
-      ? {
-          id: next.id,
-          name: next.name,
-          color: next.color.hex,
-        }
-      : null,
-    previousHolder: previous
-      ? {
-          id: previous.id,
-          name: previous.name,
-          color: previous.color.hex,
-        }
-      : null,
-    status: proposal.to?.status ?? null,
-  };
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "An unknown error occurred.";
 }

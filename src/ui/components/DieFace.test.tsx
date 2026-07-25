@@ -9,9 +9,15 @@ describe("DieFace", () => {
     expect(screen.getByLabelText("Red die: 5")).toBeInTheDocument();
   });
 
-  it("exposes the event name instead of relying on color", () => {
-    render(<DieFace kind="event" label="Event die" value="barbarian" />);
+  it("exposes the event name while keeping its illustration decorative", () => {
+    const { container } = render(
+      <DieFace kind="event" label="Event die" value="barbarian" />,
+    );
 
     expect(screen.getByLabelText("Event die: Ship")).toBeInTheDocument();
+    expect(container.querySelector(".die__event-art")).toHaveAttribute(
+      "alt",
+      "",
+    );
   });
 });

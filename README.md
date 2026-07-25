@@ -20,20 +20,41 @@ this implementation.
 - Independently shuffled event-die cycles with 3 barbarian, 1 science, 1
   trade, and 1 politics face.
 - Alchemy rolls that preserve the numbered-deck cursor.
-- One consolidated roll-result modal containing event, progress, production,
-  barbarian, and house-event guidance.
-- **Next player & quick roll** directly from the result modal.
-- No standalone end-turn button: the next-player roll action records the turn
-  boundary and immediately rolls.
+- Inline roll guidance for ordinary results; barbarian attacks are announced
+  and logged without duplicating physical-board resolution in a form.
+- **Next: PLAYER** ends the current turn and rolls for the next player in one
+  click, with **Alchemy: PLAYER** beside it as a direct alternative.
+- No standalone end-turn button and no extra pre-roll click for normal turns.
 - Live current-turn, per-player accumulated, and total active game timers.
 - A persisted Pause mode that stops every timer and blocks all controls except
   Resume.
 - Progress-card eligibility guidance using the current 2025 improvement board.
-- Barbarian movement, verified attacks, tie rewards, live board corrections,
-  pillaging, knight reset, and first-attack robber activation.
+- Barbarian movement, first-attack robber activation, and board-authoritative
+  attack logging without changing manually managed outcomes, points, cities,
+  or knights.
 - Public player scores, cities, metropolises, active knights, and city
   improvements.
-- Balanced original thematic events with cooldown and no immediate repeats.
+- **World Events v0.2.0:** A typed 20-event engine with five selectable packs
+  (Weather & Harvest, Trade & Markets, Conflict & Defense, Diplomacy & Intrigue,
+  Festivals & Progress), Off/Subtle/Standard/Lively cadence, tone/impact balance,
+  five lifecycle durations, persistent active-event UI with manual resolution,
+  and legacy v1 save compatibility.
+- **Seasons Mode v0.3.0:** An optional four-season house-rule layer with
+  2/3/4-round seasons, selectable starting season, round-boundary transitions,
+  and weighted-without-replacement World Event draws. Existing tone/impact and
+  compatibility guardrails remain authoritative.
+- **FLUX.2 visual system v0.4.0:** Thirteen original local illustrations cover
+  the official event-die outcomes, four seasons, and five World Event packs.
+  They enrich setup, roll resolution, season transitions, and active events
+  without replacing textual guidance or accessible labels.
+- **Unique World Event art v0.5.0:** Every built-in World Event has its own
+  FLUX.2 illustration. Event images load and cache only when encountered; the
+  five lightweight pack images remain offline-safe fallbacks.
+- **Procedural soundscape v0.6.0:** Opt-in, offline Web Audio effects distinguish
+  dice rolls, Science/Trade/Politics, barbarian advances and attack outcomes,
+  every World Event through category/tone/impact plus a unique identity note,
+  and season transitions. Volume persists per device, with table-level mute and
+  a Settings preview.
 - Immutable IndexedDB revisions with undo, redo, branch retention, integrity
   hashes, and verified-ancestor recovery.
 - Versioned JSON export/import that never overwrites an existing game.
@@ -43,13 +64,13 @@ this implementation.
   coastline ports; local autosave; and JSON/SVG/PNG/print export.
 - Explicit single-tab control with read-only mirrored tabs and takeover.
 - Responsive mobile/tablet/desktop layouts, keyboard support, high contrast,
-  reduced motion, synthesized sound cues, and sanitized diagnostics.
-- Original locally generated frontier illustrations with no official CATAN
-  artwork or trade dress.
+  reduced motion, opt-in procedural sound effects, and sanitized diagnostics.
+- Original locally generated frontier illustrations, including a reproducible
+  FLUX.2 Dev asset set, with no official CATAN artwork or trade dress.
 - Prompted PWA updates and complete offline operation after first load.
 
-Balanced decks, thematic events, two-player mode, and custom victory targets
-are intentionally labeled house rules throughout the application.
+Balanced decks, World Events, Seasons Mode, two-player mode, and custom victory
+targets are intentionally labeled house rules throughout the application.
 
 ## Development
 
@@ -65,6 +86,20 @@ pnpm dev
 ```
 
 Open `http://127.0.0.1:5173`.
+
+### Regenerating the FLUX.2 visual set
+
+Normal builds use the committed WebP assets and do not require a model. To
+intentionally regenerate them, start the isolated local FLUX.2 ComfyUI service
+on `http://127.0.0.1:8190`, then run:
+
+```bash
+python3 scripts/generate-flux2-visuals.py
+```
+
+Use `--keys event-science season-winter` for selected scenes or `--force` to
+replace existing renders. Exact prompts, seeds, model settings, and output paths
+are recorded in `docs/flux2-visuals-manifest.json`.
 
 ## Quality commands
 
@@ -133,6 +168,7 @@ moving devices, or deleting a saved game.
 | [Testing and delivery](docs/testing-and-delivery.md) | Quality strategy, CI/CD, performance, security, and release gates         |
 | [Publishing runbook](docs/publishing.md)             | GitHub Pages setup, releases, verification, troubleshooting, and rollback |
 | [Implementation plan](docs/implementation-plan.md)   | Milestones and work packages                                              |
+| [Seasons Mode](docs/seasons-mode-plan.md)            | Implemented v0.3.0 design and verification contract                       |
 | [Architecture decisions](docs/decisions/)            | Durable design decisions and tradeoffs                                    |
 
 ## Architecture
@@ -148,8 +184,9 @@ moving devices, or deleting a saved game.
 ## Legal
 
 This is an independent, unofficial companion using original branding, icons,
-sounds, event text, and locally generated illustrations. It does not include
-CATAN artwork, logos, rulebook text, card text, or copied trade dress.
+sounds, project-authored event text, and locally generated illustrations. It
+does not include CATAN artwork, logos, rulebook text, card text, or copied trade
+dress.
 
 CATAN and Cities & Knights are trademarks of their respective owners. Official
 rule sources are linked in [rules and domain](docs/rules-and-domain.md).

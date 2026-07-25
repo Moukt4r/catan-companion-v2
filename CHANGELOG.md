@@ -18,6 +18,77 @@
 - Added fixed-count width × height border controls and changed the default
   inventory to five of each base resource, two Gold Fields, ten sea, no desert,
   and evenly distributed number tokens.
+
+## 0.6.1 - 2026-07-25
+
+- Removed the barbarian attack resolution form entirely; the physical board is
+  now authoritative for all attack outcomes (defender points, progress rewards,
+  city losses and knight state). The app signals that barbarians attacked,
+  resets its ship cycle, activates the robber after the first attack, and logs
+  a board-authoritative history entry without requiring any data entry or
+  changing player state.
+- Restored one-click Next that advances to the next player **and** auto-rolls.
+  Added a direct Alchemy button at the end-of-turn action phase that advances
+  to the next player and opens the Alchemy dialog instead of auto-rolling.
+- Preserved backward compatibility: existing saves paused in the old attack
+  phase are recovered automatically as board-authoritative without changing
+  player state.
+
+## 0.6.0 - 2026-07-24
+
+- Replaced the four generic beeps with a procedural offline soundscape for physical dice rolls, each progress discipline, barbarian advances and attacks, World Event categories/tones/impact, and all four season transitions.
+- Added outcome-aware barbarian attack audio, rising urgency as the ship approaches, and a unique deterministic identity note for each of the 20 World Events without downloadable audio assets or a larger PWA cache.
+- Added a persisted volume preference, an accessible Settings preview, and a one-tap Sound on/off control at the game table.
+- Unlock Web Audio synchronously from the first roll gesture for Safari/iOS compatibility while keeping sound opt-in and non-essential to understanding play.
+
+## 0.5.0 - 2026-07-24
+
+- Added a unique FLUX.2 illustration for every one of the 20 built-in World Events.
+- Load individual World Event art on demand and retain it in a dedicated CacheFirst runtime cache; the five pack illustrations remain precached offline fallbacks.
+- Kept the seasonal landscape in the roll-stage hero throughout the complete turn, eliminating duplicate official-event art between the hero and event die.
+- Compressed World Event pack selection into a responsive two-column setup grid with denser mobile cards.
+- Exposed stable event IDs to the presentation layer so pending and active cards resolve the correct unique illustration without changing domain rules.
+
+## 0.4.0 - 2026-07-24
+
+- Added a cohesive 13-image **FLUX.2 Dev** visual system: four official event-die outcomes, four seasons, and five World Event category packs.
+- Rebuilt event-die faces as illustrated result tiles while preserving complete textual and screen-reader labels.
+- Made the roll-stage banner respond to the current season before a roll and the official event outcome after a roll.
+- Added compact season-transition art, World Event pack imagery on pending and active event cards, and illustrated setup previews.
+- Added event art to the consolidated roll-resolution view without moving consequence text or controls out of their existing hierarchy.
+- Kept all generated imagery decorative, lazy-loaded list art, hidden in high-contrast/forced-colors modes, and documented exact model prompts, seeds, and regeneration steps.
+
+## 0.3.0 - 2026-07-24
+
+- Added **Seasons Mode**: an optional house-rule layer over World Events that
+  biases category selection based on a four-season cycle tied to round
+  progression.
+- Setup configuration: enable/disable, rounds per season (2/3/4), starting
+  season (spring/summer/autumn/winter). Disabled when World Events are off.
+- Deterministic weighted-without-replacement event selection using seasonal
+  category weights (favored 1.5×, neutral 1.0×, reduced 0.5×, hard minimum
+  0.25×). Existing guardrails (tone-run, impact anti-clump, anti-repeat)
+  outrank seasonal weighting.
+- Compact in-game season indicator with current season icon, label, and
+  round-within-season counter.
+- Accessible polite live-region announcement when the season changes at a
+  round boundary.
+- Backward compatible: old saves without seasonConfig load as Seasons Off;
+  new saves round-trip correctly. No mid-game enabling.
+- Comprehensive test coverage for season derivation, transitions, weighted
+  selection determinism, persistence, and view mapping.
+
+## 0.2.0 - 2026-07-24
+
+- Rebuilt thematic house events as **World Events**: 20 original typed events
+  across five selectable packs, with Off/Subtle/Standard/Lively cadence.
+- Added tone/impact balancing, prerequisite metadata, deterministic anti-clump
+  ordering, and five explicit effect lifecycles.
+- Added persistent active-event cards, fair next-round activation for global
+  effects, manual resolution for durable effects, and durable event history.
+- Preserved version-1 saves with optional metadata and schema defaults; new
+  games use document version 2.
+- Added a documented, original Seasons Mode proposal without implementing it.
 - Refreshed the full interface with a cleaner warm-tabletop visual system and
   original locally generated frontier illustrations.
 - Improved active-game hierarchy, setup flow, responsive touch targets, and
@@ -26,6 +97,12 @@
   and kept blocking dialogs only for barbarian attacks that require decisions.
 - Removed expensive setup-screen paint effects on touch devices for responsive
   typing and scrolling.
+- Collapsed the mobile barbarian panel to an always-visible risk summary while
+  keeping the full track one tap away.
+- Reworked active play around compact points-and-time tiles, one-tap score
+  changes, and a viewport-fixed next-turn action.
+- Moved public point adjustments to the top of the player editor and collapsed
+  infrequent Cities & Knights bookkeeping behind an advanced disclosure.
 
 ## 0.1.4 - 2026-07-22
 

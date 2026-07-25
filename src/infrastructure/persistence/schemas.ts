@@ -50,11 +50,54 @@ const playerSetupSchema = z.strictObject({
   initialScore: integer.optional(),
 });
 
+const worldEventTone = z.enum(["boon", "mixed", "setback"]);
+const worldEventImpact = z.union([z.literal(1), z.literal(2), z.literal(3)]);
+const worldEventCategory = z.enum([
+  "economy",
+  "military",
+  "diplomacy",
+  "nature",
+  "society",
+]);
+const worldEventScope = z.enum(["all", "active-player", "conditional"]);
+const worldEventDuration = z.enum([
+  "immediate",
+  "rest-of-turn",
+  "full-round",
+  "until-next-occurrence",
+  "until-resolved",
+]);
+const worldEventPrerequisite = z.enum([
+  "knights",
+  "cities",
+  "improvements",
+  "progress-cards",
+  "robber",
+  "maritime-trade",
+]);
+const worldEventCompatibility = z.strictObject({
+  twoPlayer: z.boolean(),
+  requires: z.array(worldEventPrerequisite).optional(),
+});
+
 const eventDefinitionSchema = z.strictObject({
   id,
   contentVersion: integer.min(1),
   title: z.string().min(1).max(500),
   instruction: z.string().min(1).max(5_000),
+  // v2+ metadata — optional for backward compat with v1 saves
+  tone: worldEventTone.optional(),
+  impact: worldEventImpact.optional(),
+  category: worldEventCategory.optional(),
+  scope: worldEventScope.optional(),
+  duration: worldEventDuration.optional(),
+  compatibility: worldEventCompatibility.optional(),
+});
+
+const seasonConfigSchema = z.strictObject({
+  enabled: z.boolean(),
+  roundsPerSeason: z.union([z.literal(2), z.literal(3), z.literal(4)]),
+  startingSeason: z.enum(["spring", "summer", "autumn", "winter"]),
 });
 
 const setupSchema = z.strictObject({
@@ -63,9 +106,11 @@ const setupSchema = z.strictObject({
   players: z.array(playerSetupSchema).min(2).max(4),
   firstPlayerId: id,
   victoryTarget: integer.min(1).max(99),
-  thematicCadence: z.enum(["subtle", "standard", "lively"]),
+  thematicEventPercent: integer.min(0).max(100),
   thematicEventsEnabled: z.boolean(),
   thematicEventCatalog: z.array(eventDefinitionSchema).max(1_000),
+  numberedReshuffleThreshold: integer.min(0).max(12),
+  seasonConfig: seasonConfigSchema.optional(),
   rulesDataVersion: id,
   gameDocumentVersion: integer.min(1),
 });
@@ -110,6 +155,31 @@ const thematicEventDeckSchema = z.strictObject({
   order: z.array(id).max(1_000),
 });
 
+const yearChangeSchema = z.strictObject({
+  cycle: integer.min(1),
+  turnNumber: nonNegativeInteger,
+  round: nonNegativeInteger,
+  skipped: z.array(z.strictObject({ red: die, yellow: die })).max(36),
+  createdAt: isoTimestamp,
+});
+
+const activeWorldEventSchema = z.strictObject({
+  occurrenceId: id,
+  eventId: id,
+  contentVersion: integer.min(1).default(1),
+  title: z.string().min(1).max(500),
+  instruction: z.string().min(1).max(5_000),
+  tone: worldEventTone,
+  impact: worldEventImpact,
+  category: worldEventCategory,
+  scope: worldEventScope,
+  duration: worldEventDuration,
+  compatibility: worldEventCompatibility,
+  activeRound: integer.min(1).nullable(),
+  triggeredAtCompletedTurn: nonNegativeInteger,
+  activated: z.boolean(),
+});
+
 const thematicSnapshotSchema = z.strictObject({
   occurrenceId: id,
   eventId: id,
@@ -118,6 +188,12 @@ const thematicSnapshotSchema = z.strictObject({
   instruction: z.string().min(1).max(5_000),
   triggeredAtCompletedTurn: nonNegativeInteger,
   acknowledged: z.boolean(),
+  // v2+ metadata — optional for backward compat
+  tone: worldEventTone.optional(),
+  impact: worldEventImpact.optional(),
+  category: worldEventCategory.optional(),
+  scope: worldEventScope.optional(),
+  duration: worldEventDuration.optional(),
 });
 
 const metropolisControlSchema = z
@@ -173,6 +249,9 @@ const attackOutcomeSchema = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("barbarians-win"),
     pillagedPlayerIds: z.array(id),
+  }),
+  z.strictObject({
+    type: z.literal("board-authoritative"),
   }),
 ]);
 const attackProposalSchema = z
@@ -269,7 +348,7 @@ export const gameStateSchema = z.strictObject({
     turnNumber: integer.min(1),
     completedTurns: nonNegativeInteger,
   }),
-  clock: gameClockSchema.optional(),
+  clock: gameClockSchema,
   players: z.array(playerStateSchema).min(2).max(4),
   metropolises: z.strictObject({
     controls: metropolisControlsSchema,
@@ -279,7 +358,7 @@ export const gameStateSchema = z.strictObject({
   eventDeck: eventDeckSchema,
   thematicEvents: z.strictObject({
     enabled: z.boolean(),
-    cadence: z.enum(["subtle", "standard", "lively"]),
+    percent: integer.min(0).max(100),
     enabledEvents: z.array(eventDefinitionSchema).max(1_000),
     triggerBag: triggerDeckSchema,
     eventDeck: thematicEventDeckSchema,
@@ -287,6 +366,7 @@ export const gameStateSchema = z.strictObject({
     lastTriggeredAtCompletedTurn: nonNegativeInteger.nullable(),
     previousEventId: id.nullable(),
     pendingEvent: thematicSnapshotSchema.nullable(),
+    activeEvents: z.array(activeWorldEventSchema).max(100),
   }),
   barbarian: z.strictObject({
     shipPosition: nonNegativeInteger,
@@ -310,6 +390,7 @@ export const gameStateSchema = z.strictObject({
   }),
   scoreLedger: z.array(scoreEntrySchema),
   lastRoll: rollSchema.nullable(),
+  lastYearChange: yearChangeSchema.nullable(),
   statistics: z.strictObject({
     totalRolls: nonNegativeInteger,
     normalRolls: nonNegativeInteger,
@@ -330,6 +411,7 @@ export const gameStateSchema = z.strictObject({
   history: z.strictObject({
     rolls: z.array(rollSchema),
     thematicEvents: z.array(thematicSnapshotSchema),
+    yearChanges: z.array(yearChangeSchema).max(1_000),
   }),
   createdAt: isoTimestamp,
   updatedAt: isoTimestamp,
@@ -403,6 +485,7 @@ export const commandSchema = z.discriminatedUnion("type", [
       .optional(),
   }),
   z.strictObject({ type: z.literal("event.acknowledged"), occurrenceId: id }),
+  z.strictObject({ type: z.literal("event.resolved"), occurrenceId: id }),
   z.strictObject({ type: z.literal("turn.ended") }),
   z.strictObject({ type: z.literal("game.completed"), winnerId: id }),
 ]);
@@ -422,6 +505,7 @@ export const journalSchema = z.strictObject({
     "metropolis-cancelled",
     "attack-confirmed",
     "thematic-event-acknowledged",
+    "thematic-event-resolved",
     "turn-ended",
     "game-completed",
   ]),

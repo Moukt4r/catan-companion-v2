@@ -1,4 +1,3 @@
-import { calculateBarbarianAttack } from "./barbarian";
 import { accrueGameClock, createGameClock, parseIsoTimestamp } from "./clock";
 import {
   createEventDeck,
@@ -22,7 +21,14 @@ import {
   winnerCandidates,
 } from "./selectors";
 import { createThematicState, scheduleThematicEvent } from "./thematic";
+import { deriveSeason, isSeasonTransition, SEASON_LABELS } from "./seasons";
+import {
+  pruneActiveEvents,
+  activateDeferredEvents,
+  resolveActiveEvent,
+} from "./worldEvents";
 import type {
+  ActiveWorldEventRecord,
   BarbarianAttackOutcome,
   BarbarianAttackRecord,
   CreateGameInput,
@@ -46,6 +52,7 @@ import type {
   RollRecord,
   ScoreEntry,
   ScoreEntryId,
+  YearChangeRecord,
 } from "./types";
 
 export function createGame(input: CreateGameInput): DomainResult<Decision> {
@@ -116,7 +123,7 @@ export function createGame(input: CreateGameInput): DomainResult<Decision> {
     eventDeck: createEventDeck(input.random, input.revisionId),
     thematicEvents: createThematicState(
       input.setup.thematicEventsEnabled,
-      input.setup.thematicCadence,
+      input.setup.thematicEventPercent,
       input.setup.thematicEventCatalog,
       input.random,
       input.revisionId,
@@ -157,7 +164,8 @@ export function createGame(input: CreateGameInput): DomainResult<Decision> {
       barbarianAttacksLost: 0,
       thematicEventsTriggered: 0,
     },
-    history: { rolls: [], thematicEvents: [] },
+    history: { rolls: [], thematicEvents: [], yearChanges: [] },
+    lastYearChange: null,
     createdAt: input.createdAt,
     updatedAt: input.createdAt,
   };
@@ -182,6 +190,7 @@ export function createGame(input: CreateGameInput): DomainResult<Decision> {
         "Balanced numbered deck",
         "Balanced event deck",
         ...(state.thematicEvents.enabled ? ["Thematic events"] : []),
+        ...(state.setup.seasonConfig?.enabled ? ["Seasons mode"] : []),
         ...(state.setup.mode === "two-player-house-rule"
           ? ["Two-player mode"]
           : []),
@@ -208,7 +217,7 @@ export function decide(
       domainError("NO_ACTIVE_GAME", "The game is already completed."),
     );
   }
-  if (state.clock?.pausedAt !== null && state.clock?.pausedAt !== undefined) {
+  if (state.clock.pausedAt !== null) {
     if (command.type !== "clock.resumed") {
       return failure(
         domainError(
@@ -245,6 +254,7 @@ export function decide(
     case "metropolis.proposalCancelled":
     case "attack.confirmed":
     case "event.acknowledged":
+    case "event.resolved":
     case "turn.ended":
     case "game.completed": {
       const accrued = accrueGameClock(state, deps.at);
@@ -304,11 +314,14 @@ function decideNormal(
       return confirmAttack(
         state,
         command.proposalId,
+        command.manualOutcome,
         command.progressChoices ?? [],
         deps,
       );
     case "event.acknowledged":
       return acknowledgeThematicEvent(state, command.occurrenceId, deps);
+    case "event.resolved":
+      return resolveThematicEvent(state, command.occurrenceId, deps);
     case "turn.ended":
       return endTurn(state, deps);
     case "game.completed":
@@ -350,7 +363,7 @@ function pauseClock(
   state: GameState,
   deps: DomainDeps,
 ): DomainResult<Decision> {
-  if (state.clock === undefined || state.clock.runningSince === null) {
+  if (state.clock.runningSince === null) {
     return failure(
       domainError("INVALID_COMMAND", "The game clock is not running."),
     );
@@ -362,7 +375,7 @@ function pauseClock(
   const candidate: GameState = {
     ...accrued.value,
     clock: {
-      ...accrued.value.clock!,
+      ...accrued.value.clock,
       runningSince: null,
       pausedAt: deps.at,
     },
@@ -383,11 +396,7 @@ function resumeClock(
   state: GameState,
   deps: DomainDeps,
 ): DomainResult<Decision> {
-  if (
-    state.clock === undefined ||
-    state.clock.pausedAt === null ||
-    state.clock.runningSince !== null
-  ) {
+  if (state.clock.pausedAt === null || state.clock.runningSince !== null) {
     return failure(
       domainError("INVALID_COMMAND", "The game clock is not paused."),
     );
@@ -443,7 +452,12 @@ function roll(
   }
   const numberedDraw =
     alchemy === null
-      ? drawNumberedOutcome(state.numberedDeck, deps.random, deps.revisionId)
+      ? drawNumberedOutcome(
+          state.numberedDeck,
+          deps.random,
+          deps.revisionId,
+          state.setup.numberedReshuffleThreshold,
+        )
       : null;
   if (numberedDraw !== null && !numberedDraw.ok) {
     return failure(numberedDraw.error);
@@ -482,6 +496,8 @@ function roll(
     deps.random,
     deps.revisionId,
     nextEventOccurrenceId(deps.ids),
+    state.setup.seasonConfig,
+    state.turn.round,
   );
   if (!thematic.ok) {
     return failure(thematic.error);
@@ -493,14 +509,28 @@ function roll(
     const shipPosition = barbarian.shipPosition + 1;
     barbarian = { ...barbarian, shipPosition };
     if (shipPosition === barbarian.rules.trackLength) {
-      const proposal = calculateBarbarianAttack(
-        {
-          ...state,
-          barbarian,
+      // Auto-resolve: the physical board is authoritative for all attack
+      // details. The app only signals/logs that the attack happened and
+      // resets the barbarian cycle.
+      const attackRecord: BarbarianAttackRecord = {
+        proposalId: nextProposalId(deps.ids),
+        completedAt: deps.at,
+        strengths: {
+          barbarian: 0,
+          defenders: 0,
+          contributions: [],
         },
-        nextProposalId(deps.ids),
-      );
-      barbarian = { ...barbarian, pendingAttack: proposal };
+        outcome: { type: "board-authoritative" },
+        progressChoices: [],
+      };
+      barbarian = {
+        ...barbarian,
+        shipPosition: 0,
+        robberActivated: true,
+        attacksCompleted: barbarian.attacksCompleted + 1,
+        pendingAttack: null,
+        history: [...barbarian.history, attackRecord],
+      };
     }
   }
 
@@ -531,13 +561,21 @@ function roll(
     progressPending: progress !== null,
     productionPending: true,
   };
-  const phase =
-    barbarian.pendingAttack !== null
-      ? "resolving-barbarian-attack"
-      : "resolving-official-result";
+  const phase = "resolving-official-result";
+  const yearChange: YearChangeRecord | null =
+    alchemy === null && numberedDraw?.ok && numberedDraw.value.startedNewCycle
+      ? {
+          cycle: numberedDraw.value.cycle,
+          turnNumber: state.turn.turnNumber,
+          round: state.turn.round,
+          skipped: numberedDraw.value.skipped,
+          createdAt: deps.at,
+        }
+      : null;
   const candidate: GameState = {
     ...state,
     turn: { ...state.turn, phase },
+    players: state.players,
     numberedDeck:
       alchemy === null && numberedDraw?.ok
         ? numberedDraw.value.deck
@@ -547,6 +585,7 @@ function roll(
     barbarian,
     resolution: { official },
     lastRoll: record,
+    lastYearChange: yearChange ?? state.lastYearChange,
     statistics: {
       ...state.statistics,
       totalRolls: state.statistics.totalRolls + 1,
@@ -572,6 +611,10 @@ function roll(
         thematic.value.event === null
           ? state.history.thematicEvents
           : [...state.history.thematicEvents, thematic.value.event],
+      yearChanges:
+        yearChange === null
+          ? state.history.yearChanges
+          : [...state.history.yearChanges, yearChange],
     },
   };
   return commit(
@@ -795,18 +838,7 @@ function adjustPlayer(
     ];
   }
   let candidate: GameState = { ...state, players, scoreLedger };
-  if (correctingAttack) {
-    candidate = {
-      ...candidate,
-      barbarian: {
-        ...candidate.barbarian,
-        pendingAttack: calculateBarbarianAttack(
-          candidate,
-          nextProposalId(deps.ids),
-        ),
-      },
-    };
-  } else {
+  if (!correctingAttack) {
     const automaticProposal = findAutomaticMetropolisProposal(
       state,
       candidate,
@@ -1063,6 +1095,7 @@ function cancelMetropolis(
 function confirmAttack(
   state: GameState,
   proposalId: ProposalId,
+  manualOutcome: BarbarianAttackOutcome,
   progressChoices: Array<{
     playerId: PlayerId;
     discipline: ProgressDiscipline;
@@ -1082,35 +1115,50 @@ function confirmAttack(
       ),
     );
   }
-  const choiceError = validateProgressChoices(
-    proposal.outcome,
-    progressChoices,
-  );
+  // Validate manual outcome
+  const outcome = manualOutcome;
+  if (outcome.type === "barbarians-win") {
+    for (const playerId of outcome.pillagedPlayerIds) {
+      const player = state.players.find((p) => p.id === playerId);
+      if (!player || player.ordinaryCities === 0) {
+        return failure(
+          domainError(
+            "INVALID_COMMAND",
+            "Selected player has no ordinary city to pillage.",
+            { playerId },
+          ),
+        );
+      }
+    }
+  }
+  const choiceError = validateProgressChoices(outcome, progressChoices);
   if (choiceError !== null) {
     return failure(choiceError);
   }
 
-  let players = state.players.map((player) => ({
-    ...player,
-    activeKnights: { basic: 0, strong: 0, mighty: 0 },
-  }));
+  let players =
+    outcome.type === "board-authoritative"
+      ? state.players
+      : state.players.map((player) => ({
+          ...player,
+          activeKnights: { basic: 0, strong: 0, mighty: 0 },
+        }));
   const scoreEntries: ScoreEntry[] = [];
   if (
-    proposal.outcome.type === "defenders-win" &&
-    proposal.outcome.reward.type === "defender-point"
+    outcome.type === "defenders-win" &&
+    outcome.reward.type === "defender-point"
   ) {
     scoreEntries.push({
       id: nextScoreEntryId(deps.ids),
-      playerId: proposal.outcome.reward.playerId,
+      playerId: outcome.reward.playerId,
       delta: 1,
       reason: "defender",
       createdAt: deps.at,
     });
   }
-  if (proposal.outcome.type === "barbarians-win") {
+  if (outcome.type === "barbarians-win") {
     players = players.map((player) =>
-      proposal.outcome.type === "barbarians-win" &&
-      proposal.outcome.pillagedPlayerIds.includes(player.id)
+      outcome.pillagedPlayerIds.includes(player.id)
         ? { ...player, ordinaryCities: player.ordinaryCities - 1 }
         : player,
     );
@@ -1119,9 +1167,19 @@ function confirmAttack(
     proposalId,
     completedAt: deps.at,
     strengths: proposal.strengths,
-    outcome: proposal.outcome,
+    outcome,
     progressChoices,
   };
+  const summary =
+    outcome.type === "board-authoritative"
+      ? "Barbarian attack resolved on the physical board."
+      : outcome.type === "defenders-win"
+        ? outcome.reward.type === "defender-point"
+          ? "The defenders win; the sole top contributor gains one Defender point."
+          : "The defenders win; tied top contributors each choose a progress deck."
+        : outcome.pillagedPlayerIds.length === 0
+          ? "The barbarians win, but no recorded ordinary city is vulnerable."
+          : "The barbarians win; selected players lose one ordinary city each.";
   const official = state.resolution.official;
   const phase =
     official !== null &&
@@ -1147,10 +1205,10 @@ function confirmAttack(
       ...state.statistics,
       barbarianAttacksWon:
         state.statistics.barbarianAttacksWon +
-        (proposal.outcome.type === "defenders-win" ? 1 : 0),
+        (outcome.type === "defenders-win" ? 1 : 0),
       barbarianAttacksLost:
         state.statistics.barbarianAttacksLost +
-        (proposal.outcome.type === "barbarians-win" ? 1 : 0),
+        (outcome.type === "barbarians-win" ? 1 : 0),
     },
   };
   return commit(
@@ -1158,13 +1216,15 @@ function confirmAttack(
     deps,
     {
       kind: "attack-confirmed",
-      text: proposal.summary,
+      text: summary,
       playerIds:
-        proposal.outcome.type === "barbarians-win"
-          ? proposal.outcome.pillagedPlayerIds
-          : proposal.outcome.reward.type === "defender-point"
-            ? [proposal.outcome.reward.playerId]
-            : proposal.outcome.reward.playerIds,
+        outcome.type === "board-authoritative"
+          ? []
+          : outcome.type === "barbarians-win"
+            ? outcome.pillagedPlayerIds
+            : outcome.reward.type === "defender-point"
+              ? [outcome.reward.playerId]
+              : outcome.reward.playerIds,
     },
     { type: "barbarian-attack", record, phase },
   );
@@ -1219,6 +1279,63 @@ function acknowledgeThematicEvent(
   );
 }
 
+function resolveThematicEvent(
+  state: GameState,
+  occurrenceId: EventOccurrenceId,
+  deps: DomainDeps,
+): DomainResult<Decision> {
+  const phaseError = requirePhase(state, "action-phase");
+  if (phaseError !== null) {
+    return failure(phaseError);
+  }
+  const activeEvents: ActiveWorldEventRecord[] =
+    state.thematicEvents.activeEvents;
+  const result = resolveActiveEvent(activeEvents, occurrenceId);
+  if (result === null) {
+    return failure(
+      domainError(
+        "INVALID_COMMAND",
+        "No active until-resolved event with this occurrence ID.",
+        { occurrenceId },
+      ),
+    );
+  }
+  const candidate: GameState = {
+    ...state,
+    thematicEvents: {
+      ...state.thematicEvents,
+      activeEvents: result.remaining,
+    },
+  };
+  return commit(
+    candidate,
+    deps,
+    {
+      kind: "thematic-event-resolved",
+      text: `Resolved ${result.resolved.title}.`,
+      playerIds: [currentPlayer(state).id],
+    },
+    {
+      type: "thematic-event",
+      event: {
+        occurrenceId: result.resolved.occurrenceId as EventOccurrenceId,
+        eventId: result.resolved.eventId,
+        contentVersion: result.resolved.contentVersion,
+        title: result.resolved.title,
+        instruction: result.resolved.instruction,
+        triggeredAtCompletedTurn: result.resolved.triggeredAtCompletedTurn,
+        acknowledged: true,
+        tone: result.resolved.tone,
+        impact: result.resolved.impact,
+        category: result.resolved.category,
+        scope: result.resolved.scope,
+        duration: result.resolved.duration,
+      },
+      phase: "action-phase",
+    },
+  );
+}
+
 function endTurn(state: GameState, deps: DomainDeps): DomainResult<Decision> {
   const phaseError = requirePhase(state, "action-phase");
   if (phaseError !== null) {
@@ -1236,25 +1353,50 @@ function endTurn(state: GameState, deps: DomainDeps): DomainResult<Decision> {
   const nextPlayerIndex =
     (state.turn.currentPlayerIndex + 1) % state.players.length;
   const completedRound = completedTurns % state.players.length === 0;
+  const newRound = state.turn.round + (completedRound ? 1 : 0);
+  const playerCount = state.players.length;
+  const seasonConfig = state.setup.seasonConfig;
+  const seasonChanged =
+    completedRound &&
+    seasonConfig?.enabled === true &&
+    isSeasonTransition(seasonConfig, state.turn.round, newRound);
+  const newSeason = seasonChanged
+    ? deriveSeason(seasonConfig, newRound).season
+    : null;
+
+  // --- World event lifecycle: prune expired, activate deferred ---
+  let activeEvents: ActiveWorldEventRecord[] =
+    state.thematicEvents.activeEvents;
+  activeEvents = pruneActiveEvents(
+    activeEvents,
+    completedTurns,
+    newRound,
+    playerCount,
+    false,
+  );
+  if (completedRound) {
+    activeEvents = activateDeferredEvents(activeEvents, newRound);
+  }
+
   const candidate: GameState = {
     ...state,
     turn: {
       phase: "awaiting-roll",
       currentPlayerIndex: nextPlayerIndex,
       completedTurns,
-      round: state.turn.round + (completedRound ? 1 : 0),
+      round: newRound,
       turnNumber: state.turn.turnNumber + 1,
     },
-    ...(state.clock === undefined
-      ? {}
-      : {
-          clock: {
-            ...state.clock,
-            currentTurnActiveMs: 0,
-            runningSince: deps.at,
-            pausedAt: null,
-          },
-        }),
+    thematicEvents: {
+      ...state.thematicEvents,
+      activeEvents,
+    },
+    clock: {
+      ...state.clock,
+      currentTurnActiveMs: 0,
+      runningSince: deps.at,
+      pausedAt: null,
+    },
     statistics: {
       ...state.statistics,
       completedTurns,
@@ -1267,7 +1409,9 @@ function endTurn(state: GameState, deps: DomainDeps): DomainResult<Decision> {
     deps,
     {
       kind: "turn-ended",
-      text: `Ended the turn; ${currentPlayer(candidate).name} is next.`,
+      text: `Ended the turn; ${currentPlayer(candidate).name} is next.${
+        newSeason === null ? "" : ` ${SEASON_LABELS[newSeason]} began.`
+      }`,
       playerIds: [currentPlayer(candidate).id],
     },
     {
@@ -1303,15 +1447,11 @@ function completeGame(
     status: "completed",
     winnerId,
     turn: { ...state.turn, phase: "completed" },
-    ...(state.clock === undefined
-      ? {}
-      : {
-          clock: {
-            ...state.clock,
-            runningSince: null,
-            pausedAt: null,
-          },
-        }),
+    clock: {
+      ...state.clock,
+      runningSince: null,
+      pausedAt: null,
+    },
   };
   return commit(
     candidate,

@@ -1,7 +1,45 @@
 import { useMemo, useState } from "react";
 import type { DevicePreferences } from "../../../application/devicePreferences";
+import {
+  WORLD_EVENTS_CATALOG,
+  SEASONS,
+  SEASON_LABELS,
+  SEASON_ICONS,
+  DEFAULT_SEASON_CONFIG,
+  type WorldEventCategory,
+  type Season,
+  type RoundsPerSeason,
+  type SeasonConfig,
+} from "../../../domain";
 import resourceIllustration from "../../../assets/illustrations/resource-landscape.webp";
 import { Button, PlayerMarker, StatusBanner } from "../../components";
+import {
+  EVENT_DIE_ART,
+  SEASON_ART,
+  WORLD_EVENT_ART,
+} from "../../illustrationCatalog";
+
+/**
+ * Human-readable guidance for the World Event frequency slider.
+ * The percent is the chance per eligible turn, so the reciprocal reads as
+ * "about one event every N turns".
+ */
+function eventFrequencyDescription(percent: number): string {
+  if (percent === 0) {
+    return "No world events.";
+  }
+  if (percent >= 100) {
+    return "A world event on every eligible turn.";
+  }
+  const turns = Math.round(100 / percent);
+  const cooldown =
+    percent >= 50
+      ? "Back-to-back events are allowed."
+      : percent >= 25
+        ? "At least one turn between events."
+        : "At least two turns between events.";
+  return `About one event every ${turns} eligible turn${turns === 1 ? "" : "s"}. ${cooldown}`;
+}
 
 const playerColors = [
   { name: "Amber", value: "#b66a1f" },
@@ -9,6 +47,47 @@ const playerColors = [
   { name: "Crimson", value: "#b43e3e" },
   { name: "Forest green", value: "#2f7551" },
 ];
+
+const worldEventPackOptions: ReadonlyArray<{
+  id: WorldEventCategory;
+  name: string;
+  description: string;
+}> = [
+  {
+    id: "nature",
+    name: "Weather & Harvest",
+    description: "Storms, droughts, harvests, and changing production.",
+  },
+  {
+    id: "economy",
+    name: "Trade & Markets",
+    description: "Bank trades, maritime commerce, and table-wide resources.",
+  },
+  {
+    id: "military",
+    name: "Conflict & Defense",
+    description: "Knights, raiders, the robber, and fortification.",
+  },
+  {
+    id: "diplomacy",
+    name: "Diplomacy & Intrigue",
+    description: "Player trade, embargoes, catch-up, and negotiation.",
+  },
+  {
+    id: "society",
+    name: "Festivals & Progress",
+    description: "Cities, improvements, celebrations, and epidemics.",
+  },
+];
+
+const allWorldEventPacks = worldEventPackOptions.map((pack) => pack.id);
+
+const eventDiePreviewOptions = [
+  ["barbarian", "Ship"],
+  ["science", "Science"],
+  ["trade", "Trade"],
+  ["politics", "Politics"],
+] as const;
 
 export interface SetupPlayerDraft {
   draftId: string;
@@ -22,7 +101,10 @@ export interface SetupDraft {
   firstPlayerDraftId: string;
   twoPlayerHouseMode: boolean;
   victoryTarget: number;
-  eventCadence: "subtle" | "standard" | "lively";
+  eventPercent: number;
+  numberedReshuffleThreshold: number;
+  worldEventPacks: WorldEventCategory[];
+  seasonConfig?: SeasonConfig;
   preferences: DevicePreferences;
 }
 
@@ -65,8 +147,16 @@ export function SetupWizard({
     players[0]?.draftId ?? "",
   );
   const [victoryTarget, setVictoryTarget] = useState(13);
-  const [eventCadence, setEventCadence] =
-    useState<SetupDraft["eventCadence"]>("standard");
+  const [eventPercent, setEventPercent] = useState(8);
+  const [numberedReshuffleThreshold, setNumberedReshuffleThreshold] =
+    useState(0);
+
+  const [worldEventPacks, setWorldEventPacks] = useState<WorldEventCategory[]>([
+    ...allWorldEventPacks,
+  ]);
+  const [seasonConfig, setSeasonConfig] = useState<SeasonConfig>({
+    ...DEFAULT_SEASON_CONFIG,
+  });
   const [preferences, setPreferences] = useState(initialPreferences);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,6 +199,10 @@ export function SetupWizard({
   const goNext = () => {
     if (step === "players" && playerError) {
       setError(playerError);
+      return;
+    }
+    if (step === "rules" && eventPercent > 0 && worldEventPacks.length === 0) {
+      setError("Select at least one category pack for World Events.");
       return;
     }
     setError(null);
@@ -375,13 +469,26 @@ export function SetupWizard({
                   cycle.
                 </p>
               </article>
-              <article>
+              <article className="rules-card rules-card--illustrated">
                 <span className="rule-label rule-label--house">House rule</span>
                 <h3>Balanced event die</h3>
                 <p>
                   Each six-roll cycle has three ships and one of each progress
                   discipline.
                 </p>
+                <div className="event-die-preview" aria-hidden="true">
+                  {eventDiePreviewOptions.map(([event, label]) => (
+                    <span key={event} title={label}>
+                      <img
+                        src={EVENT_DIE_ART[event]}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <small>{label}</small>
+                    </span>
+                  ))}
+                </div>
               </article>
             </div>
             <label className="field">
@@ -399,43 +506,210 @@ export function SetupWizard({
               />
             </label>
             <fieldset className="choice-group">
-              <legend>Thematic house-event cadence</legend>
-              {(
-                [
-                  [
-                    "subtle",
-                    "Subtle",
-                    "About one trigger in every 18 eligible turns.",
-                  ],
-                  [
-                    "standard",
-                    "Standard",
-                    "About one trigger in every 12 eligible turns.",
-                  ],
-                  [
-                    "lively",
-                    "Lively",
-                    "About one trigger in every 8 eligible turns.",
-                  ],
-                ] as const
-              ).map(([value, name, description]) => (
-                <label key={value} className="choice-card">
+              <legend>World Events</legend>
+              <p>
+                World Events are thematic house-rule events — entirely separate
+                from the official Cities &amp; Knights event die.
+              </p>
+              <label className="slider-field">
+                <span className="slider-field__label">
+                  <strong>Event frequency</strong>
+                  <span className="slider-field__value">
+                    {eventPercent === 0 ? "Off" : `${eventPercent}%`}
+                  </span>
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={eventPercent}
+                  aria-label="World event frequency percent"
+                  aria-valuetext={
+                    eventPercent === 0 ? "Off" : `${eventPercent} percent`
+                  }
+                  onChange={(event) => {
+                    setEventPercent(Number(event.target.value));
+                  }}
+                />
+                <small>{eventFrequencyDescription(eventPercent)}</small>
+              </label>
+            </fieldset>
+
+            <fieldset className="choice-group">
+              <legend>Deck reshuffle</legend>
+              <p>
+                The numbered deck normally plays out all 36 cards before a new
+                year begins. Reshuffling early keeps the final cards uncertain.
+              </p>
+              <label className="slider-field">
+                <span className="slider-field__label">
+                  <strong>Reshuffle when cards remain</strong>
+                  <span className="slider-field__value">
+                    {numberedReshuffleThreshold === 0
+                      ? "Off"
+                      : `${numberedReshuffleThreshold} cards`}
+                  </span>
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={12}
+                  step={1}
+                  value={numberedReshuffleThreshold}
+                  aria-label="Reshuffle when this many cards remain"
+                  aria-valuetext={
+                    numberedReshuffleThreshold === 0
+                      ? "Off"
+                      : `${numberedReshuffleThreshold} cards remaining`
+                  }
+                  onChange={(event) => {
+                    setNumberedReshuffleThreshold(Number(event.target.value));
+                  }}
+                />
+                <small>
+                  {numberedReshuffleThreshold === 0
+                    ? "Exact coverage: every one of the 36 outcomes is drawn each year."
+                    : `A new year begins after card ${36 - numberedReshuffleThreshold}. The ${numberedReshuffleThreshold} undrawn card${numberedReshuffleThreshold === 1 ? " is" : "s are"} announced and listed.`}
+                </small>
+              </label>
+            </fieldset>
+
+            {eventPercent > 0 ? (
+              <fieldset className="choice-group">
+                <legend>Category packs</legend>
+                <p>
+                  Select at least one category pack to include in the world
+                  event deck.
+                </p>
+                <div className="pack-grid">
+                  {worldEventPackOptions.map((pack) => {
+                    const eventCount = WORLD_EVENTS_CATALOG.filter(
+                      (event) => event.category === pack.id,
+                    ).length;
+                    return (
+                      <label
+                        key={pack.id}
+                        className="check-field check-field--illustrated"
+                      >
+                        <img
+                          className="check-field__art"
+                          src={WORLD_EVENT_ART[pack.id]}
+                          alt=""
+                          aria-hidden="true"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        <input
+                          type="checkbox"
+                          checked={worldEventPacks.includes(pack.id)}
+                          onChange={(event) => {
+                            setWorldEventPacks((current) =>
+                              event.target.checked
+                                ? [...current, pack.id]
+                                : current.filter((id) => id !== pack.id),
+                            );
+                          }}
+                        />
+                        <span>
+                          <strong>{pack.name}</strong>
+                          <small>
+                            {pack.description} {eventCount} events.
+                          </small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {worldEventPacks.length === 0 ? (
+                  <StatusBanner tone="danger">
+                    Select at least one category pack.
+                  </StatusBanner>
+                ) : null}
+              </fieldset>
+            ) : null}
+
+            {eventPercent > 0 ? (
+              <fieldset className="choice-group">
+                <legend>Seasons Mode</legend>
+                <p>
+                  Optional seasonal bias on World Events. Favored categories
+                  appear more often, reduced ones less — but nothing is
+                  impossible.
+                </p>
+                <label className="check-field">
                   <input
-                    type="radio"
-                    name="event-cadence"
-                    value={value}
-                    checked={eventCadence === value}
-                    onChange={() => {
-                      setEventCadence(value);
+                    type="checkbox"
+                    checked={seasonConfig.enabled}
+                    onChange={(event) => {
+                      setSeasonConfig((current) => ({
+                        ...current,
+                        enabled: event.target.checked,
+                      }));
                     }}
                   />
                   <span>
-                    <strong>{name}</strong>
-                    <small>{description}</small>
+                    <strong>Enable Seasons Mode</strong>
+                    <small>
+                      Categories shift with the seasons as rounds progress.
+                    </small>
                   </span>
                 </label>
-              ))}
-            </fieldset>
+                {seasonConfig.enabled ? (
+                  <>
+                    <label className="field">
+                      <span>Rounds per season</span>
+                      <select
+                        value={seasonConfig.roundsPerSeason}
+                        onChange={(event) => {
+                          setSeasonConfig((current) => ({
+                            ...current,
+                            roundsPerSeason: Number(
+                              event.target.value,
+                            ) as RoundsPerSeason,
+                          }));
+                        }}
+                      >
+                        <option value={2}>2 rounds</option>
+                        <option value={3}>3 rounds (default)</option>
+                        <option value={4}>4 rounds</option>
+                      </select>
+                    </label>
+                    <label className="field">
+                      <span>Starting season</span>
+                      <select
+                        value={seasonConfig.startingSeason}
+                        onChange={(event) => {
+                          setSeasonConfig((current) => ({
+                            ...current,
+                            startingSeason: event.target.value as Season,
+                          }));
+                        }}
+                      >
+                        {SEASONS.map((s) => (
+                          <option key={s} value={s}>
+                            {SEASON_ICONS[s]} {SEASON_LABELS[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="season-setup-preview" aria-hidden="true">
+                      <img
+                        src={SEASON_ART[seasonConfig.startingSeason]}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <span>
+                        {SEASON_ICONS[seasonConfig.startingSeason]}{" "}
+                        {SEASON_LABELS[seasonConfig.startingSeason]} at the
+                        frontier
+                      </span>
+                    </div>
+                  </>
+                ) : null}
+              </fieldset>
+            ) : null}
           </div>
         ) : null}
 
@@ -492,11 +766,33 @@ export function SetupWizard({
                 }}
               />
               <span>
-                <strong>Sound cues</strong>
+                <strong>Sound effects</strong>
                 <small>
-                  Uses short synthesized tones with visual equivalents.
+                  Offline dice, event, season, and barbarian cues with visual
+                  equivalents.
                 </small>
               </span>
+            </label>
+            <label className="field field--range">
+              <span>
+                Sound volume
+                <output>{Math.round(preferences.soundVolume * 100)}%</output>
+              </span>
+              <input
+                type="range"
+                aria-label="Sound volume"
+                min="0"
+                max="1"
+                step="0.05"
+                value={preferences.soundVolume}
+                disabled={!preferences.soundEnabled}
+                onChange={(event) => {
+                  setPreferences((current) => ({
+                    ...current,
+                    soundVolume: Number(event.target.value),
+                  }));
+                }}
+              />
             </label>
             <label className="check-field">
               <input
@@ -548,9 +844,31 @@ export function SetupWizard({
                 <dd>{victoryTarget}</dd>
               </div>
               <div>
-                <dt>Events</dt>
-                <dd>{eventCadence}</dd>
+                <dt>World Events</dt>
+                <dd>
+                  {eventPercent === 0
+                    ? "Off"
+                    : `${eventPercent}% per turn · ${worldEventPacks.length} pack${worldEventPacks.length === 1 ? "" : "s"}`}
+                </dd>
               </div>
+              <div>
+                <dt>Deck reshuffle</dt>
+                <dd>
+                  {numberedReshuffleThreshold === 0
+                    ? "Full 36-card year"
+                    : `New year at card ${36 - numberedReshuffleThreshold} · ${numberedReshuffleThreshold} left undrawn`}
+                </dd>
+              </div>
+              {eventPercent > 0 && seasonConfig.enabled ? (
+                <div>
+                  <dt>Seasons</dt>
+                  <dd>
+                    {SEASON_ICONS[seasonConfig.startingSeason]}{" "}
+                    {SEASON_LABELS[seasonConfig.startingSeason]} start ·{" "}
+                    {seasonConfig.roundsPerSeason} rounds/season
+                  </dd>
+                </div>
+              ) : null}
               <div>
                 <dt>Mode</dt>
                 <dd>
@@ -561,8 +879,8 @@ export function SetupWizard({
               </div>
             </dl>
             <StatusBanner tone="warning">
-              Balanced dice and thematic events are house rules. The app will
-              identify them throughout play.
+              Balanced dice and World Events are house rules. The app keeps them
+              visibly separate from official Cities & Knights guidance.
             </StatusBanner>
           </div>
         ) : null}
@@ -586,7 +904,13 @@ export function SetupWizard({
                   firstPlayerDraftId,
                   twoPlayerHouseMode,
                   victoryTarget,
-                  eventCadence,
+                  eventPercent,
+                  numberedReshuffleThreshold,
+                  worldEventPacks: eventPercent === 0 ? [] : worldEventPacks,
+                  seasonConfig:
+                    eventPercent === 0
+                      ? { ...DEFAULT_SEASON_CONFIG }
+                      : seasonConfig,
                   preferences,
                 });
               }}

@@ -1,7 +1,11 @@
 name: Deploy GitHub Pages
 
 on:
-  push:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
     branches:
       - main
   workflow_dispatch:
@@ -17,9 +21,14 @@ concurrency:
 
 jobs:
   build:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: pnpm/action-setup@v4
         with:
           version: 11.12.0
@@ -27,11 +36,10 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - run: test "$(pnpm --version)" = "11.12.0"
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - run: pnpm test:coverage
-      - run: pnpm exec playwright install --with-deps chromium firefox webkit
-      - run: pnpm test:e2e
+      - run: pnpm audit:prod
       - run: pnpm build
         env:
           VITE_BASE_PATH: /${{ github.event.repository.name }}/

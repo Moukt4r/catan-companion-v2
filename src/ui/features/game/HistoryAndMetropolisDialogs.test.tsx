@@ -31,7 +31,7 @@ describe("HistoryDialog", () => {
             sequence: 2,
             createdAt: "2026-07-12T12:01:00.000Z",
             playerName: null,
-            title: "House event",
+            title: "World event",
             detail: "Harbor Festival completed.",
             houseRule: true,
             active: true,

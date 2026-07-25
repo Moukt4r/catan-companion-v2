@@ -1,6 +1,5 @@
 import {
   PROGRESS_ELIGIBILITY_2025,
-  activeKnightStrength,
   barbarianStrength,
   currentPlayer,
   currentTurnActiveMilliseconds,
@@ -10,12 +9,22 @@ import {
   scoreForPlayer,
   totalActiveMilliseconds,
   winnerCandidates,
+  WORLD_EVENTS_CATALOG,
+  lookupWorldEvent,
+  deriveSeason,
+  isSeasonTransition,
+  SEASON_LABELS,
+  SEASON_ICONS,
   type BarbarianAttackProposal,
   type GamePhase,
   type GameState,
   type IsoTimestamp,
   type PlayerId,
   type ProgressDiscipline,
+  type ActiveWorldEventRecord,
+  type WorldEventCategory,
+  type WorldEventDuration,
+  type WorldEventTone,
 } from "../../../domain";
 import type { GameCompleteView } from "./GameCompleteScreen";
 import type { GameTableView } from "./GameTable";
@@ -32,9 +41,94 @@ const phaseLabels: Record<GamePhase, string> = {
   completed: "Completed",
   "resolving-barbarian-attack": "Resolving barbarian attack",
   "resolving-official-result": "Resolving official result",
-  "resolving-thematic-event": "Resolving house event",
+  "resolving-thematic-event": "Resolving world event",
   "turn-complete": "Turn complete",
 };
+
+export interface ActiveEventView {
+  occurrenceId: string;
+  eventId: string;
+  title: string;
+  instruction: string;
+  tone: WorldEventTone;
+  impact: number;
+  category: WorldEventCategory;
+  duration: WorldEventDuration;
+  timingCopy: string;
+  canResolve: boolean;
+}
+
+export interface PendingWorldEventView {
+  eventId: string;
+  title: string;
+  instruction: string;
+  tone: WorldEventTone;
+  toneLabel: string;
+  impact: number;
+  category: WorldEventCategory;
+  duration: WorldEventDuration;
+  timingCopy: string;
+}
+
+function timingCopyForDuration(
+  duration: WorldEventDuration,
+  activated: boolean,
+): string {
+  switch (duration) {
+    case "immediate":
+      return "Immediate effect";
+    case "rest-of-turn":
+      return "Active until end of this turn";
+    case "full-round":
+      return activated ? "Active this round" : "Activates next round";
+    case "until-next-occurrence":
+      return "Active until the next world event";
+    case "until-resolved":
+      return "Active until resolved";
+  }
+}
+
+function toActiveEventViews(
+  activeEvents: readonly ActiveWorldEventRecord[] | undefined,
+  pendingOccurrenceId: string | null,
+): ActiveEventView[] {
+  if (!activeEvents || activeEvents.length === 0) return [];
+  return [...activeEvents]
+    .filter((event) => event.occurrenceId !== pendingOccurrenceId)
+    .sort((a, b) => b.triggeredAtCompletedTurn - a.triggeredAtCompletedTurn)
+    .map((event) => ({
+      occurrenceId: event.occurrenceId,
+      eventId: event.eventId,
+      title: event.title,
+      instruction: event.instruction,
+      tone: event.tone,
+      impact: event.impact,
+      category: event.category,
+      duration: event.duration,
+      timingCopy: timingCopyForDuration(event.duration, event.activated),
+      canResolve: event.duration === "until-resolved",
+    }));
+}
+
+function toPendingWorldEventView(
+  pendingEvent: GameState["thematicEvents"]["pendingEvent"],
+): PendingWorldEventView | null {
+  if (!pendingEvent) return null;
+  const worldDef = lookupWorldEvent(WORLD_EVENTS_CATALOG, pendingEvent.eventId);
+  const tone = pendingEvent.tone ?? worldDef?.tone ?? "mixed";
+  const duration = pendingEvent.duration ?? worldDef?.duration ?? "immediate";
+  return {
+    eventId: pendingEvent.eventId,
+    title: pendingEvent.title,
+    instruction: pendingEvent.instruction,
+    tone,
+    toneLabel: tone.charAt(0).toUpperCase() + tone.slice(1),
+    impact: pendingEvent.impact ?? worldDef?.impact ?? 1,
+    category: pendingEvent.category ?? worldDef?.category ?? "society",
+    duration,
+    timingCopy: timingCopyForDuration(duration, duration !== "full-round"),
+  };
+}
 
 export function toGameTableView(
   state: GameState,
@@ -73,6 +167,10 @@ export function toGameTableView(
     canRollNextTurn:
       state.turn.phase === "action-phase" &&
       state.metropolises.pendingProposal === null,
+    canEditPublicState:
+      (state.turn.phase === "action-phase" ||
+        state.turn.phase === "resolving-barbarian-attack") &&
+      state.metropolises.pendingProposal === null,
     canPause: state.clock?.runningSince !== null && state.clock !== undefined,
     currentTurnMs: currentTurnActiveMilliseconds(state, clockAt),
     totalGameMs: totalActiveMilliseconds(state, clockAt),
@@ -103,6 +201,15 @@ export function toGameTableView(
         }
       : null,
     numberedCycleProgress: `${state.numberedDeck.cursor} / ${state.numberedDeck.order.length}`,
+    yearChange:
+      state.lastYearChange && state.lastYearChange.cycle > 1
+        ? {
+            cycle: state.lastYearChange.cycle,
+            skipped: state.lastYearChange.skipped.map(
+              (card) => `${card.red}+${card.yellow}`,
+            ),
+          }
+        : null,
     barbarian: {
       position: state.barbarian.shipPosition,
       trackLength: state.barbarian.rules.trackLength,
@@ -115,27 +222,42 @@ export function toGameTableView(
       name: player.name,
       color: player.color.hex,
       victoryPoints: scoreForPlayer(state, player.id),
-      ordinaryCities: player.ordinaryCities,
-      metropolisDisciplines: Object.entries(state.metropolises.controls)
-        .filter(([, control]) => control?.holderId === player.id)
-        .map(([discipline]) => discipline),
-      activeKnightStrength: activeKnightStrength(player),
       activeTimeMs: playerActiveMilliseconds(state, player.id, clockAt),
-      improvements: {
-        ...player.improvements,
-      },
       current: player.id === active.id,
     })),
-    houseEventPending: state.thematicEvents.pendingEvent !== null,
-    houseEvent:
+    worldEventPending: state.thematicEvents.pendingEvent !== null,
+    worldEvent:
       state.turn.phase === "resolving-thematic-event" &&
       state.thematicEvents.pendingEvent
-        ? {
-            title: state.thematicEvents.pendingEvent.title,
-            instruction: state.thematicEvents.pendingEvent.instruction,
-          }
+        ? toPendingWorldEventView(state.thematicEvents.pendingEvent)
         : null,
+    activeEvents: toActiveEventViews(
+      state.thematicEvents.activeEvents,
+      state.thematicEvents.pendingEvent?.occurrenceId ?? null,
+    ),
+    season: toSeasonView(state),
     winnerCandidateName: candidate?.name ?? null,
+  };
+}
+
+function toSeasonView(state: GameState): GameTableView["season"] {
+  const config = state.setup.seasonConfig;
+  if (!config?.enabled) return null;
+  const info = deriveSeason(config, state.turn.round);
+  const firstPlayerIndex = state.players.findIndex(
+    (player) => player.id === state.setup.firstPlayerId,
+  );
+  const transitioned =
+    state.turn.round > 1 &&
+    state.turn.currentPlayerIndex === firstPlayerIndex &&
+    isSeasonTransition(config, state.turn.round - 1, state.turn.round);
+  return {
+    current: info.season,
+    label: SEASON_LABELS[info.season],
+    icon: SEASON_ICONS[info.season],
+    roundInSeason: info.roundInSeason,
+    roundsPerSeason: config.roundsPerSeason,
+    transitioned,
   };
 }
 
@@ -240,12 +362,6 @@ export function toRollResolutionView(
     attack: state.barbarian.pendingAttack
       ? toBarbarianAttackView(state, state.barbarian.pendingAttack)
       : null,
-    thematicEvent: state.thematicEvents.pendingEvent
-      ? {
-          title: state.thematicEvents.pendingEvent.title,
-          instruction: state.thematicEvents.pendingEvent.instruction,
-        }
-      : null,
   };
 }
 
@@ -253,28 +369,15 @@ export function toBarbarianAttackView(
   state: GameState,
   proposal: BarbarianAttackProposal,
 ): BarbarianAttackView {
-  const outcome = proposal.outcome;
-  const reward = outcome.type === "defenders-win" ? outcome.reward : null;
-
   return {
     proposalId: proposal.id,
-    barbarianStrength: proposal.strengths.barbarian,
-    defenderStrength: proposal.strengths.defenders,
-    outcome: outcome.type,
     players: state.players.map((player) => ({
       id: player.id,
       name: player.name,
       color: player.color.hex,
       ordinaryCities: player.ordinaryCities,
       metropolises: metropolisCountForPlayer(state, player.id),
-      activeKnights: describeActiveKnights(player.activeKnights),
-      activeStrength: activeKnightStrength(player),
     })),
-    uniqueDefenderId:
-      reward?.type === "defender-point" ? reward.playerId : null,
-    tiedDefenderIds: reward?.type === "progress-choice" ? reward.playerIds : [],
-    pillagedPlayerIds:
-      outcome.type === "barbarians-win" ? outcome.pillagedPlayerIds : [],
     firstAttack: proposal.firstAttack,
   };
 }
@@ -303,16 +406,4 @@ export function toGameCompleteView(state: GameState): GameCompleteView {
       activeTimeMs: playerActiveMilliseconds(state, player.id, state.updatedAt),
     })),
   };
-}
-
-function describeActiveKnights(
-  counts: GameState["players"][number]["activeKnights"],
-): string {
-  const parts = [
-    counts.basic > 0 ? `${counts.basic} basic` : null,
-    counts.strong > 0 ? `${counts.strong} strong` : null,
-    counts.mighty > 0 ? `${counts.mighty} mighty` : null,
-  ].filter((part): part is string => part !== null);
-
-  return parts.join(", ");
 }

@@ -54,15 +54,45 @@ async function setupStandardGame(page: Page) {
 
 async function resolveRoll(page: Page) {
   await expect(page.locator(".roll-result-summary")).toBeVisible();
-  const houseEvent = page.getByRole("button", {
-    name: "Acknowledge house event",
+  const worldEvent = page.getByRole("button", {
+    name: "Acknowledge world event",
   });
-  if (await houseEvent.isVisible()) {
-    await houseEvent.click();
+  if (await worldEvent.isVisible()) {
+    await worldEvent.click();
   }
-  await expect(
-    page.getByRole("button", { name: /^Next: .* & roll$/ }),
-  ).toBeEnabled();
+  const nextRoll = page.getByRole("button", { name: /^Next: / });
+  await expect(nextRoll).toBeEnabled();
+  expect(
+    await nextRoll.evaluate((button) => {
+      const bounds = button.getBoundingClientRect();
+      return (
+        bounds.top >= 0 &&
+        bounds.left >= 0 &&
+        bounds.bottom <= window.innerHeight &&
+        bounds.right <= window.innerWidth
+      );
+    }),
+  ).toBe(true);
+}
+
+async function resolveSeasonRoll(page: Page) {
+  await expect(page.locator(".roll-result-summary")).toBeVisible();
+  const worldEvent = page.getByRole("button", {
+    name: "Acknowledge world event",
+  });
+  const nextRoll = page.getByRole("button", { name: /^Next: / });
+  await expect
+    .poll(
+      async () =>
+        (await worldEvent.count()) > 0 ||
+        ((await nextRoll.count()) > 0 && (await nextRoll.isEnabled())),
+    )
+    .toBe(true);
+  if ((await worldEvent.count()) > 0) {
+    await worldEvent.click();
+  }
+  await expect(nextRoll).toBeEnabled();
+  await nextRoll.scrollIntoViewIfNeeded();
 }
 
 function durationSeconds(value: string | null): number {
@@ -593,6 +623,54 @@ test("removes a stale library card after a conflicted delete", async ({
   await secondPage.close();
 });
 
+test("persists opt-in sound effects and volume without network assets", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Settings" }).click();
+  const settings = page.locator("dialog[open]");
+  await settings.getByRole("checkbox", { name: /sound effects/i }).check();
+  await settings.getByRole("slider", { name: "Sound volume" }).fill("0.7");
+  await settings.getByRole("button", { name: "Preview sound" }).click();
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const stored = localStorage.getItem(
+          "catan-companion-device-preferences",
+        );
+        return stored
+          ? (JSON.parse(stored) as {
+              soundEnabled: boolean;
+              soundVolume: number;
+            })
+          : null;
+      }),
+    )
+    .toEqual(expect.objectContaining({ soundEnabled: true, soundVolume: 0.7 }));
+  await expect(page.getByText(/sound unavailable/i)).toHaveCount(0);
+
+  await settings.getByRole("button", { name: "Close" }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "Settings" }).click();
+  const reloaded = page.locator("dialog[open]");
+  await expect(
+    reloaded.getByRole("checkbox", { name: /sound effects/i }),
+  ).toBeChecked();
+  await expect(
+    reloaded.getByRole("slider", { name: "Sound volume" }),
+  ).toHaveValue("0.7");
+
+  await reloaded.getByRole("button", { name: "Close" }).click();
+  await setupStandardGame(page);
+  const soundToggle = page.getByRole("button", { name: "Sound on" });
+  await expect(soundToggle).toHaveAttribute("aria-pressed", "true");
+  await soundToggle.click();
+  await expect(page.getByRole("button", { name: "Sound off" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+});
+
 test("requests persistent storage when a game starts without wake lock", async ({
   page,
 }) => {
@@ -636,13 +714,7 @@ test("persists Alchemy, public state, turns, undo, and redo", async ({
     "Chosen with Alchemy",
   );
 
-  await page.getByRole("button", { name: "Edit public state" }).first().click();
-  const editor = page.locator("dialog[open]");
-  await editor.getByRole("spinbutton", { name: "Change" }).fill("1");
-  await editor
-    .getByRole("textbox", { name: "Reason" })
-    .fill("Public score correction");
-  await editor.getByRole("button", { name: "Save public state" }).click();
+  await page.getByRole("button", { name: "Increase Ada points" }).click();
   await expect(
     page.locator(".player-card").first().locator(".player-score strong"),
   ).toHaveText("4");
@@ -663,7 +735,7 @@ test("persists Alchemy, public state, turns, undo, and redo", async ({
     page.locator(".player-card").first().locator(".player-score strong"),
   ).toHaveText("4");
 
-  await page.getByRole("button", { name: "Next: Grace & roll" }).click();
+  await page.getByRole("button", { name: "Next: Grace" }).click();
   await resolveRoll(page);
   await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
 
@@ -684,7 +756,9 @@ test("supports the explicit two-player house mode", async ({ page }) => {
   await page.locator('input[placeholder="Player 2"]').fill("Omar");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("spinbutton", { name: "Victory target" }).fill("15");
-  await page.getByRole("radio", { name: /Lively/ }).check();
+  await page
+    .getByRole("slider", { name: "World event frequency percent" })
+    .fill("13");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Two-player house mode allowed")).toBeVisible();
@@ -700,7 +774,7 @@ test("next-player roll advances the turn and updates the inline result", async (
   await setupStandardGame(page);
   await page.getByRole("button", { name: "Roll", exact: true }).click();
   await resolveRoll(page);
-  await page.getByRole("button", { name: "Next: Grace & roll" }).click();
+  await page.getByRole("button", { name: "Next: Grace" }).click();
   await resolveRoll(page);
 
   await expect(
@@ -710,6 +784,28 @@ test("next-player roll advances the turn and updates the inline result", async (
   await expect(page.locator(".game-meta")).toContainText("Turn 2");
 });
 
+test("opens Alchemy directly for the next player", async ({ page }) => {
+  await setupStandardGame(page);
+  await page.getByRole("button", { name: "Roll", exact: true }).click();
+  await resolveRoll(page);
+
+  await page.getByRole("button", { name: "Alchemy: Grace" }).click();
+  const alchemy = page.locator("dialog[open]");
+  await expect(alchemy).toBeVisible();
+  await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
+  await alchemy.getByRole("spinbutton", { name: "Red die" }).fill("5");
+  await alchemy.getByRole("spinbutton", { name: "Yellow die" }).fill("4");
+  await alchemy.getByRole("button", { name: "Roll event die" }).click();
+  await resolveRoll(page);
+
+  await expect(page.locator(".roll-result-summary")).toContainText(
+    "Chosen with Alchemy",
+  );
+  await expect(
+    page.getByRole("button", { name: "Alchemy: Linus" }),
+  ).toBeVisible();
+});
+
 test("tracks per-player time and freezes every timer while paused", async ({
   page,
 }) => {
@@ -717,14 +813,13 @@ test("tracks per-player time and freezes every timer while paused", async ({
   await page.waitForTimeout(1_100);
   await page.getByRole("button", { name: "Roll", exact: true }).click();
   await resolveRoll(page);
-  await page.getByRole("button", { name: "Next: Grace & roll" }).click();
+  await page.getByRole("button", { name: "Next: Grace" }).click();
   await resolveRoll(page);
   const playerTime = (index: number) =>
     page
       .locator(".player-card")
       .nth(index)
-      .locator(".player-stats dd")
-      .nth(3)
+      .locator(".player-time strong")
       .textContent()
       .then(durationSeconds);
   await expect.poll(() => playerTime(0)).toBeGreaterThan(0);
@@ -857,4 +952,64 @@ test("loads the app shell offline after service-worker installation", async ({
   } finally {
     await context.setOffline(false);
   }
+});
+
+test("configures Seasons Mode and announces a round-boundary transition", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Start new game" }).click();
+  await page.locator('input[placeholder="Player 1"]').fill("Ada");
+  await page.locator('input[placeholder="Player 2"]').fill("Grace");
+  await page.locator('input[placeholder="Player 3"]').fill("Linus");
+  await page.locator('input[placeholder="Player 4"]').fill("Margaret");
+  await page
+    .locator("fieldset")
+    .nth(3)
+    .getByRole("button", { name: "Remove" })
+    .click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await page.getByRole("checkbox", { name: /Enable Seasons Mode/ }).check();
+  await page
+    .getByRole("combobox", { name: "Rounds per season" })
+    .selectOption("2");
+  await page
+    .getByRole("combobox", { name: "Starting season" })
+    .selectOption("winter");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByText(/Winter start · 2 rounds\/season/)).toBeVisible();
+  await page.getByRole("button", { name: "Start and save game" }).click();
+
+  await expect(
+    page.getByLabel("Current season: Winter, round 1 of 2"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Roll", exact: true }).click();
+  await resolveSeasonRoll(page);
+
+  for (let completedTurn = 0; completedTurn < 6; completedTurn += 1) {
+    await page.getByRole("button", { name: /^Next: / }).click();
+    await expect(page.locator(".game-meta")).toContainText(
+      `Turn ${completedTurn + 2}`,
+    );
+    await resolveSeasonRoll(page);
+  }
+
+  await expect(
+    page.getByLabel("Current season: Spring, round 1 of 2"),
+  ).toBeVisible();
+  await expect(page.getByRole("status")).toContainText(
+    "The season has changed to Spring",
+  );
+  await expect(page.locator(".season-transition__art")).toBeVisible();
+
+  await page.getByRole("button", { name: "History" }).click();
+  const history = page.locator("dialog[open]");
+  await expect(history).toContainText("Spring began.");
+  await history.getByRole("button", { name: "Close" }).click();
+
+  await page.getByRole("button", { name: /^Next: / }).click();
+  await expect(page.locator(".game-meta")).toContainText("Turn 8");
+  await resolveSeasonRoll(page);
+  await expect(page.locator(".season-transition")).toHaveCount(0);
 });

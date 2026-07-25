@@ -1,22 +1,32 @@
+import { useEffect, useState } from "react";
 import harborIllustration from "../../../assets/illustrations/harbor-watch.webp";
 import resourceIllustration from "../../../assets/illustrations/resource-landscape.webp";
+import type { ActiveEventView, PendingWorldEventView } from "./viewMappers";
+import type { Season } from "../../../domain";
 import { Button, DieFace, PlayerMarker, StatusBanner } from "../../components";
+import {
+  SEASON_ART,
+  WORLD_EVENT_ART,
+  worldEventIllustration,
+} from "../../illustrationCatalog";
 import { formatDuration } from "./time";
+
+const MOBILE_BARBARIAN_QUERY = "(max-width: 600px)";
+
+function barbarianPanelStartsOpen(): boolean {
+  return (
+    typeof window === "undefined" ||
+    typeof window.matchMedia !== "function" ||
+    !window.matchMedia(MOBILE_BARBARIAN_QUERY).matches
+  );
+}
 
 export interface GamePlayerView {
   id: string;
   name: string;
   color: string;
   victoryPoints: number;
-  ordinaryCities: number;
-  metropolisDisciplines: string[];
-  activeKnightStrength: number;
   activeTimeMs: number;
-  improvements: {
-    science: number;
-    trade: number;
-    politics: number;
-  };
   current: boolean;
 }
 
@@ -37,6 +47,7 @@ export interface GameTableView {
   canContinueRoll: boolean;
   showNextRoll: boolean;
   canRollNextTurn: boolean;
+  canEditPublicState: boolean;
   canPause: boolean;
   currentTurnMs: number;
   totalGameMs: number;
@@ -60,6 +71,10 @@ export interface GameTableView {
     };
   } | null;
   numberedCycleProgress: string;
+  yearChange: {
+    cycle: number;
+    skipped: string[];
+  } | null;
   barbarian: {
     position: number;
     trackLength: number;
@@ -68,10 +83,16 @@ export interface GameTableView {
     attackPending: boolean;
   };
   players: GamePlayerView[];
-  houseEventPending: boolean;
-  houseEvent: {
-    title: string;
-    instruction: string;
+  worldEventPending: boolean;
+  worldEvent: PendingWorldEventView | null;
+  activeEvents: ActiveEventView[];
+  season: {
+    current: Season;
+    label: string;
+    icon: string;
+    roundInSeason: number;
+    roundsPerSeason: number;
+    transitioned: boolean;
   } | null;
   winnerCandidateName: string | null;
 }
@@ -79,24 +100,23 @@ export interface GameTableView {
 interface GameTableProps {
   view: GameTableView;
   busy?: boolean;
+  soundEnabled?: boolean;
+  onToggleSound?: () => void;
   onRoll: () => void;
   onAlchemy: () => void;
+  onAdjustScore: (playerId: string, delta: -1 | 1) => void;
   onEditPlayer: (playerId: string) => void;
   onNextRoll: () => void;
+  onAlchemyNextTurn: () => void;
   onContinueRoll: () => void;
   onAcknowledgeEvent: () => void;
+  onResolveEvent?: (occurrenceId: string) => void;
   onPause: () => void;
   onHistory: () => void;
   onSettings: () => void;
   onExport: () => void;
   onConfirmWinner: () => void;
 }
-
-const disciplineNames = {
-  politics: "Politics",
-  science: "Science",
-  trade: "Trade",
-};
 
 function barbarianRisk(
   strength: number,
@@ -123,45 +143,15 @@ function barbarianRisk(
   };
 }
 
-function productionGuidance(
-  roll: NonNullable<GameTableView["lastRoll"]>,
-): string {
-  if (roll.total !== 7) {
-    return `Distribute resources and commodities for production ${roll.total}.`;
-  }
-
-  return roll.production.robberActivated
-    ? "Discard above the safe hand limit, then move the robber and steal."
-    : "Discard above the safe hand limit; the robber stays inactive until the first barbarian attack.";
-}
-
-function eventGuidance(
-  roll: NonNullable<GameTableView["lastRoll"]>,
-  barbarian: GameTableView["barbarian"],
-): string {
-  if (!roll.progress) {
-    return barbarian.attackPending
-      ? "The barbarian attack needs confirmation."
-      : `The barbarian ship advanced to ${barbarian.position} of ${barbarian.trackLength}.`;
-  }
-
-  const eligibleNames = roll.progress.eligiblePlayers.map(
-    (player) => player.name,
-  );
-  const eligibility =
-    eligibleNames.length === 0
-      ? "No recorded player is eligible."
-      : `${eligibleNames.join(", ")} ${
-          eligibleNames.length === 1 ? "is" : "are"
-        } eligible; draw in current-player order.`;
-
-  return `${disciplineNames[roll.progress.discipline]} progress with red ${roll.progress.redValue}. ${eligibility}`;
-}
-
 export function GameTable({
   busy = false,
+  soundEnabled = false,
+  onToggleSound,
   onAlchemy,
+  onAlchemyNextTurn,
+  onAdjustScore,
   onAcknowledgeEvent,
+  onResolveEvent,
   onContinueRoll,
   onConfirmWinner,
   onEditPlayer,
@@ -177,13 +167,44 @@ export function GameTable({
     0,
     view.barbarian.trackLength - view.barbarian.position,
   );
+  const spacesLabel = `${spacesRemaining} ${
+    spacesRemaining === 1 ? "space" : "spaces"
+  }`;
   const risk = barbarianRisk(
     view.barbarian.strength,
     view.barbarian.defenderStrength,
   );
+  const playerControlsDisabled =
+    busy || !view.canEditPublicState || view.readOnly || view.paused;
+  const [barbarianOpen, setBarbarianOpen] = useState(barbarianPanelStartsOpen);
+  const rollStageArt = view.season
+    ? SEASON_ART[view.season.current]
+    : resourceIllustration;
+  const rollStageArtKey = view.season
+    ? `season-${view.season.current}`
+    : "neutral";
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return;
+    }
+    const query = window.matchMedia(MOBILE_BARBARIAN_QUERY);
+    const updateForViewport = () => {
+      setBarbarianOpen(!query.matches);
+    };
+    query.addEventListener("change", updateForViewport);
+    return () => {
+      query.removeEventListener("change", updateForViewport);
+    };
+  }, []);
 
   return (
-    <main className="game-layout">
+    <main
+      className={`game-layout${view.showNextRoll ? " game-layout--turn-action" : ""}`}
+    >
       <header className="game-header">
         <div>
           <p className="eyebrow">{view.title}</p>
@@ -194,6 +215,31 @@ export function GameTable({
           <p className="game-meta">
             Round {view.round} · Turn {view.turnNumber} · {view.phaseLabel}
           </p>
+          {view.season ? (
+            <p
+              className="season-indicator"
+              aria-label={`Current season: ${view.season.label}, round ${view.season.roundInSeason} of ${view.season.roundsPerSeason}`}
+            >
+              <span aria-hidden="true">{view.season.icon}</span>{" "}
+              {view.season.label} ({view.season.roundInSeason}/
+              {view.season.roundsPerSeason})
+            </p>
+          ) : null}
+          {view.season?.transitioned ? (
+            <div className="season-transition" role="status" aria-live="polite">
+              <img
+                className="season-transition__art"
+                src={SEASON_ART[view.season.current]}
+                alt=""
+                aria-hidden="true"
+                decoding="async"
+              />
+              <span>
+                {view.season.icon} The season has changed to{" "}
+                <strong>{view.season.label}</strong>
+              </span>
+            </div>
+          ) : null}
           <div className="game-clock-row" aria-label="Game timers">
             <span>
               Turn <strong>{formatDuration(view.currentTurnMs)}</strong>
@@ -235,6 +281,15 @@ export function GameTable({
           <Button
             variant="quiet"
             size="small"
+            disabled={view.paused || busy}
+            aria-pressed={soundEnabled}
+            onClick={onToggleSound}
+          >
+            Sound {soundEnabled ? "on" : "off"}
+          </Button>
+          <Button
+            variant="quiet"
+            size="small"
             disabled={view.paused}
             onClick={onSettings}
           >
@@ -269,12 +324,18 @@ export function GameTable({
       ) : null}
 
       <section className="surface roll-stage" aria-labelledby="roll-heading">
-        <img
-          className="roll-stage__art"
-          src={resourceIllustration}
-          alt=""
+        <div
+          className={`roll-stage__art roll-stage__art--${rollStageArtKey}`}
           aria-hidden="true"
-        />
+        >
+          <img src={rollStageArt} alt="" decoding="async" />
+          <span className="roll-stage__art-scrim" />
+          <span className="roll-stage__art-label">
+            {view.season
+              ? `${view.season.label} at the frontier`
+              : "The frontier table"}
+          </span>
+        </div>
         <div className="roll-stage__intro">
           <div>
             <p className="rule-label rule-label--house">Balanced house dice</p>
@@ -283,31 +344,42 @@ export function GameTable({
           <span className="cycle-progress">{view.numberedCycleProgress}</span>
         </div>
 
+        {view.yearChange ? (
+          <StatusBanner tone="info">
+            <strong>Year {view.yearChange.cycle} begins.</strong>{" "}
+            {view.yearChange.skipped.length === 0
+              ? "The deck was reshuffled."
+              : `The deck reshuffled early — ${view.yearChange.skipped.length} card${view.yearChange.skipped.length === 1 ? " was" : "s were"} never drawn: ${view.yearChange.skipped.join(", ")}.`}
+          </StatusBanner>
+        ) : null}
+
         <div className="dice-row">
-          <DieFace
-            kind="red"
-            label="Red die"
-            value={view.lastRoll?.red ?? null}
-            rolling={view.rolling}
-          />
-          <span className="dice-operator" aria-hidden>
-            +
-          </span>
           <DieFace
             kind="yellow"
             label="Yellow die"
             value={view.lastRoll?.yellow ?? null}
             rolling={view.rolling}
           />
-          <span className="dice-total">
-            {view.lastRoll ? `= ${view.lastRoll.total}` : ""}
+          <span className="dice-operator" aria-hidden>
+            +
           </span>
-          <DieFace
-            kind="event"
-            label="Event die"
-            value={view.lastRoll?.event ?? null}
-            rolling={view.rolling}
-          />
+          <div className="event-dice-pair">
+            <DieFace
+              kind="red"
+              label="Red die"
+              value={view.lastRoll?.red ?? null}
+              rolling={view.rolling}
+            />
+            <DieFace
+              kind="event"
+              label="Event die"
+              value={view.lastRoll?.event ?? null}
+              rolling={view.rolling}
+            />
+          </div>
+          <span className="dice-total">
+            {view.lastRoll ? `Production ${view.lastRoll.total}` : ""}
+          </span>
         </div>
 
         {view.canRoll ? (
@@ -335,10 +407,7 @@ export function GameTable({
             {view.lastRoll ? (
               <>
                 <div className="roll-result-summary__heading">
-                  <strong>
-                    {view.lastRoll.red} + {view.lastRoll.yellow} ={" "}
-                    {view.lastRoll.total}
-                  </strong>
+                  <strong>Production {view.lastRoll.total}</strong>
                   <span>
                     {view.lastRoll.event} event ·{" "}
                     {view.lastRoll.source === "alchemy"
@@ -346,16 +415,6 @@ export function GameTable({
                       : "Balanced draw"}
                   </span>
                 </div>
-                <dl className="roll-guidance">
-                  <div>
-                    <dt>Numbered dice</dt>
-                    <dd>{productionGuidance(view.lastRoll)}</dd>
-                  </div>
-                  <div>
-                    <dt>Event die</dt>
-                    <dd>{eventGuidance(view.lastRoll, view.barbarian)}</dd>
-                  </div>
-                </dl>
                 {view.canContinueRoll ? (
                   <Button
                     size="small"
@@ -365,26 +424,52 @@ export function GameTable({
                     {busy ? "Saving..." : "Continue roll"}
                   </Button>
                 ) : null}
-                {view.houseEvent ? (
+                {view.worldEvent ? (
                   <section
-                    className="inline-house-event"
-                    aria-labelledby="inline-house-event-heading"
+                    className="inline-world-event"
+                    aria-labelledby="inline-world-event-heading"
                   >
-                    <div>
-                      <p className="rule-label rule-label--house">
-                        House event
+                    <img
+                      className="inline-world-event__art"
+                      src={worldEventIllustration(view.worldEvent.eventId)}
+                      alt=""
+                      aria-hidden="true"
+                      decoding="async"
+                      onError={(event) => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src =
+                          WORLD_EVENT_ART[view.worldEvent!.category];
+                      }}
+                    />
+                    <div className="inline-world-event__copy">
+                      <p className="rule-label rule-label--world-event">
+                        World Event (house rule)
                       </p>
-                      <h2 id="inline-house-event-heading">
-                        {view.houseEvent.title}
+                      <h2 id="inline-world-event-heading">
+                        {view.worldEvent.title}
                       </h2>
-                      <p>{view.houseEvent.instruction}</p>
+                      <p>{view.worldEvent.instruction}</p>
+                      <dl className="world-event-meta">
+                        <div>
+                          <dt>Tone</dt>
+                          <dd>{view.worldEvent.toneLabel}</dd>
+                        </div>
+                        <div>
+                          <dt>Impact</dt>
+                          <dd>{view.worldEvent.impact} / 3</dd>
+                        </div>
+                        <div>
+                          <dt>Timing</dt>
+                          <dd>{view.worldEvent.timingCopy}</dd>
+                        </div>
+                      </dl>
                     </div>
                     <Button
                       size="small"
                       disabled={busy || view.readOnly || view.paused}
                       onClick={onAcknowledgeEvent}
                     >
-                      Acknowledge house event
+                      Acknowledge world event
                     </Button>
                   </section>
                 ) : null}
@@ -396,56 +481,169 @@ export function GameTable({
         )}
       </section>
 
-      <aside
-        className="surface barbarian-card"
-        aria-labelledby="barbarian-heading"
-      >
-        <div className="barbarian-card__visual" aria-hidden="true">
-          <img src={harborIllustration} alt="" />
-        </div>
-        <div className="barbarian-card__heading">
-          <div>
-            <p className="eyebrow">Cities &amp; Knights</p>
-            <h2 id="barbarian-heading">Barbarian track</h2>
-          </div>
-          <span className={`risk-badge risk-badge--${risk.tone}`}>
-            {risk.label}
-          </span>
-        </div>
-        <div
-          className="barbarian-track"
-          role="meter"
-          aria-label={`${spacesRemaining} spaces until the barbarian attack`}
-          aria-valuemin={0}
-          aria-valuemax={view.barbarian.trackLength}
-          aria-valuenow={view.barbarian.position}
-        >
-          {Array.from({ length: view.barbarian.trackLength }, (_, index) => (
-            <span
-              key={index}
-              className={
-                index < view.barbarian.position ? "barbarian-track__filled" : ""
+      <div className="game-sidebar">
+        <aside className="surface barbarian-card" aria-label="Barbarian track">
+          <details
+            className="barbarian-details"
+            open={barbarianOpen}
+            onToggle={(event) => {
+              if (
+                typeof window.matchMedia !== "function" ||
+                window.matchMedia(MOBILE_BARBARIAN_QUERY).matches
+              ) {
+                setBarbarianOpen(event.currentTarget.open);
               }
-            />
-          ))}
-        </div>
-        <p className="barbarian-distance">
-          {spacesRemaining} {spacesRemaining === 1 ? "space" : "spaces"} until
-          attack
-        </p>
-        <dl className="definition-grid">
-          <div>
-            <dt>Barbarians</dt>
-            <dd>{view.barbarian.strength}</dd>
-          </div>
-          <div>
-            <dt>Active defense</dt>
-            <dd>{view.barbarian.defenderStrength}</dd>
-          </div>
-        </dl>
-      </aside>
+            }}
+          >
+            <summary className="barbarian-summary">
+              <span className="barbarian-summary__copy">
+                <span className="eyebrow">Cities &amp; Knights</span>
+                <strong>{spacesLabel} until attack</strong>
+              </span>
+              <span className={`risk-badge risk-badge--${risk.tone}`}>
+                {risk.label}
+              </span>
+            </summary>
+            <div className="barbarian-details__body">
+              <div className="barbarian-card__visual" aria-hidden="true">
+                <img src={harborIllustration} alt="" />
+              </div>
+              <div className="barbarian-card__heading">
+                <div>
+                  <p className="eyebrow">Cities &amp; Knights</p>
+                  <h2>Barbarian track</h2>
+                </div>
+                <span className={`risk-badge risk-badge--${risk.tone}`}>
+                  {risk.label}
+                </span>
+              </div>
+              <div
+                className="barbarian-track"
+                role="meter"
+                aria-label={`${spacesLabel} until the barbarian attack`}
+                aria-valuemin={0}
+                aria-valuemax={view.barbarian.trackLength}
+                aria-valuenow={view.barbarian.position}
+              >
+                {Array.from(
+                  { length: view.barbarian.trackLength },
+                  (_, index) => (
+                    <span
+                      key={index}
+                      className={
+                        index < view.barbarian.position
+                          ? "barbarian-track__filled"
+                          : ""
+                      }
+                    />
+                  ),
+                )}
+              </div>
+              <p className="barbarian-distance">{spacesLabel} until attack</p>
+              <dl className="definition-grid">
+                <div>
+                  <dt>Barbarians</dt>
+                  <dd>{view.barbarian.strength}</dd>
+                </div>
+                <div>
+                  <dt>Active defense</dt>
+                  <dd>{view.barbarian.defenderStrength}</dd>
+                </div>
+              </dl>
+            </div>
+          </details>
+        </aside>
 
-      <section className="player-strip" aria-label="Players">
+        {view.showNextRoll ? (
+          <aside className="surface turn-action-dock" aria-label="Next turn">
+            <div className="turn-action-dock__copy">
+              <span>Turn complete</span>
+              <strong>{view.nextPlayerName} is next</strong>
+            </div>
+            <Button
+              size="large"
+              block
+              disabled={
+                busy || !view.canRollNextTurn || view.readOnly || view.paused
+              }
+              onClick={onNextRoll}
+            >
+              Next: {view.nextPlayerName}
+            </Button>
+            <Button
+              size="large"
+              block
+              variant="secondary"
+              disabled={
+                busy || !view.canRollNextTurn || view.readOnly || view.paused
+              }
+              onClick={onAlchemyNextTurn}
+            >
+              Alchemy: {view.nextPlayerName}
+            </Button>
+          </aside>
+        ) : null}
+      </div>
+
+      {view.activeEvents.length > 0 ? (
+        <section
+          className="active-events-strip"
+          aria-label="Active world events"
+        >
+          <h2 className="active-events-strip__heading">Active World Events</h2>
+          <ul className="active-events-list">
+            {view.activeEvents.map((event) => (
+              <li
+                key={event.occurrenceId}
+                className={`surface active-event-card active-event-card--${event.tone}`}
+              >
+                <img
+                  className="active-event-card__art"
+                  src={worldEventIllustration(event.eventId)}
+                  alt=""
+                  aria-hidden="true"
+                  loading="lazy"
+                  decoding="async"
+                  onError={(imageEvent) => {
+                    imageEvent.currentTarget.onerror = null;
+                    imageEvent.currentTarget.src =
+                      WORLD_EVENT_ART[event.category];
+                  }}
+                />
+                <div className="active-event-card__body">
+                  <div className="active-event-card__header">
+                    <span className="rule-label rule-label--world-event">
+                      World Event (house rule)
+                    </span>
+                    <span className="active-event-card__timing">
+                      {event.timingCopy}
+                    </span>
+                  </div>
+                  <strong>{event.title}</strong>
+                  <p>{event.instruction}</p>
+                  {event.canResolve && onResolveEvent ? (
+                    <Button
+                      size="small"
+                      disabled={busy || view.readOnly || view.paused}
+                      onClick={() => {
+                        onResolveEvent(event.occurrenceId);
+                      }}
+                    >
+                      Mark resolved
+                    </Button>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      <section
+        className="player-strip"
+        aria-label="Player points and time"
+        tabIndex={0}
+      >
         {view.players.map((player) => (
           <article
             key={player.id}
@@ -457,68 +655,60 @@ export function GameTable({
                 <span className="current-chip">Current</span>
               ) : null}
             </div>
-            <div className="player-score">
-              <strong>{player.victoryPoints}</strong>
-              <span>public VP</span>
+            <div className="player-card__summary">
+              <div
+                className="player-score"
+                aria-label={`${player.name} has ${player.victoryPoints} public points`}
+              >
+                <strong>{player.victoryPoints}</strong>
+                <span>points</span>
+              </div>
+              <div
+                className="player-time"
+                aria-label={`${player.name} active time ${formatDuration(player.activeTimeMs)}`}
+              >
+                <span>Time</span>
+                <strong>{formatDuration(player.activeTimeMs)}</strong>
+              </div>
             </div>
-            <dl className="player-stats">
-              <div>
-                <dt>Cities</dt>
-                <dd>{player.ordinaryCities}</dd>
-              </div>
-              <div>
-                <dt>Metropolises</dt>
-                <dd>{player.metropolisDisciplines.length}</dd>
-              </div>
-              <div>
-                <dt>Active knights</dt>
-                <dd>{player.activeKnightStrength}</dd>
-              </div>
-              <div>
-                <dt>Time</dt>
-                <dd>{formatDuration(player.activeTimeMs)}</dd>
-              </div>
-            </dl>
-            <div
-              className="improvement-row"
-              aria-label={`${player.name} improvements`}
-            >
-              <span title="Science">S {player.improvements.science}</span>
-              <span title="Trade">T {player.improvements.trade}</span>
-              <span title="Politics">P {player.improvements.politics}</span>
+            <div className="player-card__actions">
+              <Button
+                variant="secondary"
+                size="small"
+                aria-label={`Decrease ${player.name} points`}
+                disabled={playerControlsDisabled || player.victoryPoints <= 0}
+                onClick={() => {
+                  onAdjustScore(player.id, -1);
+                }}
+              >
+                -
+              </Button>
+              <Button
+                variant="quiet"
+                size="small"
+                aria-label={`Edit ${player.name} details`}
+                disabled={playerControlsDisabled}
+                onClick={() => {
+                  onEditPlayer(player.id);
+                }}
+              >
+                Details
+              </Button>
+              <Button
+                variant="secondary"
+                size="small"
+                aria-label={`Increase ${player.name} points`}
+                disabled={playerControlsDisabled}
+                onClick={() => {
+                  onAdjustScore(player.id, 1);
+                }}
+              >
+                +
+              </Button>
             </div>
-            <Button
-              variant="secondary"
-              block
-              disabled={view.readOnly || view.paused}
-              onClick={() => {
-                onEditPlayer(player.id);
-              }}
-            >
-              Edit public state
-            </Button>
           </article>
         ))}
       </section>
-
-      <footer className="turn-footer">
-        {view.houseEventPending ? (
-          <span className="house-event-indicator">
-            House event requires acknowledgement
-          </span>
-        ) : (
-          <span>All accepted actions are saved locally and can be undone.</span>
-        )}
-        {view.showNextRoll ? (
-          <Button
-            size="large"
-            disabled={!view.canRollNextTurn || view.readOnly || view.paused}
-            onClick={onNextRoll}
-          >
-            Next: {view.nextPlayerName} &amp; roll
-          </Button>
-        ) : null}
-      </footer>
     </main>
   );
 }

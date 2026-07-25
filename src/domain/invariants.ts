@@ -4,9 +4,11 @@ import { domainError } from "./errors";
 import {
   DISCIPLINES,
   EVENT_DECK_FACES,
-  THEMATIC_TRIGGER_BAG_SIZE,
+  THEMATIC_TRIGGER_BAG_SLOTS,
 } from "./rules";
+import { clampThematicPercent } from "./rules";
 import { metropolisCountForPlayer, scoreForPlayer } from "./selectors";
+import { validateActiveEvents, WORLD_EVENTS_CATALOG } from "./worldEvents";
 import type {
   DeckState,
   DomainError,
@@ -119,6 +121,45 @@ export function validateSetup(setup: GameSetup): DomainError[] {
       setup.thematicEventsEnabled,
     ),
   );
+  const seasonConfig = setup.seasonConfig;
+  if (seasonConfig !== undefined) {
+    const validRounds = [2, 3, 4].includes(seasonConfig.roundsPerSeason);
+    const validSeason = ["spring", "summer", "autumn", "winter"].includes(
+      seasonConfig.startingSeason,
+    );
+    if (!validRounds || !validSeason) {
+      errors.push(
+        domainError(
+          "INVALID_SETUP",
+          "Seasons require 2, 3, or 4 rounds and a valid starting season.",
+        ),
+      );
+    }
+    if (seasonConfig.enabled && !setup.thematicEventsEnabled) {
+      errors.push(
+        domainError(
+          "INVALID_SETUP",
+          "Seasons Mode requires World Events to be enabled.",
+        ),
+      );
+    }
+    if (
+      seasonConfig.enabled &&
+      setup.thematicEventCatalog.some(
+        (event) =>
+          !WORLD_EVENTS_CATALOG.some(
+            (definition) => definition.id === event.id,
+          ),
+      )
+    ) {
+      errors.push(
+        domainError(
+          "INVALID_SETUP",
+          "Seasons Mode only supports the built-in typed World Events catalog.",
+        ),
+      );
+    }
+  }
   return errors;
 }
 
@@ -404,13 +445,18 @@ function validateThematicState(state: GameState): DomainError[] {
     thematic.enabledEvents,
     thematic.enabled,
   );
-  const bagSize = THEMATIC_TRIGGER_BAG_SIZE[thematic.cadence];
+  const bagSize = THEMATIC_TRIGGER_BAG_SLOTS;
   errors.push(...validateDeckState(thematic.triggerBag, bagSize, "trigger"));
-  if (thematic.triggerBag.order.filter((token) => token.trigger).length !== 1) {
+  const expectedTriggers = clampThematicPercent(thematic.percent);
+  const actualTriggers = thematic.triggerBag.order.filter(
+    (token) => token.trigger,
+  ).length;
+  if (actualTriggers !== expectedTriggers) {
     errors.push(
       domainError(
         "INVALID_THEMATIC_STATE",
-        "Trigger bag must contain exactly one trigger.",
+        "Trigger bag composition does not match the configured frequency.",
+        { expected: expectedTriggers, actual: actualTriggers },
       ),
     );
   }
@@ -429,6 +475,11 @@ function validateThematicState(state: GameState): DomainError[] {
         "Pending thematic event is not enabled.",
       ),
     );
+  }
+  // Validate active events if present
+  const activeErrors = validateActiveEvents(thematic.activeEvents);
+  for (const msg of activeErrors) {
+    errors.push(domainError("INVALID_THEMATIC_STATE", msg));
   }
   return errors;
 }
@@ -586,9 +637,6 @@ function validateTurnAndStatus(state: GameState): DomainError[] {
 
 function validateClockState(state: GameState): DomainError[] {
   const clock = state.clock;
-  if (clock === undefined) {
-    return [];
-  }
   const errors: DomainError[] = [];
   if (
     !nonNegativeInteger(clock.totalActiveMs) ||

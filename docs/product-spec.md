@@ -29,11 +29,12 @@ These decisions define the first release:
    random rolls.
 5. The event die uses a shuffled six-face deck rather than independent random
    rolls.
-6. Thematic events are part of the core experience and are enabled by default.
-7. The balanced decks and thematic events are house rules and must be labeled
-   as such.
-8. The earlier prototype is a reference for intent only. Its code, structure,
-   assets, and implementation compromises are not inherited.
+6. World Events are an optional house-rule module, enabled at Standard cadence
+   with all five packs by default and switchable Off during setup.
+7. Balanced decks and World Events are house rules and must remain visibly
+   separate from official Cities & Knights assistance.
+8. The earlier prototype is historical reference only. Its event catalog,
+   code, structure, assets, and implementation compromises are not inherited.
 
 ## 3. Goals
 
@@ -91,7 +92,7 @@ clear prompts that can be read aloud to the table.
 
 1. **Result first:** persist the authoritative result before any animation.
 2. **Official before optional:** resolve official Cities & Knights steps before
-   displaying a thematic event.
+   displaying a World Event.
 3. **Public state only:** do not require players to enter private information.
 4. **No hidden mutation:** every automatic state change appears in the result
    summary and history.
@@ -124,7 +125,7 @@ The setup wizard collects:
 - first player;
 - official or two-player house mode;
 - 13-point or custom victory target;
-- thematic event frequency;
+- World Event Off/Subtle/Standard/Lively cadence and selected packs;
 - sound and animation preferences;
 - optional initial public-state adjustments.
 
@@ -149,10 +150,12 @@ The turn state machine is:
 
 1. `awaiting-roll`
 2. `resolving-official-result`
-3. `resolving-barbarian-attack` when required
-4. `resolving-thematic-event` when triggered
-5. `action-phase`
-6. `turn-complete`
+3. `resolving-thematic-event` when triggered
+4. `action-phase`
+5. `turn-complete`
+
+`resolving-barbarian-attack` is a legacy recovery phase only; new attacks do
+not interrupt this flow.
 
 The app cannot roll twice in one turn unless the previous roll is undone.
 
@@ -163,8 +166,8 @@ the winner rather than ending automatically. Confirmation archives:
 
 - winner and final public scores;
 - duration, turns, rounds, and roll statistics;
-- barbarian attack outcomes;
-- triggered thematic events;
+- barbarian attack occurrences (physical-board outcomes remain manual);
+- triggered and resolved World Events;
 - active house-rule configuration;
 - an exportable game record.
 
@@ -238,38 +241,64 @@ and vulnerable city count are derived rather than independently editable.
 ### FR-08: Barbarian assistance
 
 - Advance the barbarian ship when the event result is barbarian.
-- Open attack resolution immediately when the final track space is reached.
-- Calculate barbarian and defender strengths from current public state.
-- Calculate the official winning reward or losing pillage candidates.
-- Require operator confirmation before changing scores or city counts.
-- Reset the ship and deactivate all active knights after confirmed resolution.
-- Keep attack resolution atomic and undoable.
+- When the final track space is reached, announce and log the attack without
+  opening a form or interrupting the official roll result.
+- Treat the physical board as authoritative for knight state, the attack
+  outcome, Defender points, tied progress rewards, city losses, and scoring.
+- Do not ask the operator to duplicate any of those decisions in the app and
+  do not mutate player scores, cities, or knight counters during the attack.
+- Reset the app's ship cycle, activate the robber after the first attack, and
+  append a board-authoritative history entry.
+- Recover old saves already paused in attack resolution automatically as
+  board-authoritative without changing player state.
 
-### FR-09: Thematic events
+### FR-09: World Events (v0.2.0)
 
-- Enable the original built-in event deck by default.
-- Trigger events through a balanced cadence system, not independent percentage
-  rolls.
+- Provide a typed 20-event catalog across five selectable packs (Weather &
+  Harvest, Trade & Markets, Conflict & Defense, Diplomacy & Intrigue, and
+  Festivals & Progress).
+- Trigger events through a balanced cadence system with Off/Subtle/Standard/Lively
+  options; standard is the default.
 - Never interrupt unresolved official result or barbarian resolution.
-- Avoid immediate event repetition.
-- Present each event as an instruction that the table acknowledges.
-- Record the event and acknowledgement in history.
-- Allow event frequency to be changed only through a confirmed settings action
-  that is recorded in history.
+- Avoid immediate event repetition; deterministic anti-clump guardrails for
+  tone and impact.
+- Support five lifecycle durations: immediate, rest-of-turn, full-round,
+  until-next-occurrence, until-resolved.
+- Persist active non-immediate events in game state; display them in the UI
+  with a "Mark resolved" action for until-resolved events.
+- Filter incompatible events in two-player mode automatically.
+- Maintain backward compatibility with legacy v1 saves (metadata-less).
+- Record events and resolution in history.
 
-### FR-10: Turn management
+### FR-10: Seasons Mode (v0.3.0)
+
+- Offer Seasons only when World Events are enabled and label it as a house rule.
+- Support 2, 3, or 4 rounds per season and any of the four starting seasons.
+- Derive season from setup and round; do not persist mutable seasonal state.
+- Change seasons only at round boundaries and journal each transition.
+- Weight the next remaining World Event at trigger time without replacement;
+  existing compatibility and anti-clump constraints outrank seasonal bias.
+- Keep active World Events alive across transitions according to their own
+  lifecycle.
+- Show a text-plus-icon indicator and a polite transition announcement without
+  relying on color or motion.
+- Treat missing season configuration in old saves as Off and expose the active
+  season in sanitized diagnostics.
+
+### FR-11: Turn management
 
 - Do not expose a standalone End turn action.
-- The action-phase **Next: PLAYER & roll** control ends the current turn and
-  immediately rolls for the next player.
+- The action-phase **Next: PLAYER** control ends the current turn and immediately
+  rolls for the next player in one click.
+- Provide **Alchemy: PLAYER** beside it; this ends the current turn and opens
+  Alchemy for the next player instead of auto-rolling.
 - Advance clockwise and increment the round after the final player.
 - Keep quick public-state controls available during the action phase.
-- Offer **Next player & quick roll** in the consolidated result modal. This
-  acknowledges the displayed result, ends the current turn, and immediately
-  rolls for the next player.
+- Retain **Roll** and **Use Alchemy** in `awaiting-roll` for game start, resumed
+  legacy states, and recovery paths.
 - Announce the next player visually and through an accessible live region.
 
-### FR-11: History and undo
+### FR-12: History and undo
 
 - Record every state-changing action with actor, time, before/after revision,
   and a human-readable description.
@@ -281,7 +310,7 @@ and vulnerable city count are derived rather than independently editable.
 - Never silently discard future history after navigating to an earlier
   revision.
 
-### FR-12: Persistence and recovery
+### FR-13: Persistence and recovery
 
 - Save every accepted command in one IndexedDB transaction.
 - Resume without data loss after refresh, browser restart, or PWA update.
@@ -291,7 +320,7 @@ and vulnerable city count are derived rather than independently editable.
 - Validate imports before modifying local data.
 - Keep the previous valid snapshot if a migration or write fails.
 
-### FR-13: Offline PWA
+### FR-14: Offline PWA
 
 - Install on supported mobile and desktop browsers.
 - Load and run the complete active-game flow offline after the first visit.
@@ -299,7 +328,7 @@ and vulnerable city count are derived rather than independently editable.
 - Prompt for application updates and never force a reload during an unresolved
   turn.
 
-### FR-14: Accessibility
+### FR-15: Accessibility
 
 - Meet WCAG 2.2 AA for the complete critical flow.
 - Support keyboard-only and switch-input operation.
@@ -308,14 +337,14 @@ and vulnerable city count are derived rather than independently editable.
 - Provide reduced-motion behavior and a no-audio path.
 - Announce roll results, phase changes, errors, and save failures.
 
-### FR-15: Settings and diagnostics
+### FR-16: Settings and diagnostics
 
 - Expose animation, sound, wake lock, theme, and event cadence.
 - Show application version, schema version, storage status, and last save time.
 - Provide a safe "copy diagnostics" action that excludes player names and game
   content by default.
 
-### FR-16: Active-play timing and pause
+### FR-17: Active-play timing and pause
 
 - Track current-turn active time, accumulated active time per player, and total
   active game time.
@@ -334,7 +363,7 @@ and vulnerable city count are derived rather than independently editable.
 - Undo and redo restore the corresponding turn owner, so live elapsed time is
   attributed according to the selected game-state timeline.
 
-### FR-17: Board designer
+### FR-18: Board designer
 
 - Provide a standalone board-design library that does not archive, replace, or
   mutate the active companion game.
@@ -380,7 +409,7 @@ The first release is acceptable only when all scenarios pass:
    and can be undone.
 7. An Alchemy result leaves the numbered-deck cursor unchanged.
 8. A progress icon lists eligible players in current turn order.
-9. A thematic event never appears before an unresolved barbarian attack.
+9. A World Event never appears before an unresolved barbarian attack.
 10. The current game resumes offline after closing and reopening the PWA.
 11. Importing malformed or incompatible data leaves the current game intact.
 12. A keyboard-only user can complete setup, roll, resolve, adjust state, undo,
@@ -388,6 +417,8 @@ The first release is acceptable only when all scenarios pass:
 13. A board design can be generated or manually assembled, reopened offline,
     reviewed for structural and balance issues, and exported without changing
     an active game.
+14. Seasons can be configured, survive reload/export, change only at a complete
+    round boundary, and announce the new season without color-only meaning.
 
 ## 10. Release success criteria
 
@@ -405,7 +436,7 @@ The first release is acceptable only when all scenarios pass:
 
 ## 11. Future extensions
 
-Future work may add custom thematic events, alternative official expansions,
-game statistics, a board-facing display mode, or optional device-to-device
-sync. None may weaken local-first operation or require migration of private
-player information into the app.
+Future work may add custom World Events, alternative official expansions,
+game statistics, a board-facing display mode, or optional
+device-to-device sync. None may weaken local-first operation or require
+migration of private player information into the app.

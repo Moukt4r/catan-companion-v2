@@ -9,6 +9,7 @@ interface SettingsDialogProps {
   appVersion: string;
   schemaVersion: number;
   onChange: (patch: Partial<DevicePreferences>) => void;
+  onPreviewSound: () => void;
   onRequestPersistentStorage: () => Promise<void>;
   onCopyDiagnostics: () => Promise<void>;
   onClose: () => void;
@@ -31,6 +32,7 @@ export function SettingsDialog({
   onChange,
   onClose,
   onCopyDiagnostics,
+  onPreviewSound,
   onRequestPersistentStorage,
   open,
   preferences,
@@ -89,12 +91,42 @@ export function SettingsDialog({
             }}
           />
           <span>
-            <strong>Sound cues</strong>
+            <strong>Sound effects</strong>
             <small>
-              Short synthesized sounds; every cue also has a visual equivalent.
+              Offline dice, event, season, and barbarian cues. Every cue has a
+              visual equivalent.
             </small>
           </span>
         </label>
+
+        <div className="sound-settings">
+          <label className="field field--range">
+            <span>
+              Sound volume
+              <output>{Math.round(preferences.soundVolume * 100)}%</output>
+            </span>
+            <input
+              type="range"
+              aria-label="Sound volume"
+              min="0"
+              max="1"
+              step="0.05"
+              value={preferences.soundVolume}
+              disabled={!preferences.soundEnabled}
+              onChange={(event) => {
+                onChange({ soundVolume: Number(event.target.value) });
+              }}
+            />
+          </label>
+          <Button
+            variant="secondary"
+            size="small"
+            disabled={!preferences.soundEnabled}
+            onClick={onPreviewSound}
+          >
+            Preview sound
+          </Button>
+        </div>
 
         <label className="check-field">
           <input

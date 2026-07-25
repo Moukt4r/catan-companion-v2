@@ -132,3 +132,141 @@ describe("balanced decks", () => {
     expect(cursor).toBe(2);
   });
 });
+
+describe("early numbered-deck reshuffle", () => {
+  const revision = asRevisionId("reshuffle-revision");
+  const random = () => 0;
+
+  function freshDeck() {
+    return createNumberedDeck(random, revision);
+  }
+
+  it("draws all 36 cards when the threshold is zero", () => {
+    let deck = freshDeck();
+    for (let index = 0; index < 36; index += 1) {
+      const draw = drawNumberedOutcome(deck, random, revision, 0);
+      expect(draw.ok).toBe(true);
+      if (!draw.ok) return;
+      expect(draw.value.startedNewCycle).toBe(false);
+      expect(draw.value.skipped).toEqual([]);
+      deck = draw.value.deck;
+    }
+    expect(deck.cursor).toBe(36);
+  });
+
+  it("starts a new year at card 32 and reports the four undrawn cards", () => {
+    let deck = freshDeck();
+    const expectedSkipped = deck.order.slice(32);
+
+    for (let index = 0; index < 32; index += 1) {
+      const draw = drawNumberedOutcome(deck, random, revision, 4);
+      expect(draw.ok).toBe(true);
+      if (!draw.ok) return;
+      expect(draw.value.startedNewCycle).toBe(false);
+      deck = draw.value.deck;
+    }
+
+    const boundary = drawNumberedOutcome(deck, random, revision, 4);
+    expect(boundary.ok).toBe(true);
+    if (!boundary.ok) return;
+    expect(boundary.value.startedNewCycle).toBe(true);
+    expect(boundary.value.cycle).toBe(2);
+    expect(boundary.value.skipped).toHaveLength(4);
+    expect(boundary.value.skipped).toEqual(expectedSkipped);
+    expect(boundary.value.deck.cursor).toBe(1);
+    expect(boundary.value.deck.order).toHaveLength(36);
+  });
+
+  it("reshuffles without skips when an exhausted deck rolls over", () => {
+    let deck = freshDeck();
+    for (let index = 0; index < 36; index += 1) {
+      const draw = drawNumberedOutcome(deck, random, revision, 0);
+      if (!draw.ok) return;
+      deck = draw.value.deck;
+    }
+    const rollover = drawNumberedOutcome(deck, random, revision, 0);
+    expect(rollover.ok).toBe(true);
+    if (!rollover.ok) return;
+    expect(rollover.value.startedNewCycle).toBe(true);
+    expect(rollover.value.skipped).toEqual([]);
+    expect(rollover.value.cycle).toBe(2);
+  });
+
+  it("never cuts a brand-new deck short even for large thresholds", () => {
+    const deck = freshDeck();
+    const draw = drawNumberedOutcome(deck, random, revision, 12);
+    expect(draw.ok).toBe(true);
+    if (!draw.ok) return;
+    expect(draw.value.startedNewCycle).toBe(false);
+    expect(draw.value.deck.cursor).toBe(1);
+  });
+
+  it("clamps out-of-range thresholds instead of failing", () => {
+    let deck = freshDeck();
+    for (let index = 0; index < 24; index += 1) {
+      const draw = drawNumberedOutcome(deck, random, revision, Number.NaN);
+      if (!draw.ok) return;
+      deck = draw.value.deck;
+    }
+    // NaN clamps to 0, so no early reshuffle should have happened.
+    expect(deck.cursor).toBe(24);
+
+    const huge = drawNumberedOutcome(deck, random, revision, 999);
+    expect(huge.ok).toBe(true);
+    if (!huge.ok) return;
+    // 999 clamps to 12; 12 cards remain, so this is exactly the boundary.
+    expect(huge.value.startedNewCycle).toBe(true);
+    expect(huge.value.skipped).toHaveLength(12);
+  });
+
+  it("rejects a corrupt deck", () => {
+    const deck = freshDeck();
+    const corrupt = drawNumberedOutcome(
+      { ...deck, cursor: -1 },
+      random,
+      revision,
+      4,
+    );
+    expect(corrupt.ok).toBe(false);
+    if (corrupt.ok) return;
+    expect(corrupt.error.code).toBe("DECK_STATE_CORRUPT");
+
+    const empty = drawNumberedOutcome(
+      { ...deck, order: [], cursor: 0 },
+      random,
+      revision,
+      4,
+    );
+    expect(empty.ok).toBe(false);
+  });
+});
+
+describe("numbered draw defensive guards", () => {
+  const revision = asRevisionId("guard-revision");
+  const random = () => 0;
+
+  it("fails when the deck has a hole at its cursor", () => {
+    const deck = createNumberedDeck(random, revision);
+    const holed = {
+      ...deck,
+      order: deck.order.map((card, index) =>
+        index === 0 ? (undefined as never) : card,
+      ),
+    };
+    const result = drawNumberedOutcome(holed, random, revision, 0);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("DECK_STATE_CORRUPT");
+  });
+
+  it("rolls a fully drawn deck over into a fresh cycle", () => {
+    const deck = createNumberedDeck(random, revision);
+    const exhausted = { ...deck, cursor: deck.order.length };
+    const result = drawNumberedOutcome(exhausted, random, revision, 0);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.startedNewCycle).toBe(true);
+    expect(result.value.skipped).toEqual([]);
+    expect(result.value.deck.order).toHaveLength(36);
+  });
+});

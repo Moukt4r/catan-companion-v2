@@ -75,9 +75,6 @@ export function totalActiveMilliseconds(
   at: IsoTimestamp,
 ): number {
   const clock = state.clock;
-  if (clock === undefined) {
-    return 0;
-  }
   return clock.totalActiveMs + liveClockMilliseconds(clock.runningSince, at);
 }
 
@@ -86,9 +83,6 @@ export function currentTurnActiveMilliseconds(
   at: IsoTimestamp,
 ): number {
   const clock = state.clock;
-  if (clock === undefined) {
-    return 0;
-  }
   return (
     clock.currentTurnActiveMs + liveClockMilliseconds(clock.runningSince, at)
   );
@@ -100,9 +94,6 @@ export function playerActiveMilliseconds(
   at: IsoTimestamp,
 ): number {
   const clock = state.clock;
-  if (clock === undefined) {
-    return 0;
-  }
   const settled = clock.playerActiveMs[playerId] ?? 0;
   const currentPlayer = state.players[state.turn.currentPlayerIndex];
   return (

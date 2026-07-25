@@ -49,7 +49,8 @@ function setup(overrides: Partial<GameSetup> = {}): GameSetup {
     })),
     firstPlayerId: PLAYER_IDS[0]!,
     victoryTarget: 13,
-    thematicCadence: "standard",
+    thematicEventPercent: 8,
+    numberedReshuffleThreshold: 0,
     thematicEventsEnabled: true,
     thematicEventCatalog: [
       {
@@ -267,10 +268,45 @@ describe("setup invariants", () => {
     );
   });
 
+  it("requires World Events when Seasons Mode is enabled", () => {
+    expect(
+      validateSetup(
+        setup({
+          thematicEventPercent: 8,
+          numberedReshuffleThreshold: 0,
+          thematicEventsEnabled: false,
+          thematicEventCatalog: [],
+          seasonConfig: {
+            enabled: true,
+            roundsPerSeason: 3,
+            startingSeason: "spring",
+          },
+        }),
+      ).map(({ code }) => code),
+    ).toContain("INVALID_SETUP");
+  });
+
+  it("rejects invalid persisted Seasons configuration", () => {
+    const invalid = setup({
+      seasonConfig: {
+        enabled: false,
+        roundsPerSeason: 3,
+        startingSeason: "spring",
+      },
+    });
+    invalid.seasonConfig!.roundsPerSeason = 5 as 3;
+    invalid.seasonConfig!.startingSeason = "monsoon" as "spring";
+    expect(validateSetup(invalid).map(({ code }) => code)).toContain(
+      "INVALID_SETUP",
+    );
+  });
+
   it("allows an empty event catalog when thematic events are disabled", () => {
     expect(
       validateSetup(
         setup({
+          thematicEventPercent: 8,
+          numberedReshuffleThreshold: 0,
           thematicEventsEnabled: false,
           thematicEventCatalog: [],
         }),
@@ -456,6 +492,8 @@ describe("persisted game invariants", () => {
     expectCode(pending, "INVALID_THEMATIC_STATE");
 
     const disabled = game({
+      thematicEventPercent: 8,
+      numberedReshuffleThreshold: 0,
       thematicEventsEnabled: false,
       thematicEventCatalog: [],
     });
@@ -463,6 +501,8 @@ describe("persisted game invariants", () => {
     expectCode(disabled, "INVALID_THEMATIC_STATE");
 
     const disabledCursor = game({
+      thematicEventPercent: 8,
+      numberedReshuffleThreshold: 0,
       thematicEventsEnabled: false,
       thematicEventCatalog: [],
     });
@@ -601,34 +641,30 @@ describe("persisted game invariants", () => {
   });
 
   it("validates clock durations, player keys, timestamps, and completion", () => {
-    const legacy = game();
-    delete legacy.clock;
-    expect(validateGameState(legacy)).toEqual([]);
-
     for (const duration of [-1, 1.5]) {
       const invalid = game();
-      invalid.clock!.totalActiveMs = duration;
+      invalid.clock.totalActiveMs = duration;
       expectCode(invalid, "INVALID_CLOCK_STATE");
     }
 
     const missingPlayer = game();
-    delete missingPlayer.clock!.playerActiveMs[PLAYER_IDS[0]!];
+    delete missingPlayer.clock.playerActiveMs[PLAYER_IDS[0]!];
     expectCode(missingPlayer, "INVALID_CLOCK_STATE");
 
     const extraPlayer = game();
-    extraPlayer.clock!.playerActiveMs[asPlayerId("extra")] = 0;
+    extraPlayer.clock.playerActiveMs[asPlayerId("extra")] = 0;
     expectCode(extraPlayer, "INVALID_CLOCK_STATE");
 
     const stoppedActive = game();
-    stoppedActive.clock!.runningSince = null;
+    stoppedActive.clock.runningSince = null;
     expectCode(stoppedActive, "INVALID_CLOCK_STATE");
 
     const runningAndPaused = game();
-    runningAndPaused.clock!.pausedAt = asIsoTimestamp("2026-07-12T00:01:00Z");
+    runningAndPaused.clock.pausedAt = asIsoTimestamp("2026-07-12T00:01:00Z");
     expectCode(runningAndPaused, "INVALID_CLOCK_STATE");
 
     const malformedTimestamp = game();
-    malformedTimestamp.clock!.runningSince = asIsoTimestamp("invalid");
+    malformedTimestamp.clock.runningSince = asIsoTimestamp("invalid");
     expectCode(malformedTimestamp, "INVALID_CLOCK_STATE");
 
     const completed = game();
@@ -636,7 +672,7 @@ describe("persisted game invariants", () => {
     completed.turn.phase = "completed";
     completed.winnerId = PLAYER_IDS[0]!;
     expectCode(completed, "INVALID_CLOCK_STATE");
-    completed.clock!.runningSince = null;
+    completed.clock.runningSince = null;
     expect(validateGameState(completed)).toEqual([]);
   });
 });
