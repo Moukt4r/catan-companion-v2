@@ -2,6 +2,8 @@ import type { StoredGame, StoredRevision } from "../application";
 import {
   BUILT_IN_THEMATIC_EVENTS,
   asPlayerId,
+  clampNumberedReshuffleThreshold,
+  clampThematicPercent,
   type GameSetup,
 } from "../domain";
 import type { CompletedGameSummary } from "../ui/features/home/CompletedGamesDialog";
@@ -35,9 +37,8 @@ export function setupFromDraft(draft: SetupDraft): GameSetup {
     throw new Error("First player is missing from setup.");
   }
 
-  const worldEventsEnabled = draft.eventCadence !== "off";
-  const cadence =
-    draft.eventCadence === "off" ? "standard" : draft.eventCadence;
+  const worldEventsEnabled = draft.eventPercent > 0;
+  const percent = clampThematicPercent(draft.eventPercent);
   const selectedPacks = new Set(draft.worldEventPacks);
   const catalog = worldEventsEnabled
     ? BUILT_IN_THEMATIC_EVENTS.filter(
@@ -71,9 +72,12 @@ export function setupFromDraft(draft: SetupDraft): GameSetup {
     }),
     firstPlayerId,
     victoryTarget: draft.victoryTarget,
-    thematicCadence: cadence,
+    thematicEventPercent: percent,
     thematicEventsEnabled: worldEventsEnabled,
     thematicEventCatalog: catalog,
+    numberedReshuffleThreshold: clampNumberedReshuffleThreshold(
+      draft.numberedReshuffleThreshold,
+    ),
     ...(worldEventsEnabled && draft.seasonConfig?.enabled
       ? { seasonConfig: draft.seasonConfig }
       : {}),

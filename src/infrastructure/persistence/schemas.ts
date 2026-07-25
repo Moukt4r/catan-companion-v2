@@ -106,9 +106,10 @@ const setupSchema = z.strictObject({
   players: z.array(playerSetupSchema).min(2).max(4),
   firstPlayerId: id,
   victoryTarget: integer.min(1).max(99),
-  thematicCadence: z.enum(["subtle", "standard", "lively"]),
+  thematicEventPercent: integer.min(0).max(100),
   thematicEventsEnabled: z.boolean(),
   thematicEventCatalog: z.array(eventDefinitionSchema).max(1_000),
+  numberedReshuffleThreshold: integer.min(0).max(12),
   seasonConfig: seasonConfigSchema.optional(),
   rulesDataVersion: id,
   gameDocumentVersion: integer.min(1),
@@ -152,6 +153,14 @@ const triggerDeckSchema = z.strictObject({
 const thematicEventDeckSchema = z.strictObject({
   ...deckMetadata,
   order: z.array(id).max(1_000),
+});
+
+const yearChangeSchema = z.strictObject({
+  cycle: integer.min(1),
+  turnNumber: nonNegativeInteger,
+  round: nonNegativeInteger,
+  skipped: z.array(z.strictObject({ red: die, yellow: die })).max(36),
+  createdAt: isoTimestamp,
 });
 
 const activeWorldEventSchema = z.strictObject({
@@ -339,7 +348,7 @@ export const gameStateSchema = z.strictObject({
     turnNumber: integer.min(1),
     completedTurns: nonNegativeInteger,
   }),
-  clock: gameClockSchema.optional(),
+  clock: gameClockSchema,
   players: z.array(playerStateSchema).min(2).max(4),
   metropolises: z.strictObject({
     controls: metropolisControlsSchema,
@@ -349,7 +358,7 @@ export const gameStateSchema = z.strictObject({
   eventDeck: eventDeckSchema,
   thematicEvents: z.strictObject({
     enabled: z.boolean(),
-    cadence: z.enum(["subtle", "standard", "lively"]),
+    percent: integer.min(0).max(100),
     enabledEvents: z.array(eventDefinitionSchema).max(1_000),
     triggerBag: triggerDeckSchema,
     eventDeck: thematicEventDeckSchema,
@@ -357,7 +366,7 @@ export const gameStateSchema = z.strictObject({
     lastTriggeredAtCompletedTurn: nonNegativeInteger.nullable(),
     previousEventId: id.nullable(),
     pendingEvent: thematicSnapshotSchema.nullable(),
-    activeEvents: z.array(activeWorldEventSchema).max(100).optional(),
+    activeEvents: z.array(activeWorldEventSchema).max(100),
   }),
   barbarian: z.strictObject({
     shipPosition: nonNegativeInteger,
@@ -381,6 +390,7 @@ export const gameStateSchema = z.strictObject({
   }),
   scoreLedger: z.array(scoreEntrySchema),
   lastRoll: rollSchema.nullable(),
+  lastYearChange: yearChangeSchema.nullable(),
   statistics: z.strictObject({
     totalRolls: nonNegativeInteger,
     normalRolls: nonNegativeInteger,
@@ -401,6 +411,7 @@ export const gameStateSchema = z.strictObject({
   history: z.strictObject({
     rolls: z.array(rollSchema),
     thematicEvents: z.array(thematicSnapshotSchema),
+    yearChanges: z.array(yearChangeSchema).max(1_000),
   }),
   createdAt: isoTimestamp,
   updatedAt: isoTimestamp,

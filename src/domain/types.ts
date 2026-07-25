@@ -16,7 +16,6 @@ export type ImprovementLevel = 0 | 1 | 2 | 3 | 4 | 5;
 export type MetropolisDiscipline = "science" | "trade" | "politics";
 export type ProgressDiscipline = MetropolisDiscipline;
 export type EventFace = "barbarian" | ProgressDiscipline;
-export type ThematicCadence = "subtle" | "standard" | "lively";
 export type GameStatus = "active" | "completed";
 export type GameMode = "standard" | "two-player-house-rule";
 export type GamePhase =
@@ -127,9 +126,18 @@ export interface GameSetup {
   players: PlayerSetup[];
   firstPlayerId: PlayerId;
   victoryTarget: number;
-  thematicCadence: ThematicCadence;
+  /**
+   * World Event trigger chance per eligible turn, 0-100 (integer percent).
+   * 0 disables triggering; 100 fires on every eligible turn.
+   */
+  thematicEventPercent: number;
   thematicEventsEnabled: boolean;
   thematicEventCatalog: ThematicEventDefinition[];
+  /**
+   * How many numbered cards may remain undrawn before the deck reshuffles into
+   * a new year. 0 keeps the exact-coverage behaviour (all 36 cards drawn).
+   */
+  numberedReshuffleThreshold: number;
   /** Optional Seasons Mode config. Missing or `{ enabled: false }` means off. */
   seasonConfig?: {
     enabled: boolean;
@@ -274,7 +282,8 @@ export interface ActiveWorldEventRecord {
 
 export interface ThematicEventState {
   enabled: boolean;
-  cadence: ThematicCadence;
+  /** Trigger chance per eligible turn, 0-100 (integer percent). */
+  percent: number;
   enabledEvents: ThematicEventDefinition[];
   triggerBag: DeckState<TriggerToken>;
   eventDeck: DeckState<EventId>;
@@ -282,8 +291,8 @@ export interface ThematicEventState {
   lastTriggeredAtCompletedTurn: number | null;
   previousEventId: EventId | null;
   pendingEvent: ThematicEventSnapshot | null;
-  /** Active lifecycle-tracked events (v2+). Absent in legacy saves. */
-  activeEvents?: ActiveWorldEventRecord[];
+  /** Active lifecycle-tracked events. */
+  activeEvents: ActiveWorldEventRecord[];
 }
 
 export interface BarbarianRules {
@@ -407,9 +416,23 @@ export interface GameStatistics {
   thematicEventsTriggered: number;
 }
 
+/**
+ * Records the moment the numbered deck reshuffled into a new year, including
+ * any cards that were never drawn because of an early-reshuffle threshold.
+ */
+export interface YearChangeRecord {
+  cycle: number;
+  turnNumber: number;
+  round: number;
+  skipped: NumberedOutcome[];
+  createdAt: IsoTimestamp;
+}
+
 export interface GameHistory {
   rolls: RollRecord[];
   thematicEvents: ThematicEventSnapshot[];
+  /** Year (deck cycle) boundaries. */
+  yearChanges: YearChangeRecord[];
 }
 
 export interface GameState {
@@ -420,7 +443,7 @@ export interface GameState {
   winnerId: PlayerId | null;
   setup: GameSetup;
   turn: TurnState;
-  clock?: GameClockState;
+  clock: GameClockState;
   players: PlayerState[];
   metropolises: MetropolisState;
   numberedDeck: NumberedDeckState;
@@ -430,6 +453,8 @@ export interface GameState {
   resolution: ResolutionState;
   scoreLedger: ScoreEntry[];
   lastRoll: RollRecord | null;
+  /** Most recent year change, surfaced for announcement. Null before any. */
+  lastYearChange: YearChangeRecord | null;
   statistics: GameStatistics;
   history: GameHistory;
   createdAt: IsoTimestamp;

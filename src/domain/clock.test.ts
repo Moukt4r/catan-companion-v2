@@ -144,45 +144,27 @@ describe("game clock", () => {
     });
   });
 
-  it("starts a missing legacy clock and rejects starting an existing clock", () => {
-    const legacy = newGame();
-    delete legacy.clock;
-    const decision = unwrapDecision(
-      decide(
-        legacy,
-        { type: "clock.started" },
-        deps("2026-07-14T10:03:00.000Z"),
-      ),
-    );
-    expect(decision.nextState.clock).toEqual({
-      totalActiveMs: 0,
-      currentTurnActiveMs: 0,
-      playerActiveMs: {
-        [PLAYERS[0]!]: 0,
-        [PLAYERS[1]!]: 0,
-        [PLAYERS[2]!]: 0,
-      },
-      runningSince: asIsoTimestamp("2026-07-14T10:03:00.000Z"),
-      pausedAt: null,
-    });
-    expect(decision.summary.kind).toBe("clock-started");
-    expect(decision.presentation.type).toBe("clock-started");
+  it("rejects starting a clock that already exists", () => {
+    const state = newGame();
+    // Every game is created with a clock, so a second start is always invalid.
     expect(
       decide(
-        decision.nextState,
+        state,
         { type: "clock.started" },
         deps("2026-07-14T10:03:01.000Z"),
       ),
     ).toMatchObject({ ok: false, error: { code: "INVALID_COMMAND" } });
   });
 
-  it("selects settled and live durations and guards legacy or invalid times", () => {
+  it("selects settled and live durations and guards invalid times", () => {
     const state = newGame();
     const at = asIsoTimestamp("2026-07-14T10:00:12.500Z");
     expect(totalActiveMilliseconds(state, at)).toBe(12_500);
     expect(currentTurnActiveMilliseconds(state, at)).toBe(12_500);
     expect(playerActiveMilliseconds(state, PLAYERS[0]!, at)).toBe(12_500);
     expect(playerActiveMilliseconds(state, PLAYERS[1]!, at)).toBe(0);
+    // An id with no accumulator entry falls back to zero rather than NaN.
+    expect(playerActiveMilliseconds(state, asPlayerId("unknown"), at)).toBe(0);
 
     const paused = run(
       state,
@@ -196,11 +178,6 @@ describe("game clock", () => {
       ),
     ).toBe(5_000);
 
-    const legacy = { ...state };
-    delete legacy.clock;
-    expect(totalActiveMilliseconds(legacy, at)).toBe(0);
-    expect(currentTurnActiveMilliseconds(legacy, at)).toBe(0);
-    expect(playerActiveMilliseconds(legacy, PLAYERS[0]!, at)).toBe(0);
     expect(
       totalActiveMilliseconds(state, asIsoTimestamp("not-a-timestamp")),
     ).toBe(0);
@@ -242,7 +219,8 @@ function setup(): GameSetup {
     })),
     firstPlayerId: PLAYERS[0]!,
     victoryTarget: 13,
-    thematicCadence: "standard",
+    thematicEventPercent: 8,
+    numberedReshuffleThreshold: 0,
     thematicEventsEnabled: false,
     thematicEventCatalog: [],
     rulesDataVersion: "2025.1",

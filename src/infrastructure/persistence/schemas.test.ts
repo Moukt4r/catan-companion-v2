@@ -88,22 +88,6 @@ describe("persistence schemas", () => {
     });
   });
 
-  it("accepts legacy states without a clock", () => {
-    const result = createGame({
-      gameId: asGameId("schema-legacy-game"),
-      revisionId: asRevisionId("schema-legacy-revision"),
-      createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
-      setup: setup(),
-      random: () => 0,
-      ids: sequentialIds(),
-    });
-    if (!result.ok) throw new Error(result.error.message);
-    const legacy = structuredClone(result.value.nextState);
-    delete legacy.clock;
-
-    expect(parseGameState(legacy)).toEqual(legacy);
-  });
-
   it("fully validates a present clock", () => {
     const result = createGame({
       gameId: asGameId("schema-clock-game"),
@@ -115,15 +99,15 @@ describe("persistence schemas", () => {
     });
     if (!result.ok) throw new Error(result.error.message);
     const invalidDuration = structuredClone(result.value.nextState);
-    invalidDuration.clock!.totalActiveMs = -1;
+    invalidDuration.clock.totalActiveMs = -1;
     expect(() => parseGameState(invalidDuration)).toThrow();
 
     const invalidKeys = structuredClone(result.value.nextState);
-    delete invalidKeys.clock!.playerActiveMs[invalidKeys.players[0]!.id];
+    delete invalidKeys.clock.playerActiveMs[invalidKeys.players[0]!.id];
     expect(() => parseGameState(invalidKeys)).toThrow();
 
     const invalidTimestamp = structuredClone(result.value.nextState);
-    invalidTimestamp.clock!.runningSince = asIsoTimestamp("invalid");
+    invalidTimestamp.clock.runningSince = asIsoTimestamp("invalid");
     expect(() => parseGameState(invalidTimestamp)).toThrow();
   });
 
@@ -173,7 +157,8 @@ function setup(): GameSetup {
     players,
     firstPlayerId: players[0]?.id ?? asPlayerId("missing"),
     victoryTarget: 13,
-    thematicCadence: "standard",
+    thematicEventPercent: 8,
+    numberedReshuffleThreshold: 0,
     thematicEventsEnabled: false,
     thematicEventCatalog: [],
     rulesDataVersion: "2025.1",
@@ -189,6 +174,8 @@ describe("legacy save backward compatibility", () => {
       createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
       setup: {
         ...setup(),
+        thematicEventPercent: 8,
+        numberedReshuffleThreshold: 0,
         thematicEventsEnabled: true,
         thematicEventCatalog: [
           {
@@ -242,10 +229,10 @@ describe("legacy save backward compatibility", () => {
     expect(parsed.history.thematicEvents[0]!.title).toBe("Old Snap");
   });
 
-  it("parses thematic state without activeEvents field", () => {
+  it("rejects thematic state without an activeEvents field", () => {
     const result = createGame({
-      gameId: asGameId("legacy-no-active"),
-      revisionId: asRevisionId("legacy-no-active-rev"),
+      gameId: asGameId("missing-active"),
+      revisionId: asRevisionId("missing-active-rev"),
       createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
       setup: setup(),
       random: () => 0,
@@ -254,18 +241,17 @@ describe("legacy save backward compatibility", () => {
     if (!result.ok) throw new Error(result.error.message);
     const state = structuredClone(result.value.nextState);
 
-    // Remove activeEvents to simulate v1 save
     const { activeEvents: removedActiveEvents, ...thematicWithoutActive } =
       state.thematicEvents;
     void removedActiveEvents;
-    const legacyState: GameState = {
+    const invalidState = {
       ...state,
       thematicEvents: thematicWithoutActive,
-    };
+    } as unknown as GameState;
 
-    const parsed = parseGameState(legacyState);
-    // Should parse successfully with activeEvents as undefined
-    expect(parsed.thematicEvents.activeEvents).toBeUndefined();
+    // activeEvents is required, so an absent field is a structural error
+    // rather than something to silently tolerate.
+    expect(() => parseGameState(invalidState)).toThrow();
   });
 
   it("parses active events with contentVersion defaulting to 1", () => {
@@ -347,6 +333,8 @@ describe("season config persistence", () => {
       createdAt: asIsoTimestamp("2026-07-12T12:00:00.000Z"),
       setup: {
         ...setup(),
+        thematicEventPercent: 8,
+        numberedReshuffleThreshold: 0,
         thematicEventsEnabled: true,
         thematicEventCatalog: BUILT_IN_THEMATIC_EVENTS.map((event) => ({
           ...event,

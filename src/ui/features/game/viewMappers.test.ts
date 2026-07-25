@@ -85,7 +85,8 @@ function game(): GameState {
       ],
       firstPlayerId: ADA,
       victoryTarget: 13,
-      thematicCadence: "standard",
+      thematicEventPercent: 8,
+      numberedReshuffleThreshold: 0,
       thematicEventsEnabled: true,
       thematicEventCatalog: BUILT_IN_THEMATIC_EVENTS.map((event) => ({
         ...event,

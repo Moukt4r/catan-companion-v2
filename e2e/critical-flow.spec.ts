@@ -300,7 +300,9 @@ test("supports the explicit two-player house mode", async ({ page }) => {
   await page.locator('input[placeholder="Player 2"]').fill("Omar");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("spinbutton", { name: "Victory target" }).fill("15");
-  await page.getByRole("radio", { name: /Lively/ }).check();
+  await page
+    .getByRole("slider", { name: "World event frequency percent" })
+    .fill("13");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Two-player house mode allowed")).toBeVisible();

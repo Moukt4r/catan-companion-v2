@@ -404,6 +404,36 @@ h3 {
   color: var(--color-navy-700);
 }
 
+.slider-field {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem;
+  border: 1px solid rgb(23 50 77 / 15%);
+  border-radius: var(--radius-medium);
+}
+
+.slider-field__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.slider-field__value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 780;
+  color: var(--color-navy-700);
+}
+
+.slider-field input[type="range"] {
+  width: 100%;
+  accent-color: var(--color-gold-500);
+}
+
+.slider-field small {
+  color: var(--color-navy-700);
+}
+
 .review-players {
   display: grid;
   gap: 0.5rem;

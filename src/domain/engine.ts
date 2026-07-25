@@ -52,6 +52,7 @@ import type {
   RollRecord,
   ScoreEntry,
   ScoreEntryId,
+  YearChangeRecord,
 } from "./types";
 
 export function createGame(input: CreateGameInput): DomainResult<Decision> {
@@ -122,7 +123,7 @@ export function createGame(input: CreateGameInput): DomainResult<Decision> {
     eventDeck: createEventDeck(input.random, input.revisionId),
     thematicEvents: createThematicState(
       input.setup.thematicEventsEnabled,
-      input.setup.thematicCadence,
+      input.setup.thematicEventPercent,
       input.setup.thematicEventCatalog,
       input.random,
       input.revisionId,
@@ -163,7 +164,8 @@ export function createGame(input: CreateGameInput): DomainResult<Decision> {
       barbarianAttacksLost: 0,
       thematicEventsTriggered: 0,
     },
-    history: { rolls: [], thematicEvents: [] },
+    history: { rolls: [], thematicEvents: [], yearChanges: [] },
+    lastYearChange: null,
     createdAt: input.createdAt,
     updatedAt: input.createdAt,
   };
@@ -215,7 +217,7 @@ export function decide(
       domainError("NO_ACTIVE_GAME", "The game is already completed."),
     );
   }
-  if (state.clock?.pausedAt !== null && state.clock?.pausedAt !== undefined) {
+  if (state.clock.pausedAt !== null) {
     if (command.type !== "clock.resumed") {
       return failure(
         domainError(
@@ -361,7 +363,7 @@ function pauseClock(
   state: GameState,
   deps: DomainDeps,
 ): DomainResult<Decision> {
-  if (state.clock === undefined || state.clock.runningSince === null) {
+  if (state.clock.runningSince === null) {
     return failure(
       domainError("INVALID_COMMAND", "The game clock is not running."),
     );
@@ -373,7 +375,7 @@ function pauseClock(
   const candidate: GameState = {
     ...accrued.value,
     clock: {
-      ...accrued.value.clock!,
+      ...accrued.value.clock,
       runningSince: null,
       pausedAt: deps.at,
     },
@@ -394,11 +396,7 @@ function resumeClock(
   state: GameState,
   deps: DomainDeps,
 ): DomainResult<Decision> {
-  if (
-    state.clock === undefined ||
-    state.clock.pausedAt === null ||
-    state.clock.runningSince !== null
-  ) {
+  if (state.clock.pausedAt === null || state.clock.runningSince !== null) {
     return failure(
       domainError("INVALID_COMMAND", "The game clock is not paused."),
     );
@@ -454,7 +452,12 @@ function roll(
   }
   const numberedDraw =
     alchemy === null
-      ? drawNumberedOutcome(state.numberedDeck, deps.random, deps.revisionId)
+      ? drawNumberedOutcome(
+          state.numberedDeck,
+          deps.random,
+          deps.revisionId,
+          state.setup.numberedReshuffleThreshold,
+        )
       : null;
   if (numberedDraw !== null && !numberedDraw.ok) {
     return failure(numberedDraw.error);
@@ -559,6 +562,16 @@ function roll(
     productionPending: true,
   };
   const phase = "resolving-official-result";
+  const yearChange: YearChangeRecord | null =
+    alchemy === null && numberedDraw?.ok && numberedDraw.value.startedNewCycle
+      ? {
+          cycle: numberedDraw.value.cycle,
+          turnNumber: state.turn.turnNumber,
+          round: state.turn.round,
+          skipped: numberedDraw.value.skipped,
+          createdAt: deps.at,
+        }
+      : null;
   const candidate: GameState = {
     ...state,
     turn: { ...state.turn, phase },
@@ -572,6 +585,7 @@ function roll(
     barbarian,
     resolution: { official },
     lastRoll: record,
+    lastYearChange: yearChange ?? state.lastYearChange,
     statistics: {
       ...state.statistics,
       totalRolls: state.statistics.totalRolls + 1,
@@ -597,6 +611,10 @@ function roll(
         thematic.value.event === null
           ? state.history.thematicEvents
           : [...state.history.thematicEvents, thematic.value.event],
+      yearChanges:
+        yearChange === null
+          ? state.history.yearChanges
+          : [...state.history.yearChanges, yearChange],
     },
   };
   return commit(
@@ -1271,7 +1289,7 @@ function resolveThematicEvent(
     return failure(phaseError);
   }
   const activeEvents: ActiveWorldEventRecord[] =
-    state.thematicEvents.activeEvents ?? [];
+    state.thematicEvents.activeEvents;
   const result = resolveActiveEvent(activeEvents, occurrenceId);
   if (result === null) {
     return failure(
@@ -1348,7 +1366,7 @@ function endTurn(state: GameState, deps: DomainDeps): DomainResult<Decision> {
 
   // --- World event lifecycle: prune expired, activate deferred ---
   let activeEvents: ActiveWorldEventRecord[] =
-    state.thematicEvents.activeEvents ?? [];
+    state.thematicEvents.activeEvents;
   activeEvents = pruneActiveEvents(
     activeEvents,
     completedTurns,
@@ -1373,16 +1391,12 @@ function endTurn(state: GameState, deps: DomainDeps): DomainResult<Decision> {
       ...state.thematicEvents,
       activeEvents,
     },
-    ...(state.clock === undefined
-      ? {}
-      : {
-          clock: {
-            ...state.clock,
-            currentTurnActiveMs: 0,
-            runningSince: deps.at,
-            pausedAt: null,
-          },
-        }),
+    clock: {
+      ...state.clock,
+      currentTurnActiveMs: 0,
+      runningSince: deps.at,
+      pausedAt: null,
+    },
     statistics: {
       ...state.statistics,
       completedTurns,
@@ -1433,15 +1447,11 @@ function completeGame(
     status: "completed",
     winnerId,
     turn: { ...state.turn, phase: "completed" },
-    ...(state.clock === undefined
-      ? {}
-      : {
-          clock: {
-            ...state.clock,
-            runningSince: null,
-            pausedAt: null,
-          },
-        }),
+    clock: {
+      ...state.clock,
+      runningSince: null,
+      pausedAt: null,
+    },
   };
   return commit(
     candidate,

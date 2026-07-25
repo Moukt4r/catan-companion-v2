@@ -1,7 +1,11 @@
 import { domainError, failure, success } from "./errors";
 import { drawDeck } from "./decks";
-import { fisherYates } from "./random";
-import { THEMATIC_TRIGGER_BAG_SIZE } from "./rules";
+import { fisherYates, toBoundedInt } from "./random";
+import {
+  THEMATIC_TRIGGER_BAG_SLOTS,
+  clampThematicPercent,
+  thematicCooldownTurns,
+} from "./rules";
 import {
   WORLD_EVENTS_CATALOG,
   createBalancedWorldEventOrder,
@@ -20,27 +24,49 @@ import type {
   EventOccurrenceId,
   RandomSource,
   RevisionId,
-  ThematicCadence,
   ThematicEventDefinition,
   ThematicEventSnapshot,
   ThematicEventState,
   TriggerToken,
 } from "./types";
 
+/**
+ * Build the percent-based trigger bag.
+ *
+ * The bag always has {@link THEMATIC_TRIGGER_BAG_SLOTS} slots and contains
+ * exactly `percent` trigger tokens, giving true 1% granularity. Tokens are
+ * placed by stratified sampling — the bag is split into `percent` equal blocks
+ * and one trigger is seeded at a random position inside each block — so events
+ * stay evenly spread instead of clumping the way a plain shuffle allows.
+ */
 export function createTriggerBag(
-  cadence: ThematicCadence,
+  percent: number,
   random: RandomSource | BoundedIntSource,
   revisionId: RevisionId,
   cycle = 1,
 ): DeckState<TriggerToken> {
-  const size = THEMATIC_TRIGGER_BAG_SIZE[cadence];
+  const slots = THEMATIC_TRIGGER_BAG_SLOTS;
+  const triggers = clampThematicPercent(percent);
+  const order: TriggerToken[] = Array.from({ length: slots }, () => ({
+    trigger: false,
+  }));
+
+  if (triggers > 0) {
+    const boundedInt = toBoundedInt(random);
+    for (let block = 0; block < triggers; block += 1) {
+      const start = Math.floor((block * slots) / triggers);
+      const end = Math.floor(((block + 1) * slots) / triggers);
+      const span = Math.max(1, end - start);
+      const offset = boundedInt(span);
+      const index = Math.min(slots - 1, start + offset);
+      order[index] = { trigger: true };
+    }
+  }
+
   return {
     cycle,
     cursor: 0,
-    order: fisherYates(
-      Array.from({ length: size }, (_, index) => ({ trigger: index === 0 })),
-      random,
-    ),
+    order,
     createdAtRevision: revisionId,
   };
 }
@@ -198,16 +224,17 @@ function drawSeasonalThematicEvent(
 
 export function createThematicState(
   enabled: boolean,
-  cadence: ThematicCadence,
+  percent: number,
   events: readonly ThematicEventDefinition[],
   random: RandomSource | BoundedIntSource,
   revisionId: RevisionId,
 ): ThematicEventState {
+  const resolvedPercent = clampThematicPercent(percent);
   return {
     enabled,
-    cadence,
+    percent: resolvedPercent,
     enabledEvents: events.map((event) => ({ ...event })),
-    triggerBag: createTriggerBag(cadence, random, revisionId),
+    triggerBag: createTriggerBag(resolvedPercent, random, revisionId),
     eventDeck: createThematicEventDeck(events, random, revisionId, null),
     deferredTrigger: false,
     lastTriggeredAtCompletedTurn: null,
@@ -252,17 +279,23 @@ export function scheduleThematicEvent(
     );
   }
 
+  const percent = clampThematicPercent(state.percent);
+  if (percent === 0) {
+    return success({ state, event: null });
+  }
+
+  const cooldown = thematicCooldownTurns(percent);
   const eligible =
     completedTurns >= playerCount &&
     (state.lastTriggeredAtCompletedTurn === null ||
-      completedTurns - state.lastTriggeredAtCompletedTurn >= 2);
+      completedTurns - state.lastTriggeredAtCompletedTurn >= cooldown);
 
   let triggerBag = state.triggerBag;
   let shouldTrigger = state.deferredTrigger;
 
   if (!state.deferredTrigger) {
     const triggerDraw = drawDeck(triggerBag, (cycle) =>
-      createTriggerBag(state.cadence, random, revisionId, cycle),
+      createTriggerBag(percent, random, revisionId, cycle),
     );
     if (!triggerDraw.ok) {
       return triggerDraw;
@@ -347,7 +380,7 @@ export function scheduleThematicEvent(
   };
 
   // Lifecycle management: prune expired events, add new active event
-  const currentActiveEvents: ActiveWorldEvent[] = state.activeEvents ?? [];
+  const currentActiveEvents: ActiveWorldEvent[] = state.activeEvents;
   const estimatedRound = Math.floor(completedTurns / playerCount) + 1;
   const prunedEvents = pruneActiveEvents(
     currentActiveEvents,

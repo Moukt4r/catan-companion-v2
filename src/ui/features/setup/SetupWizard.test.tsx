@@ -47,7 +47,8 @@ describe("SetupWizard", () => {
     expect(onStart).toHaveBeenCalledOnce();
     expect(onStart.mock.calls[0]?.[0]).toMatchObject({
       victoryTarget: 13,
-      eventCadence: "standard",
+      eventPercent: 8,
+      numberedReshuffleThreshold: 0,
     });
   });
 
@@ -164,7 +165,7 @@ describe("SetupWizard", () => {
     expect(onStart.mock.calls[0]?.[0]).toMatchObject({ victoryTarget: 10 });
   });
 
-  it("selects a different event cadence", async () => {
+  it("selects a different event frequency", async () => {
     const user = userEvent.setup();
     const onStart = vi.fn();
 
@@ -182,7 +183,9 @@ describe("SetupWizard", () => {
     }
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    await user.click(screen.getByLabelText(/Lively/));
+    fireEvent.change(screen.getByLabelText("World event frequency percent"), {
+      target: { value: "37" },
+    });
 
     await user.click(screen.getByRole("button", { name: "Continue" }));
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -191,7 +194,44 @@ describe("SetupWizard", () => {
     );
 
     expect(onStart.mock.calls[0]?.[0]).toMatchObject({
-      eventCadence: "lively",
+      eventPercent: 37,
+    });
+  });
+
+  it("passes an early reshuffle threshold through the draft", async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+
+    render(
+      <SetupWizard
+        initialPreferences={defaultDevicePreferences}
+        onCancel={vi.fn()}
+        onStart={onStart}
+      />,
+    );
+
+    const nameInputs = screen.getAllByPlaceholderText(/Player \d/);
+    for (const [index, input] of nameInputs.entries()) {
+      await user.type(input, ["A", "B", "C", "D"][index] ?? "");
+    }
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    fireEvent.change(
+      screen.getByLabelText("Reshuffle when this many cards remain"),
+      { target: { value: "4" } },
+    );
+    expect(
+      screen.getByText(/A new year begins after card 32/),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(
+      screen.getByRole("button", { name: "Start and save game" }),
+    );
+
+    expect(onStart.mock.calls[0]?.[0]).toMatchObject({
+      numberedReshuffleThreshold: 4,
     });
   });
 
@@ -248,7 +288,9 @@ describe("SetupWizard", () => {
       await user.type(input, ["A", "B", "C", "D"][index] ?? "");
     }
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    await user.click(screen.getByLabelText(/Off/));
+    fireEvent.change(screen.getByLabelText("World event frequency percent"), {
+      target: { value: "0" },
+    });
 
     expect(
       screen.queryByRole("group", { name: "Category packs" }),
@@ -261,7 +303,7 @@ describe("SetupWizard", () => {
     );
 
     expect(onStart.mock.calls[0]?.[0]).toMatchObject({
-      eventCadence: "off",
+      eventPercent: 0,
       worldEventPacks: [],
     });
   });
@@ -304,7 +346,7 @@ describe("SetupWizard", () => {
     );
 
     expect(onStart.mock.calls[0]?.[0]).toMatchObject({
-      eventCadence: "standard",
+      eventPercent: 8,
       worldEventPacks: ["nature"],
     });
   });

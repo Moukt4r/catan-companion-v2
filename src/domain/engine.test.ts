@@ -73,7 +73,8 @@ function setup(overrides: Partial<GameSetup> = {}): GameSetup {
     })),
     firstPlayerId: PLAYER_IDS[0] as PlayerId,
     victoryTarget: 13,
-    thematicCadence: "standard",
+    thematicEventPercent: 8,
+    numberedReshuffleThreshold: 0,
     thematicEventsEnabled: true,
     thematicEventCatalog: BUILT_IN_THEMATIC_EVENTS.map((event) => ({
       ...event,
@@ -732,17 +733,15 @@ describe("thematic cadence and cooldown", () => {
     expect(scheduled.event).not.toBeNull();
   });
 
-  it("has exact cadence bag sizes and avoids an immediate event repeat across a boundary", () => {
-    for (const [cadence, size] of [
-      ["subtle", 18],
-      ["standard", 12],
-      ["lively", 8],
-    ] as const) {
-      const state = newGame({ setup: setup({ thematicCadence: cadence }) });
-      expect(state.thematicEvents.triggerBag.order).toHaveLength(size);
+  it("builds percent-based trigger bags and avoids an immediate event repeat across a boundary", () => {
+    for (const percent of [3, 8, 25, 50, 100] as const) {
+      const state = newGame({
+        setup: setup({ thematicEventPercent: percent }),
+      });
+      expect(state.thematicEvents.triggerBag.order).toHaveLength(100);
       expect(
         state.thematicEvents.triggerBag.order.filter((token) => token.trigger),
-      ).toHaveLength(1);
+      ).toHaveLength(percent);
     }
     const events = [
       {
@@ -940,5 +939,96 @@ describe("deterministic replay", () => {
       ),
       { numRuns: 50 },
     );
+  });
+});
+
+describe("year changes from an early deck reshuffle", () => {
+  /** Draw `count` numbered cards, walking through each turn's resolution. */
+  function drawCards(state: GameState, count: number, prefix: string) {
+    let current = state;
+    for (let index = 0; index < count; index += 1) {
+      current = run(current, { type: "roll.draw" }, `${prefix}-roll-${index}`);
+      const rollId = current.lastRoll?.id as never;
+      if (current.resolution.official?.progressPending) {
+        current = run(
+          current,
+          { type: "resolution.progressAcknowledged", rollId },
+          `${prefix}-prog-${index}`,
+        );
+      }
+      if (current.resolution.official?.productionPending) {
+        current = run(
+          current,
+          { type: "resolution.productionAcknowledged", rollId },
+          `${prefix}-prod-${index}`,
+        );
+      }
+      if (current.turn.phase === "resolving-thematic-event") {
+        const occurrenceId = current.thematicEvents.pendingEvent
+          ?.occurrenceId as never;
+        current = run(
+          current,
+          { type: "event.acknowledged", occurrenceId },
+          `${prefix}-event-${index}`,
+        );
+      }
+      if (current.turn.phase === "action-phase") {
+        current = run(
+          current,
+          { type: "turn.ended" },
+          `${prefix}-end-${index}`,
+        );
+      }
+    }
+    return current;
+  }
+
+  it("plays a full 36-card year when the threshold is off", () => {
+    const state = newGame({
+      setup: setup({ numberedReshuffleThreshold: 0 }),
+      prefix: "year-off",
+    });
+    const played = drawCards(state, 36, "year-off");
+    expect(played.numberedDeck.cycle).toBe(1);
+    expect(played.history.yearChanges ?? []).toEqual([]);
+    expect(played.lastYearChange ?? null).toBeNull();
+  });
+
+  it("starts year two at card 32 and records the skipped cards", () => {
+    const state = newGame({
+      setup: setup({ numberedReshuffleThreshold: 4 }),
+      prefix: "year-four",
+    });
+    const expectedSkipped = state.numberedDeck.order.slice(32);
+
+    const beforeBoundary = drawCards(state, 32, "year-four");
+    expect(beforeBoundary.numberedDeck.cycle).toBe(1);
+    expect(beforeBoundary.history.yearChanges ?? []).toEqual([]);
+
+    const afterBoundary = drawCards(beforeBoundary, 1, "year-four-boundary");
+    expect(afterBoundary.numberedDeck.cycle).toBe(2);
+
+    const changes = afterBoundary.history.yearChanges ?? [];
+    expect(changes).toHaveLength(1);
+    expect(changes[0]?.cycle).toBe(2);
+    expect(changes[0]?.skipped).toEqual(expectedSkipped);
+    expect(afterBoundary.lastYearChange?.cycle).toBe(2);
+    expect(afterBoundary.lastYearChange?.skipped).toHaveLength(4);
+  });
+
+  it("keeps the year change out of alchemy rolls", () => {
+    const state = newGame({
+      setup: setup({ numberedReshuffleThreshold: 4 }),
+      prefix: "year-alchemy",
+    });
+    const played = drawCards(state, 32, "year-alchemy");
+    const alchemy = run(
+      played,
+      { type: "roll.alchemy", red: 3, yellow: 4 },
+      "year-alchemy-roll",
+    );
+    // Alchemy preserves the deck cursor, so no year boundary is crossed.
+    expect(alchemy.numberedDeck.cycle).toBe(1);
+    expect(alchemy.history.yearChanges ?? []).toEqual([]);
   });
 });

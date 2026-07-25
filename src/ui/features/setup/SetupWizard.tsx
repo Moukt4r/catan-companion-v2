@@ -19,6 +19,28 @@ import {
   WORLD_EVENT_ART,
 } from "../../illustrationCatalog";
 
+/**
+ * Human-readable guidance for the World Event frequency slider.
+ * The percent is the chance per eligible turn, so the reciprocal reads as
+ * "about one event every N turns".
+ */
+function eventFrequencyDescription(percent: number): string {
+  if (percent === 0) {
+    return "No world events.";
+  }
+  if (percent >= 100) {
+    return "A world event on every eligible turn.";
+  }
+  const turns = Math.round(100 / percent);
+  const cooldown =
+    percent >= 50
+      ? "Back-to-back events are allowed."
+      : percent >= 25
+        ? "At least one turn between events."
+        : "At least two turns between events.";
+  return `About one event every ${turns} eligible turn${turns === 1 ? "" : "s"}. ${cooldown}`;
+}
+
 const playerColors = [
   { name: "Amber", value: "#b66a1f" },
   { name: "Ocean blue", value: "#286b9b" },
@@ -79,7 +101,8 @@ export interface SetupDraft {
   firstPlayerDraftId: string;
   twoPlayerHouseMode: boolean;
   victoryTarget: number;
-  eventCadence: "off" | "subtle" | "standard" | "lively";
+  eventPercent: number;
+  numberedReshuffleThreshold: number;
   worldEventPacks: WorldEventCategory[];
   seasonConfig?: SeasonConfig;
   preferences: DevicePreferences;
@@ -124,8 +147,9 @@ export function SetupWizard({
     players[0]?.draftId ?? "",
   );
   const [victoryTarget, setVictoryTarget] = useState(13);
-  const [eventCadence, setEventCadence] =
-    useState<SetupDraft["eventCadence"]>("standard");
+  const [eventPercent, setEventPercent] = useState(8);
+  const [numberedReshuffleThreshold, setNumberedReshuffleThreshold] =
+    useState(0);
 
   const [worldEventPacks, setWorldEventPacks] = useState<WorldEventCategory[]>([
     ...allWorldEventPacks,
@@ -177,11 +201,7 @@ export function SetupWizard({
       setError(playerError);
       return;
     }
-    if (
-      step === "rules" &&
-      eventCadence !== "off" &&
-      worldEventPacks.length === 0
-    ) {
+    if (step === "rules" && eventPercent > 0 && worldEventPacks.length === 0) {
       setError("Select at least one category pack for World Events.");
       return;
     }
@@ -491,45 +511,71 @@ export function SetupWizard({
                 World Events are thematic house-rule events — entirely separate
                 from the official Cities &amp; Knights event die.
               </p>
-              {(
-                [
-                  ["off", "Off", "No world events."],
-                  [
-                    "subtle",
-                    "Subtle",
-                    "About one trigger in every 18 eligible turns.",
-                  ],
-                  [
-                    "standard",
-                    "Standard",
-                    "About one trigger in every 12 eligible turns.",
-                  ],
-                  [
-                    "lively",
-                    "Lively",
-                    "About one trigger in every 8 eligible turns.",
-                  ],
-                ] as const
-              ).map(([value, name, description]) => (
-                <label key={value} className="choice-card">
-                  <input
-                    type="radio"
-                    name="event-cadence"
-                    value={value}
-                    checked={eventCadence === value}
-                    onChange={() => {
-                      setEventCadence(value);
-                    }}
-                  />
-                  <span>
-                    <strong>{name}</strong>
-                    <small>{description}</small>
+              <label className="slider-field">
+                <span className="slider-field__label">
+                  <strong>Event frequency</strong>
+                  <span className="slider-field__value">
+                    {eventPercent === 0 ? "Off" : `${eventPercent}%`}
                   </span>
-                </label>
-              ))}
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={eventPercent}
+                  aria-label="World event frequency percent"
+                  aria-valuetext={
+                    eventPercent === 0 ? "Off" : `${eventPercent} percent`
+                  }
+                  onChange={(event) => {
+                    setEventPercent(Number(event.target.value));
+                  }}
+                />
+                <small>{eventFrequencyDescription(eventPercent)}</small>
+              </label>
             </fieldset>
 
-            {eventCadence !== "off" ? (
+            <fieldset className="choice-group">
+              <legend>Deck reshuffle</legend>
+              <p>
+                The numbered deck normally plays out all 36 cards before a new
+                year begins. Reshuffling early keeps the final cards uncertain.
+              </p>
+              <label className="slider-field">
+                <span className="slider-field__label">
+                  <strong>Reshuffle when cards remain</strong>
+                  <span className="slider-field__value">
+                    {numberedReshuffleThreshold === 0
+                      ? "Off"
+                      : `${numberedReshuffleThreshold} cards`}
+                  </span>
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={12}
+                  step={1}
+                  value={numberedReshuffleThreshold}
+                  aria-label="Reshuffle when this many cards remain"
+                  aria-valuetext={
+                    numberedReshuffleThreshold === 0
+                      ? "Off"
+                      : `${numberedReshuffleThreshold} cards remaining`
+                  }
+                  onChange={(event) => {
+                    setNumberedReshuffleThreshold(Number(event.target.value));
+                  }}
+                />
+                <small>
+                  {numberedReshuffleThreshold === 0
+                    ? "Exact coverage: every one of the 36 outcomes is drawn each year."
+                    : `A new year begins after card ${36 - numberedReshuffleThreshold}. The ${numberedReshuffleThreshold} undrawn card${numberedReshuffleThreshold === 1 ? " is" : "s are"} announced and listed.`}
+                </small>
+              </label>
+            </fieldset>
+
+            {eventPercent > 0 ? (
               <fieldset className="choice-group">
                 <legend>Category packs</legend>
                 <p>
@@ -583,7 +629,7 @@ export function SetupWizard({
               </fieldset>
             ) : null}
 
-            {eventCadence !== "off" ? (
+            {eventPercent > 0 ? (
               <fieldset className="choice-group">
                 <legend>Seasons Mode</legend>
                 <p>
@@ -800,12 +846,20 @@ export function SetupWizard({
               <div>
                 <dt>World Events</dt>
                 <dd>
-                  {eventCadence === "off"
+                  {eventPercent === 0
                     ? "Off"
-                    : `${eventCadence.charAt(0).toUpperCase()}${eventCadence.slice(1)} · ${worldEventPacks.length} pack${worldEventPacks.length === 1 ? "" : "s"}`}
+                    : `${eventPercent}% per turn · ${worldEventPacks.length} pack${worldEventPacks.length === 1 ? "" : "s"}`}
                 </dd>
               </div>
-              {eventCadence !== "off" && seasonConfig.enabled ? (
+              <div>
+                <dt>Deck reshuffle</dt>
+                <dd>
+                  {numberedReshuffleThreshold === 0
+                    ? "Full 36-card year"
+                    : `New year at card ${36 - numberedReshuffleThreshold} · ${numberedReshuffleThreshold} left undrawn`}
+                </dd>
+              </div>
+              {eventPercent > 0 && seasonConfig.enabled ? (
                 <div>
                   <dt>Seasons</dt>
                   <dd>
@@ -850,11 +904,11 @@ export function SetupWizard({
                   firstPlayerDraftId,
                   twoPlayerHouseMode,
                   victoryTarget,
-                  eventCadence,
-                  worldEventPacks:
-                    eventCadence === "off" ? [] : worldEventPacks,
+                  eventPercent,
+                  numberedReshuffleThreshold,
+                  worldEventPacks: eventPercent === 0 ? [] : worldEventPacks,
                   seasonConfig:
-                    eventCadence === "off"
+                    eventPercent === 0
                       ? { ...DEFAULT_SEASON_CONFIG }
                       : seasonConfig,
                   preferences,

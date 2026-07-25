@@ -102,7 +102,7 @@ function thematicState(
 ): ThematicEventState {
   const base = createThematicState(
     true,
-    "lively",
+    13,
     [definition("one"), definition("two")],
     () => 0,
     REVISION,

@@ -15,6 +15,7 @@ function view(): GameTableView {
     turnNumber: 1,
     savedLabel: "Saved",
     saveTone: "success",
+    yearChange: null,
     offline: false,
     readOnly: false,
     paused: false,

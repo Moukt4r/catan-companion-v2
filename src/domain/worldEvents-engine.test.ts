@@ -74,7 +74,8 @@ function setup(overrides: Partial<GameSetup> = {}): GameSetup {
     })),
     firstPlayerId: PLAYER_IDS[0] as PlayerId,
     victoryTarget: 13,
-    thematicCadence: "standard",
+    thematicEventPercent: 8,
+    numberedReshuffleThreshold: 0,
     thematicEventsEnabled: true,
     thematicEventCatalog: BUILT_IN_THEMATIC_EVENTS.map((event) => ({
       ...event,
@@ -513,20 +514,13 @@ describe("legacy save compatibility", () => {
     expect(state.thematicEvents.activeEvents).toEqual([]);
   });
 
-  it("thematic state without activeEvents field is handled gracefully", () => {
-    let state = createTestGame();
-    // Remove activeEvents to simulate legacy
-    const { activeEvents: removedActiveEvents, ...thematicWithout } =
-      state.thematicEvents;
-    void removedActiveEvents;
-    state = {
-      ...state,
-      thematicEvents: thematicWithout,
-    };
-    // Advancing a turn should not crash
-    state = advanceTurn(state, "legacy-turn");
-    // activeEvents may or may not be set depending on whether an event fired
-    // but the engine should not throw
-    expect(state.turn.completedTurns).toBeGreaterThan(0);
+  it("initialises activeEvents as an empty list on every new game", () => {
+    const state = createTestGame();
+    // activeEvents is a required field, so no code path needs a fallback.
+    expect(state.thematicEvents.activeEvents).toEqual([]);
+
+    const advanced = advanceTurn(state, "active-events-turn");
+    expect(Array.isArray(advanced.thematicEvents.activeEvents)).toBe(true);
+    expect(advanced.turn.completedTurns).toBeGreaterThan(0);
   });
 });

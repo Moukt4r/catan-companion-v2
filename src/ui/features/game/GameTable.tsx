@@ -71,6 +71,10 @@ export interface GameTableView {
     };
   } | null;
   numberedCycleProgress: string;
+  yearChange: {
+    cycle: number;
+    skipped: string[];
+  } | null;
   barbarian: {
     position: number;
     trackLength: number;
@@ -339,6 +343,15 @@ export function GameTable({
           </div>
           <span className="cycle-progress">{view.numberedCycleProgress}</span>
         </div>
+
+        {view.yearChange ? (
+          <StatusBanner tone="info">
+            <strong>Year {view.yearChange.cycle} begins.</strong>{" "}
+            {view.yearChange.skipped.length === 0
+              ? "The deck was reshuffled."
+              : `The deck reshuffled early — ${view.yearChange.skipped.length} card${view.yearChange.skipped.length === 1 ? " was" : "s were"} never drawn: ${view.yearChange.skipped.join(", ")}.`}
+          </StatusBanner>
+        ) : null}
 
         <div className="dice-row">
           <DieFace

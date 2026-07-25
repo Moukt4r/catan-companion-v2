@@ -201,6 +201,15 @@ export function toGameTableView(
         }
       : null,
     numberedCycleProgress: `${state.numberedDeck.cursor} / ${state.numberedDeck.order.length}`,
+    yearChange:
+      state.lastYearChange && state.lastYearChange.cycle > 1
+        ? {
+            cycle: state.lastYearChange.cycle,
+            skipped: state.lastYearChange.skipped.map(
+              (card) => `${card.red}+${card.yellow}`,
+            ),
+          }
+        : null,
     barbarian: {
       position: state.barbarian.shipPosition,
       trackLength: state.barbarian.rules.trackLength,

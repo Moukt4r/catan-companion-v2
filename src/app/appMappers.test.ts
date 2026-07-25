@@ -140,7 +140,8 @@ function worldEventDraft(overrides: Partial<SetupDraft> = {}): SetupDraft {
     firstPlayerDraftId: "p1",
     twoPlayerHouseMode: false,
     victoryTarget: 13,
-    eventCadence: "standard",
+    eventPercent: 8,
+    numberedReshuffleThreshold: 0,
     worldEventPacks: ["economy", "military", "diplomacy", "nature", "society"],
     preferences: defaultDevicePreferences,
     ...overrides,
@@ -150,12 +151,12 @@ function worldEventDraft(overrides: Partial<SetupDraft> = {}): SetupDraft {
 describe("setupFromDraft World Events", () => {
   it("stores a disabled empty event module when cadence is off", () => {
     const setup = setupFromDraft(
-      worldEventDraft({ eventCadence: "off", worldEventPacks: [] }),
+      worldEventDraft({ eventPercent: 0, worldEventPacks: [] }),
     );
 
     expect(setup.thematicEventsEnabled).toBe(false);
     expect(setup.thematicEventCatalog).toEqual([]);
-    expect(setup.thematicCadence).toBe("standard");
+    expect(setup.thematicEventPercent).toBe(0);
     expect(setup.gameDocumentVersion).toBe(2);
   });
 
@@ -212,7 +213,7 @@ describe("setupFromDraft Seasons Mode", () => {
   it("omits seasonConfig when world events are off", () => {
     const setup = setupFromDraft(
       worldEventDraft({
-        eventCadence: "off",
+        eventPercent: 0,
         seasonConfig: {
           enabled: true,
           roundsPerSeason: 3,

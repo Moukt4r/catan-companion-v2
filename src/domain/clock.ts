@@ -71,7 +71,7 @@ export function accrueGameClock(
   at: IsoTimestamp,
 ): DomainResult<GameState> {
   const clock = state.clock;
-  if (clock === undefined || clock.runningSince === null) {
+  if (clock.runningSince === null) {
     return success(state);
   }
   const elapsed = elapsedActiveMilliseconds(clock.runningSince, at);
