@@ -74,6 +74,7 @@ function renderTable(
     onContinueRoll: callbacks.onContinueRoll ?? vi.fn(),
     onEditPlayer: callbacks.onEditPlayer ?? vi.fn(),
     onNextRoll: callbacks.onNextRoll ?? vi.fn(),
+    onAlchemyNextTurn: callbacks.onAlchemyNextTurn ?? vi.fn(),
     onPause: callbacks.onPause ?? vi.fn(),
     onHistory: callbacks.onHistory ?? vi.fn(),
     onSettings: callbacks.onSettings ?? vi.fn(),
@@ -115,6 +116,7 @@ describe("GameTable", () => {
         onContinueRoll={vi.fn()}
         onEditPlayer={vi.fn()}
         onNextRoll={vi.fn()}
+        onAlchemyNextTurn={vi.fn()}
         onPause={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
@@ -178,6 +180,7 @@ describe("GameTable", () => {
         onContinueRoll={vi.fn()}
         onEditPlayer={onEditPlayer}
         onNextRoll={vi.fn()}
+        onAlchemyNextTurn={vi.fn()}
         onPause={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
@@ -217,6 +220,7 @@ describe("GameTable", () => {
         onContinueRoll={vi.fn()}
         onEditPlayer={vi.fn()}
         onNextRoll={vi.fn()}
+        onAlchemyNextTurn={vi.fn()}
         onPause={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
@@ -242,9 +246,10 @@ describe("GameTable", () => {
     expect(screen.getByRole("button", { name: "History" })).toBeEnabled();
   });
 
-  it("advances the action phase only by rolling for the next player", async () => {
+  it("offers one-click next-roll and direct next-player Alchemy", async () => {
     const user = userEvent.setup();
     const onNextRoll = vi.fn();
+    const onAlchemyNextTurn = vi.fn();
 
     render(
       <GameTable
@@ -263,6 +268,7 @@ describe("GameTable", () => {
         onContinueRoll={vi.fn()}
         onEditPlayer={vi.fn()}
         onNextRoll={onNextRoll}
+        onAlchemyNextTurn={onAlchemyNextTurn}
         onPause={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
@@ -275,7 +281,9 @@ describe("GameTable", () => {
       screen.queryByRole("button", { name: "End turn" }),
     ).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Next: Grace" }));
+    await user.click(screen.getByRole("button", { name: "Alchemy: Grace" }));
     expect(onNextRoll).toHaveBeenCalledOnce();
+    expect(onAlchemyNextTurn).toHaveBeenCalledOnce();
   });
 
   it("explicitly disables every game control while paused", () => {
@@ -296,6 +304,7 @@ describe("GameTable", () => {
         onContinueRoll={vi.fn()}
         onEditPlayer={vi.fn()}
         onNextRoll={vi.fn()}
+        onAlchemyNextTurn={vi.fn()}
         onPause={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
@@ -356,6 +365,7 @@ describe("GameTable", () => {
         onContinueRoll={vi.fn()}
         onEditPlayer={vi.fn()}
         onNextRoll={vi.fn()}
+        onAlchemyNextTurn={vi.fn()}
         onPause={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}

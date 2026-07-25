@@ -13,7 +13,6 @@ import {
   deriveSeason,
   totalActiveMilliseconds,
   winnerCandidates,
-  type BarbarianAttackOutcome,
   type DieValue,
   type GameCommand,
   type GameState,
@@ -55,16 +54,11 @@ import {
   type PlayerEditorPatch,
 } from "../ui/features/game/PlayerEditorDialog";
 import { PauseGameDialog } from "../ui/features/game/PauseGameDialog";
-import {
-  RollResolutionDialog,
-  type ManualAttackResolution,
-} from "../ui/features/game/RollResolutionDialog";
 import { SaveRecoveryDialog } from "../ui/features/game/SaveRecoveryDialog";
 import {
   toGameCompleteView,
   toGameTableView,
   toPlayerEditorValue,
-  toRollResolutionView,
 } from "../ui/features/game/viewMappers";
 import { WinnerDialog } from "../ui/features/game/WinnerDialog";
 import { SettingsDialog } from "../ui/features/settings/SettingsDialog";
@@ -86,33 +80,6 @@ import { useOnlineStatus } from "./useOnlineStatus";
 
 type Screen = "home" | "setup" | "game" | "complete";
 
-function toBarbarianOutcome(
-  resolution: ManualAttackResolution,
-): BarbarianAttackOutcome {
-  if (resolution.type === "barbarians-win") {
-    return {
-      type: "barbarians-win",
-      pillagedPlayerIds: resolution.pillagedPlayerIds.map(asPlayerId),
-    };
-  }
-  if (resolution.reward.type === "defender-point") {
-    return {
-      type: "defenders-win",
-      reward: {
-        type: "defender-point",
-        playerId: asPlayerId(resolution.reward.playerId),
-      },
-    };
-  }
-  return {
-    type: "defenders-win",
-    reward: {
-      type: "progress-choice",
-      playerIds: resolution.reward.playerIds.map(asPlayerId),
-    },
-  };
-}
-
 export function App() {
   const snapshot = useGameController();
   const { preferences, updatePreferences } = useDevicePreferences();
@@ -121,6 +88,7 @@ export function App() {
   const previousScreen = useRef<Screen>("home");
   const clockStartRequests = useRef(new Set<string>());
   const soundedEventOccurrences = useRef(new Set<string>());
+  const legacyAttackRecoveryRequests = useRef(new Set<string>());
   const [screen, setScreen] = useState<Screen>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savedGamesOpen, setSavedGamesOpen] = useState(false);
@@ -281,6 +249,35 @@ export function App() {
     state?.status,
   ]);
 
+  useEffect(() => {
+    const attack = state?.barbarian.pendingAttack;
+    if (
+      screen !== "game" ||
+      state?.turn.phase !== "resolving-barbarian-attack" ||
+      !attack ||
+      snapshot.readOnly ||
+      snapshot.saving ||
+      legacyAttackRecoveryRequests.current.has(attack.id)
+    ) {
+      return;
+    }
+
+    legacyAttackRecoveryRequests.current.add(attack.id);
+    void gameController
+      .dispatch({
+        type: "attack.confirmed",
+        proposalId: attack.id,
+        manualOutcome: { type: "board-authoritative" },
+        progressChoices: [],
+      })
+      .catch((error: unknown) => {
+        legacyAttackRecoveryRequests.current.delete(attack.id);
+        setNotice(
+          `Could not recover the legacy attack: ${errorMessage(error)}`,
+        );
+      });
+  }, [screen, snapshot.readOnly, snapshot.saving, state]);
+
   async function runOperation(
     operation: () => Promise<void>,
   ): Promise<boolean> {
@@ -316,7 +313,19 @@ export function App() {
     if (attack) {
       playCue({
         type: "barbarian-attack",
-        outcome: attack.outcome.type,
+        outcome:
+          attack.outcome.type === "board-authoritative"
+            ? "defenders-win"
+            : attack.outcome.type,
+      });
+      return;
+    }
+
+    // Auto-resolved attack: ship was reset to 0 after reaching the end.
+    if (current.barbarian.shipPosition === 0) {
+      playCue({
+        type: "barbarian-attack",
+        outcome: "board-authoritative",
       });
       return;
     }
@@ -512,86 +521,6 @@ export function App() {
     }
   }
 
-  async function resolveRollResult(
-    quickRoll: boolean,
-    resolution: ManualAttackResolution | null,
-  ): Promise<void> {
-    setResolutionBusy(true);
-    try {
-      let current = gameController.getSnapshot().activeState;
-      if (!current?.lastRoll) {
-        throw new Error("There is no roll result to resolve.");
-      }
-
-      if (current.turn.phase === "resolving-barbarian-attack") {
-        const proposal = current.barbarian.pendingAttack;
-        if (!proposal) {
-          throw new Error("The barbarian attack proposal is missing.");
-        }
-        if (!resolution) {
-          throw new Error("A manual attack resolution is required.");
-        }
-        const manualOutcome = toBarbarianOutcome(resolution);
-        const progressChoices =
-          resolution.type === "defenders-win" &&
-          resolution.reward.type === "progress-choice"
-            ? resolution.reward.choices.map((choice) => ({
-                playerId: asPlayerId(choice.playerId),
-                discipline: choice.discipline,
-              }))
-            : [];
-        const confirmed = await dispatch(
-          {
-            type: "attack.confirmed",
-            proposalId: proposal.id,
-            manualOutcome,
-            ...(progressChoices.length === 0 ? {} : { progressChoices }),
-          },
-          { type: "confirm" },
-        );
-        if (!confirmed) {
-          return;
-        }
-        current = gameController.getSnapshot().activeState;
-      }
-
-      const officialAcknowledged = await acknowledgeOfficialRollSteps();
-      if (!officialAcknowledged) {
-        return;
-      }
-      current = gameController.getSnapshot().activeState;
-
-      if (
-        current?.turn.phase === "resolving-thematic-event" &&
-        current.thematicEvents.pendingEvent
-      ) {
-        playPendingWorldEventCue(current, 0.08);
-        const acknowledged = await dispatch({
-          type: "event.acknowledged",
-          occurrenceId: current.thematicEvents.pendingEvent.occurrenceId,
-        });
-        if (!acknowledged) {
-          return;
-        }
-        current = gameController.getSnapshot().activeState;
-      }
-
-      if (current?.turn.phase !== "action-phase") {
-        throw new Error("The roll could not reach the action phase.");
-      }
-
-      if (!quickRoll) {
-        return;
-      }
-
-      await rollNextTurn();
-    } catch (error) {
-      setNotice(errorMessage(error));
-    } finally {
-      setResolutionBusy(false);
-    }
-  }
-
   async function rollNextTurn(): Promise<void> {
     if (preferences.soundEnabled) {
       // A resumed game may not have an unlocked context yet. Do this before
@@ -629,6 +558,42 @@ export function App() {
     } else {
       playCue({ type: "confirm" });
     }
+
+    // Auto-roll for the next player (one-click turn advancement).
+    await roll({ type: "roll.draw" });
+  }
+
+  async function alchemyNextTurn(): Promise<void> {
+    const current = gameController.getSnapshot().activeState;
+    if (current?.turn.phase !== "action-phase") {
+      setNotice("The current roll must reach the action phase first.");
+      return;
+    }
+    if (winnerCandidates(current).length > 0) {
+      setWinnerOpen(true);
+      return;
+    }
+    const previousSeason = current.setup.seasonConfig?.enabled
+      ? deriveSeason(current.setup.seasonConfig, current.turn.round).season
+      : null;
+    const ended = await dispatch({ type: "turn.ended" });
+    if (!ended) {
+      return;
+    }
+
+    const next = gameController.getSnapshot().activeState;
+    const nextSeason = next?.setup.seasonConfig?.enabled
+      ? deriveSeason(next.setup.seasonConfig, next.turn.round).season
+      : null;
+    if (previousSeason && nextSeason && previousSeason !== nextSeason) {
+      playCue({ type: "season-change", season: nextSeason });
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, preferences.motion === "reduced" ? 1 : 520);
+      });
+    }
+
+    // Open alchemy dialog for the next player instead of auto-rolling.
+    setAlchemyOpen(true);
   }
 
   async function exportStoredGame(game: StoredGame): Promise<void> {
@@ -791,6 +756,9 @@ export function App() {
             }}
             onNextRoll={() => {
               void rollNextTurn();
+            }}
+            onAlchemyNextTurn={() => {
+              void alchemyNextTurn();
             }}
             onContinueRoll={() => {
               void continueOfficialRoll();
@@ -1088,28 +1056,8 @@ export function App() {
             }}
           />
 
-          {!snapshot.readOnly &&
-          !clockPaused &&
-          !rolling &&
-          selectedPlayer === null &&
-          state.lastRoll &&
-          state.turn.phase === "resolving-barbarian-attack" ? (
-            <RollResolutionDialog
-              key={`${state.lastRoll.id}-${state.barbarian.pendingAttack?.id ?? "no-attack"}`}
-              open
-              view={toRollResolutionView(state, clockAt)}
-              busy={resolutionBusy || snapshot.saving}
-              onPause={() => {
-                void dispatch({ type: "clock.paused" }, { type: "confirm" });
-              }}
-              onContinue={(resolution) => {
-                void resolveRollResult(false, resolution);
-              }}
-              onQuickRoll={(resolution) => {
-                void resolveRollResult(true, resolution);
-              }}
-            />
-          ) : null}
+          {/* Barbarian attacks are now auto-resolved; the physical board
+              is authoritative. The resolution dialog is no longer shown. */}
 
           {!snapshot.readOnly && !clockPaused && selectedPlayer ? (
             <PlayerEditorDialog

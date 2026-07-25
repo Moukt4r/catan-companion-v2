@@ -2,13 +2,20 @@
 
 ## Unreleased
 
-- Removed visible die captions, redundant dice arithmetic, and the oversized
-  numbered/event-die explanation blocks from roll resolution.
-- Replaced knight-derived attack confirmation with a manual physical-board
-  workflow: record whether the defenders or barbarians won, then record the
-  Defender/tie reward or the players whose cities are pillaged.
-- Changed turn advancement to stop at the next player's pre-roll state instead
-  of rolling automatically, making Roll and Use Alchemy available every turn.
+## 0.6.1 - 2026-07-25
+
+- Removed the barbarian attack resolution form entirely; the physical board is
+  now authoritative for all attack outcomes (defender points, progress rewards,
+  city losses and knight state). The app signals that barbarians attacked,
+  resets its ship cycle, activates the robber after the first attack, and logs
+  a board-authoritative history entry without requiring any data entry or
+  changing player state.
+- Restored one-click Next that advances to the next player **and** auto-rolls.
+  Added a direct Alchemy button at the end-of-turn action phase that advances
+  to the next player and opens the Alchemy dialog instead of auto-rolling.
+- Preserved backward compatibility: existing saves paused in the old attack
+  phase are recovered automatically as board-authoritative without changing
+  player state.
 
 ## 0.6.0 - 2026-07-24
 

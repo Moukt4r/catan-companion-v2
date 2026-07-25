@@ -784,13 +784,75 @@ describe("metropolis command variants, errors, and cancellation", () => {
 
 describe("attack confirmation edge cases", () => {
   function tiedAttack(): GameState {
-    const state = forceEventFace(newGame({ trackLength: 1 }), "barbarian");
-    state.players[0]!.activeKnights.strong = 1;
-    state.players[1]!.activeKnights.strong = 1;
-    return run(state, { type: "roll.draw" }, "tied-attack");
+    // Manually construct a legacy state in resolving-barbarian-attack phase
+    // since auto-resolve no longer produces this phase.
+    const base = newGame({ trackLength: 1 });
+    base.players[0]!.activeKnights.strong = 1;
+    base.players[1]!.activeKnights.strong = 1;
+    const proposalId = asProposalId("tied-proposal");
+    return {
+      ...base,
+      turn: { ...base.turn, phase: "resolving-barbarian-attack" },
+      barbarian: {
+        ...base.barbarian,
+        shipPosition: base.barbarian.rules.trackLength,
+        pendingAttack: {
+          id: proposalId,
+          strengths: {
+            barbarian: 3,
+            defenders: 2,
+            contributions: PLAYER_IDS.map((id) => ({
+              playerId: id,
+              strength: id === PLAYER_IDS[0] || id === PLAYER_IDS[1] ? 2 : 0,
+            })),
+          },
+          outcome: {
+            type: "defenders-win" as const,
+            reward: {
+              type: "progress-choice" as const,
+              playerIds: [PLAYER_IDS[0]!, PLAYER_IDS[1]!],
+            },
+          },
+          firstAttack: false,
+          summary: "Test tied attack",
+        },
+      },
+      resolution: { official: null },
+    };
   }
 
-  it("rejects wrong phases, stale proposals, incomplete, duplicate, and unexpected choices", () => {
+  it("auto-resolves barbarian attacks without entering resolving-barbarian-attack", () => {
+    const state = forceEventFace(newGame({ trackLength: 1 }), "barbarian");
+    const result = run(state, { type: "roll.draw" }, "auto-resolve-check");
+    expect(result.turn.phase).toBe("resolving-official-result");
+    expect(result.barbarian.pendingAttack).toBeNull();
+    expect(result.barbarian.shipPosition).toBe(0);
+    expect(result.barbarian.attacksCompleted).toBe(1);
+  });
+
+  it("recovers a legacy attack without changing physical-board state", () => {
+    const state = tiedAttack();
+    const playersBefore = structuredClone(state.players);
+    const next = run(
+      state,
+      {
+        type: "attack.confirmed",
+        proposalId: state.barbarian.pendingAttack!.id,
+        manualOutcome: { type: "board-authoritative" },
+        progressChoices: [],
+      },
+      "attack-board-recovery",
+    );
+
+    expect(next.turn.phase).toBe("action-phase");
+    expect(next.players).toEqual(playersBefore);
+    expect(next.barbarian.pendingAttack).toBeNull();
+    expect(next.barbarian.history.at(-1)?.outcome).toEqual({
+      type: "board-authoritative",
+    });
+  });
+
+  it("rejects wrong phases, stale proposals, incomplete, duplicate, and unexpected choices (legacy)", () => {
     expectError(
       newGame(),
       {
@@ -868,14 +930,21 @@ describe("attack confirmation edge cases", () => {
       "attack-duplicate",
     );
 
-    let loss = forceEventFace(newGame({ trackLength: 1 }), "barbarian");
-    loss = run(loss, { type: "roll.draw" }, "loss-attack");
+    const loss = tiedAttack();
+    // Override to a barbarians-win outcome for the loss test case.
+    loss.barbarian.pendingAttack = {
+      ...loss.barbarian.pendingAttack!,
+      outcome: {
+        type: "barbarians-win",
+        pillagedPlayerIds: [...PLAYER_IDS],
+      },
+    };
     expectError(
       loss,
       {
         type: "attack.confirmed",
-        proposalId: loss.barbarian.pendingAttack!.id,
-        manualOutcome: loss.barbarian.pendingAttack!.outcome,
+        proposalId: loss.barbarian.pendingAttack.id,
+        manualOutcome: loss.barbarian.pendingAttack.outcome,
         progressChoices: [{ playerId: PLAYER_IDS[0]!, discipline: "science" }],
       },
       "INVALID_COMMAND",

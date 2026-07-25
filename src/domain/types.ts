@@ -304,7 +304,8 @@ export type BarbarianAttackOutcome =
         | { type: "defender-point"; playerId: PlayerId }
         | { type: "progress-choice"; playerIds: PlayerId[] };
     }
-  | { type: "barbarians-win"; pillagedPlayerIds: PlayerId[] };
+  | { type: "barbarians-win"; pillagedPlayerIds: PlayerId[] }
+  | { type: "board-authoritative" };
 
 export interface BarbarianAttackProposal {
   id: ProposalId;

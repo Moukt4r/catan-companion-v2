@@ -57,6 +57,37 @@ describe("persistence schemas", () => {
     expect(result.value.nextState.clock).toBeDefined();
   });
 
+  it("round-trips board-authoritative barbarian attack history", () => {
+    const result = createGame({
+      gameId: asGameId("schema-board-attack-game"),
+      revisionId: asRevisionId("schema-board-attack-revision"),
+      createdAt: asIsoTimestamp("2026-07-25T05:15:00.000Z"),
+      setup: setup(),
+      random: () => 0,
+      ids: sequentialIds(),
+    });
+    if (!result.ok) throw new Error(result.error.message);
+    const state = structuredClone(result.value.nextState);
+    state.barbarian = {
+      ...state.barbarian,
+      robberActivated: true,
+      attacksCompleted: 1,
+      history: [
+        {
+          proposalId: "schema-board-attack" as never,
+          completedAt: asIsoTimestamp("2026-07-25T05:16:00.000Z"),
+          strengths: { barbarian: 0, defenders: 0, contributions: [] },
+          outcome: { type: "board-authoritative" },
+          progressChoices: [],
+        },
+      ],
+    };
+
+    expect(parseGameState(state).barbarian.history[0]?.outcome).toEqual({
+      type: "board-authoritative",
+    });
+  });
+
   it("accepts legacy states without a clock", () => {
     const result = createGame({
       gameId: asGameId("schema-legacy-game"),

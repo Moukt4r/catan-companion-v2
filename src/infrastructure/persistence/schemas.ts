@@ -241,6 +241,9 @@ const attackOutcomeSchema = z.discriminatedUnion("type", [
     type: z.literal("barbarians-win"),
     pillagedPlayerIds: z.array(id),
   }),
+  z.strictObject({
+    type: z.literal("board-authoritative"),
+  }),
 ]);
 const attackProposalSchema = z
   .strictObject({

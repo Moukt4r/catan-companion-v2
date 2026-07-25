@@ -59,7 +59,6 @@ The repository may summarize mechanics but must not copy rulebook or card text.
 setup
   -> awaiting-roll
   -> resolving-official-result
-       -> resolving-barbarian-attack (conditional)
        -> resolving-thematic-event (conditional)
        -> action-phase
   -> turn-complete
@@ -68,7 +67,9 @@ setup
 ```
 
 Invalid phase transitions are rejected by the domain engine with a typed error.
-The UI must surface the error and retain the last durable revision.
+The UI must surface the error and retain the last durable revision. The
+`resolving-barbarian-attack` phase is retained only for recovering legacy saves;
+new attacks remain in the normal official-result flow.
 
 ## 4. Balanced numbered-dice deck
 
@@ -110,8 +111,11 @@ shuffle.
 
 Alchemy is entered before the roll:
 
-- Every turn begins in `awaiting-roll`, including after **Next: PLAYER**, so
-  Alchemy remains available before every roll.
+- In the action phase, **Alchemy: PLAYER** ends the current turn and opens
+  Alchemy directly for the next player; **Next: PLAYER** uses the normal
+  one-click advance-and-roll path.
+- `awaiting-roll` still presents both Roll and Use Alchemy at game start and in
+  resumed or recovered states.
 - The player chooses red and yellow values from 1 through 6.
 - The selected pair becomes the production result.
 - The numbered-deck cursor does not move.
@@ -230,21 +234,20 @@ improvement was purchased.
 ## 8. Barbarian track and first attack
 
 - A barbarian event advances the ship one space.
-- Reaching the final space opens attack resolution immediately.
-- The table cannot activate more knights after attack resolution begins.
-- The first completed attack sets `robberActivated` to true.
+- Reaching the final space records an attack immediately without opening a
+  separate resolution phase.
+- The first recorded attack sets `robberActivated` to true.
 - Before that first attack, a rolled 7 must explain that the robber is not yet
   active under Cities & Knights setup.
 
 Track length is edition rules data, not a magic number in UI code.
 
-## 9. Barbarian attack guidance and confirmation
+## 9. Barbarian attack ownership
 
-The engine retains a calculated proposal for risk summaries, legacy saves, and
-the strength snapshot stored with attack history. It is advisory at confirmation
-time. The operator resolves the official attack on the physical board and
-submits a `manualOutcome`; that submitted outcome is authoritative even when it
-differs from the calculated proposal.
+The physical board owns the complete attack resolution: knight state,
+strength comparison, winner, Defender points, tied progress rewards, city
+losses, and score changes. The app does not calculate or collect a new attack
+outcome and does not mutate those player-owned values.
 
 ### 9.1 Strengths
 
@@ -268,7 +271,7 @@ defenderStrength = sum(activeStrength)
 
 Metropolises add to barbarian strength but cannot be pillaged.
 
-### 9.2 Defenders win on the physical board
+### 9.2 Physical-board resolution
 
 The official comparison is:
 
@@ -276,12 +279,9 @@ The official comparison is:
 defenderStrength >= barbarianStrength
 ```
 
-- If exactly one player has the highest contributed strength, the operator
-  selects that player for one Defender victory point.
-- If multiple players share the highest contribution, the operator selects two
-  or more tied players and one progress deck for each. No Defender point is
-  awarded.
-- The domain validates the submitted reward before the score ledger changes.
+- Players apply the official rules directly on the board.
+- Defender points and tied progress-card rewards are handled manually.
+- No app form or score-ledger mutation is required.
 
 The tied-player progress-card reward is verified against page 11 of the current
 2025 rulebook. It is not derived from the event-die face, which is necessarily
@@ -309,22 +309,21 @@ The fall-through in step 4 is explicit in page 11 of the current 2025 rulebook:
 selection continues until a strength group contains a city that can be
 pillaged.
 
-The operator submits the players selected on the physical board. The domain
-accepts only existing players with at least one recorded ordinary city, then
-downgrades one city for each selected player. An empty list is valid when no
-recorded ordinary city is vulnerable.
+The players selected by the physical rules downgrade their cities on the board.
+The app does not request or persist a duplicate selection.
 
 ### 9.4 Return home
 
-After either outcome is confirmed:
+When the ship reaches the final space:
 
 - reset the barbarian ship to its start;
-- set all active knight counters to zero;
-- preserve inactive board pieces outside app state;
 - mark the robber active if this was the first attack;
-- append one attack summary to history.
+- append one board-authoritative attack summary to history;
+- leave player scores, city counts, and knight counters unchanged.
 
-The entire confirmed attack is one reversible command.
+Old saves already paused in `resolving-barbarian-attack` are automatically
+confirmed with a board-authoritative outcome, preserving player state while
+returning the save to the normal roll flow.
 
 ## 10. Public player-state invariants
 

@@ -10,7 +10,7 @@ export type SoundCue =
   | { type: "barbarian-advance"; spacesRemaining: number }
   | {
       type: "barbarian-attack";
-      outcome: "defenders-win" | "barbarians-win";
+      outcome: "defenders-win" | "barbarians-win" | "board-authoritative";
     }
   | {
       type: "world-event";
@@ -208,7 +208,7 @@ export class AudioCues {
 
   private scheduleBarbarianAttack(
     start: number,
-    outcome: "defenders-win" | "barbarians-win",
+    outcome: "defenders-win" | "barbarians-win" | "board-authoritative",
   ): void {
     [0, 0.16, 0.31].forEach((offset, index) => {
       this.drum(start + offset, 0.13 + index * 0.025, 0.14, 62 - index * 3);
@@ -217,14 +217,18 @@ export class AudioCues {
     this.tone(110, start + 0.05, 0.52, 0.065, "sawtooth", 82);
 
     const frequencies =
-      outcome === "defenders-win" ? [196, 247, 294] : [196, 175, 147];
+      outcome === "defenders-win"
+        ? [196, 247, 294]
+        : outcome === "barbarians-win"
+          ? [196, 175, 147]
+          : [196, 220, 196];
     frequencies.forEach((frequency, index) => {
       this.tone(
         frequency,
         start + 0.47 + index * 0.1,
         0.3,
         0.055,
-        outcome === "defenders-win" ? "triangle" : "square",
+        outcome === "barbarians-win" ? "square" : "triangle",
       );
     });
   }

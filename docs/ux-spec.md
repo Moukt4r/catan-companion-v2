@@ -214,8 +214,8 @@ The action phase presents:
 - one-tap score adjustment on every player tile;
 - a points-first editor with Cities & Knights state behind an advanced
   disclosure;
-- a viewport-fixed **Next: PLAYER** dock, which is the only action-phase turn
-  transition.
+- a viewport-fixed turn dock with **Next: PLAYER** for the normal one-click
+  advance-and-roll path and **Alchemy: PLAYER** as the direct alternative.
 
 Every adjustment previews the resulting derived strength or score and supports
 Cancel. High-frequency plus/minus controls must also allow direct numeric entry
@@ -227,18 +227,17 @@ Ordinary rolls resolve inline on the game table:
 
 1. Show numbered dice, official event-die result, production/7 guidance, and
    progress eligibility.
-2. If a barbarian attack requires verification or choices, open the blocking
-   attack dialog. Do not reveal a pending World Event inside that dialog.
+2. If the barbarian ship reaches the final space, announce and log the attack
+   without asking the table to duplicate its physical-board resolution.
 3. After official resolution completes, show a scheduled World Event inline
    with an unmistakable **World Event (house rule)** label.
 4. The table acknowledges the World Event before entering the action phase.
-5. The viewport-fixed **Next: PLAYER** action records the turn boundary and
-   opens the next player's pre-roll state, where Roll and Use Alchemy are both
-   available.
+5. **Next: PLAYER** records the turn boundary and rolls for the next player in
+   one click. **Alchemy: PLAYER** records the same boundary and opens Alchemy
+   for that player instead of rolling.
 
-Controls remain disabled while persistence is incomplete. A blocking dialog is
-reserved for barbarian attacks or other decisions that cannot safely resolve
-inline.
+Controls remain disabled while persistence is incomplete. No blocking dialog
+is used for a new barbarian attack.
 
 ## 7. Progress eligibility sheet
 
@@ -256,45 +255,19 @@ dialog.
 
 ## 8. Barbarian attack experience
 
-Attack resolution occupies one section of the consolidated roll modal. It
-records what the players resolved on the physical board; tracked knight totals
-must not silently decide or lock the outcome.
+The app does not present an attack-resolution form. When the ship reaches the
+final space, it announces the attack, resets the app's ship cycle, activates
+the robber after the first attack, and continues the normal roll-resolution
+flow.
 
-### Step 1: Record the outcome
+The physical table remains authoritative for active knights, the outcome,
+Defender points, tied progress rewards, city losses, and all scoring. The app
+does not ask players to enter those decisions and does not change player
+scores, cities, or knight counters as a side effect of the attack.
 
-Ask the table to choose exactly one result:
-
-- Defenders won;
-- Barbarians won.
-
-Do not show a knight-strength comparison or per-player knight table in the
-attack modal. The chosen physical-board result is authoritative.
-
-### Step 2: Record consequences
-
-For **Defenders won**:
-
-- choose the sole top contributor who receives the Defender point; or
-- choose two or more tied top contributors and one progress deck for each.
-
-For **Barbarians won**:
-
-- list only players with at least one recorded ordinary city;
-- select every player who must downgrade one city;
-- allow an empty selection when no recorded ordinary city is vulnerable.
-
-### Step 3: Confirm through the modal footer
-
-The footer action summarizes and commits every mutation:
-
-- score changes;
-- ordinary city changes;
-- ship reset;
-- all active knight counters reset;
-- robber activation when applicable.
-
-The footer remains disabled until the selected outcome has all required reward
-or pillage choices.
+Legacy saves already paused in the old attack-resolution phase recover
+automatically without showing the form or changing player state. New attacks
+never enter that phase.
 
 ## 9. World Event experience
 
@@ -455,8 +428,8 @@ resolution, or alter domain state.
 
 ## 16. Content style
 
-- Use short imperative labels: Roll, Continue current turn, Next: PLAYER &
-  roll.
+- Use short imperative labels: Roll, Continue current turn, Next: PLAYER,
+  Alchemy: PLAYER.
 - Name official and house behavior explicitly.
 - State consequences before confirmation.
 - Avoid jargon such as cursor, revision conflict, or IndexedDB in normal UI.

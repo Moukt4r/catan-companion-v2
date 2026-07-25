@@ -286,7 +286,7 @@ describe("2025 progress eligibility", () => {
 });
 
 describe("barbarian attacks", () => {
-  it("awards a sole top defender and atomically resets the attack state", () => {
+  it("auto-resolves the attack and resets only the app-owned cycle", () => {
     let state = newGame({ barbarianTrackLength: 1 });
     state = withNextEventFace(state, "barbarian");
     state = {
@@ -299,157 +299,49 @@ describe("barbarian attacks", () => {
             : player.activeKnights,
       })),
     };
-    state = run(state, { type: "roll.draw" }, "attack-win-roll");
-    const proposal = state.barbarian.pendingAttack;
-    expect(proposal?.outcome).toMatchObject({
-      type: "defenders-win",
-      reward: { type: "defender-point", playerId: PLAYER_IDS[0] },
-    });
-    state = run(
-      state,
-      {
-        type: "attack.confirmed",
-        proposalId: proposal?.id as never,
-        manualOutcome: proposal!.outcome,
-      },
-      "attack-win-confirm",
-    );
-    expect(scoreForPlayer(state, PLAYER_IDS[0] as PlayerId)).toBe(4);
+    state = run(state, { type: "roll.draw" }, "attack-auto-resolve");
+
+    // No pending attack — auto-resolved during the roll.
+    expect(state.barbarian.pendingAttack).toBeNull();
+    expect(state.turn.phase).toBe("resolving-official-result");
     expect(state.barbarian).toMatchObject({
       shipPosition: 0,
       robberActivated: true,
       attacksCompleted: 1,
-      pendingAttack: null,
     });
-    expect(
-      state.players.every((player) =>
-        Object.values(player.activeKnights).every((count) => count === 0),
-      ),
-    ).toBe(true);
+    // Physical-board state is untouched by the app.
+    expect(state.players[0]?.activeKnights).toEqual({
+      basic: 0,
+      strong: 0,
+      mighty: 1,
+    });
+    // A board-authoritative history record is created.
+    expect(state.barbarian.history).toHaveLength(1);
+    expect(state.barbarian.history[0]?.outcome).toEqual({
+      type: "board-authoritative",
+    });
   });
 
-  it("requires each tied top contributor to choose a progress deck", () => {
+  it("does not modify player scores or cities (board is authoritative)", () => {
+    let state = withNextEventFace(
+      newGame({ barbarianTrackLength: 1 }),
+      "barbarian",
+    );
+    const citiesBefore = state.players.map((p) => p.ordinaryCities);
+    const scoresBefore = state.players.map((p) => scoreForPlayer(state, p.id));
+    state = run(state, { type: "roll.draw" }, "attack-no-side-effects");
+    expect(state.players.map((p) => p.ordinaryCities)).toEqual(citiesBefore);
+    expect(state.players.map((p) => scoreForPlayer(state, p.id))).toEqual(
+      scoresBefore,
+    );
+  });
+
+  it("does not enter resolving-barbarian-attack phase", () => {
     let state = newGame({ barbarianTrackLength: 1 });
     state = withNextEventFace(state, "barbarian");
-    state = {
-      ...state,
-      players: state.players.map((player, index) => ({
-        ...player,
-        activeKnights:
-          index < 2 ? { basic: 0, strong: 1, mighty: 0 } : player.activeKnights,
-      })),
-    };
-    state = run(state, { type: "roll.draw" }, "attack-tie-roll");
-    const proposal = state.barbarian.pendingAttack;
-    expect(proposal?.outcome).toMatchObject({
-      type: "defenders-win",
-      reward: {
-        type: "progress-choice",
-        playerIds: [PLAYER_IDS[0], PLAYER_IDS[1]],
-      },
-    });
-    const choices = [
-      { playerId: PLAYER_IDS[0] as PlayerId, discipline: "science" as const },
-      { playerId: PLAYER_IDS[1] as PlayerId, discipline: "trade" as const },
-    ];
-    state = run(
-      state,
-      {
-        type: "attack.confirmed",
-        proposalId: proposal?.id as never,
-        manualOutcome: proposal!.outcome,
-        progressChoices: choices,
-      },
-      "attack-tie-confirm",
-    );
-    expect(state.barbarian.history[0]?.progressChoices).toEqual(choices);
-    expect(
-      state.scoreLedger.filter((entry) => entry.reason === "defender"),
-    ).toHaveLength(0);
-  });
-
-  it("confirms a barbarian victory by pillaging the vulnerable group", () => {
-    let state = withNextEventFace(
-      newGame({ barbarianTrackLength: 1 }),
-      "barbarian",
-    );
-    state = run(state, { type: "roll.draw" }, "attack-loss-roll");
-    const proposal = state.barbarian.pendingAttack;
-    expect(proposal?.outcome).toEqual({
-      type: "barbarians-win",
-      pillagedPlayerIds: PLAYER_IDS,
-    });
-    state = run(
-      state,
-      {
-        type: "attack.confirmed",
-        proposalId: proposal?.id as never,
-        manualOutcome: proposal!.outcome,
-      },
-      "attack-loss-confirm",
-    );
-    expect(state.players.map((player) => player.ordinaryCities)).toEqual([
-      0, 0, 0,
-    ]);
-    expect(state.statistics.barbarianAttacksLost).toBe(1);
-    expect(state.barbarian.shipPosition).toBe(0);
-  });
-
-  it("allows board-state correction during attack without recalculating the proposal", () => {
-    let state = withNextEventFace(
-      newGame({ barbarianTrackLength: 1 }),
-      "barbarian",
-    );
-    state = run(state, { type: "roll.draw" }, "attack-correction-roll");
-    const originalProposalId = state.barbarian.pendingAttack?.id;
-
-    state = run(
-      state,
-      {
-        type: "player.publicStateAdjusted",
-        playerId: PLAYER_IDS[0] as PlayerId,
-        patch: {
-          activeKnights: { mighty: 1 },
-        },
-      },
-      "attack-correction",
-    );
-
-    expect(state.turn.phase).toBe("resolving-barbarian-attack");
-    expect(state.barbarian.pendingAttack?.id).toBe(originalProposalId);
-    expect(state.players[0]?.activeKnights.mighty).toBe(1);
-  });
-
-  it("records a manual defenders-win even when the proposal says barbarians-win", () => {
-    let state = withNextEventFace(
-      newGame({ barbarianTrackLength: 1 }),
-      "barbarian",
-    );
-    state = run(state, { type: "roll.draw" }, "manual-override-roll");
-    const proposal = state.barbarian.pendingAttack;
-    expect(proposal?.outcome.type).toBe("barbarians-win");
-
-    const manualOutcome = {
-      type: "defenders-win" as const,
-      reward: {
-        type: "defender-point" as const,
-        playerId: PLAYER_IDS[0] as PlayerId,
-      },
-    };
-    state = run(
-      state,
-      {
-        type: "attack.confirmed",
-        proposalId: proposal?.id as never,
-        manualOutcome,
-      },
-      "manual-override-confirm",
-    );
-    expect(state.barbarian.history[0]?.outcome).toEqual(manualOutcome);
-    expect(scoreForPlayer(state, PLAYER_IDS[0] as PlayerId)).toBe(4);
-    expect(state.statistics.barbarianAttacksWon).toBe(1);
-    expect(state.statistics.barbarianAttacksLost).toBe(0);
-    expect(state.players.map((p) => p.ordinaryCities)).toEqual([1, 1, 1]);
+    state = run(state, { type: "roll.draw" }, "attack-skip-phase");
+    expect(state.turn.phase).not.toBe("resolving-barbarian-attack");
+    expect(state.turn.phase).toBe("resolving-official-result");
   });
 
   it("falls through protected lowest strength groups to vulnerable ordinary cities", () => {

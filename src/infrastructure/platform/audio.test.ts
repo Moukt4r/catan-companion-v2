@@ -175,6 +175,10 @@ describe("AudioCues", () => {
       type: "barbarian-attack",
       outcome: "barbarians-win",
     });
+    const boardAuthoritative = await renderCue({
+      type: "barbarian-attack",
+      outcome: "board-authoritative",
+    });
 
     expect(imminent.oscillators.length).toBeGreaterThan(
       distant.oscillators.length,
@@ -189,6 +193,10 @@ describe("AudioCues", () => {
     expect(pillagedFinal?.frequency.setValueAtTime.mock.calls[0]?.[0]).toBe(
       147,
     );
+    expect(
+      boardAuthoritative.oscillators.at(-1)?.frequency.setValueAtTime.mock
+        .calls[0]?.[0],
+    ).toBe(196);
   });
 
   it("layers World Events by category, tone, and impact", async () => {

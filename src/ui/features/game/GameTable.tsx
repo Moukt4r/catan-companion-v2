@@ -103,6 +103,7 @@ interface GameTableProps {
   onAdjustScore: (playerId: string, delta: -1 | 1) => void;
   onEditPlayer: (playerId: string) => void;
   onNextRoll: () => void;
+  onAlchemyNextTurn: () => void;
   onContinueRoll: () => void;
   onAcknowledgeEvent: () => void;
   onResolveEvent?: (occurrenceId: string) => void;
@@ -143,6 +144,7 @@ export function GameTable({
   soundEnabled = false,
   onToggleSound,
   onAlchemy,
+  onAlchemyNextTurn,
   onAdjustScore,
   onAcknowledgeEvent,
   onResolveEvent,
@@ -554,6 +556,17 @@ export function GameTable({
               onClick={onNextRoll}
             >
               Next: {view.nextPlayerName}
+            </Button>
+            <Button
+              size="large"
+              block
+              variant="secondary"
+              disabled={
+                busy || !view.canRollNextTurn || view.readOnly || view.paused
+              }
+              onClick={onAlchemyNextTurn}
+            >
+              Alchemy: {view.nextPlayerName}
             </Button>
           </aside>
         ) : null}

@@ -1,4 +1,3 @@
-import { calculateBarbarianAttack } from "./barbarian";
 import { accrueGameClock, createGameClock, parseIsoTimestamp } from "./clock";
 import {
   createEventDeck,
@@ -507,14 +506,28 @@ function roll(
     const shipPosition = barbarian.shipPosition + 1;
     barbarian = { ...barbarian, shipPosition };
     if (shipPosition === barbarian.rules.trackLength) {
-      const proposal = calculateBarbarianAttack(
-        {
-          ...state,
-          barbarian,
+      // Auto-resolve: the physical board is authoritative for all attack
+      // details. The app only signals/logs that the attack happened and
+      // resets the barbarian cycle.
+      const attackRecord: BarbarianAttackRecord = {
+        proposalId: nextProposalId(deps.ids),
+        completedAt: deps.at,
+        strengths: {
+          barbarian: 0,
+          defenders: 0,
+          contributions: [],
         },
-        nextProposalId(deps.ids),
-      );
-      barbarian = { ...barbarian, pendingAttack: proposal };
+        outcome: { type: "board-authoritative" },
+        progressChoices: [],
+      };
+      barbarian = {
+        ...barbarian,
+        shipPosition: 0,
+        robberActivated: true,
+        attacksCompleted: barbarian.attacksCompleted + 1,
+        pendingAttack: null,
+        history: [...barbarian.history, attackRecord],
+      };
     }
   }
 
@@ -545,13 +558,11 @@ function roll(
     progressPending: progress !== null,
     productionPending: true,
   };
-  const phase =
-    barbarian.pendingAttack !== null
-      ? "resolving-barbarian-attack"
-      : "resolving-official-result";
+  const phase = "resolving-official-result";
   const candidate: GameState = {
     ...state,
     turn: { ...state.turn, phase },
+    players: state.players,
     numberedDeck:
       alchemy === null && numberedDraw?.ok
         ? numberedDraw.value.deck
@@ -1107,10 +1118,13 @@ function confirmAttack(
     return failure(choiceError);
   }
 
-  let players = state.players.map((player) => ({
-    ...player,
-    activeKnights: { basic: 0, strong: 0, mighty: 0 },
-  }));
+  let players =
+    outcome.type === "board-authoritative"
+      ? state.players
+      : state.players.map((player) => ({
+          ...player,
+          activeKnights: { basic: 0, strong: 0, mighty: 0 },
+        }));
   const scoreEntries: ScoreEntry[] = [];
   if (
     outcome.type === "defenders-win" &&
@@ -1139,13 +1153,15 @@ function confirmAttack(
     progressChoices,
   };
   const summary =
-    outcome.type === "defenders-win"
-      ? outcome.reward.type === "defender-point"
-        ? "The defenders win; the sole top contributor gains one Defender point."
-        : "The defenders win; tied top contributors each choose a progress deck."
-      : outcome.pillagedPlayerIds.length === 0
-        ? "The barbarians win, but no recorded ordinary city is vulnerable."
-        : "The barbarians win; selected players lose one ordinary city each.";
+    outcome.type === "board-authoritative"
+      ? "Barbarian attack resolved on the physical board."
+      : outcome.type === "defenders-win"
+        ? outcome.reward.type === "defender-point"
+          ? "The defenders win; the sole top contributor gains one Defender point."
+          : "The defenders win; tied top contributors each choose a progress deck."
+        : outcome.pillagedPlayerIds.length === 0
+          ? "The barbarians win, but no recorded ordinary city is vulnerable."
+          : "The barbarians win; selected players lose one ordinary city each.";
   const official = state.resolution.official;
   const phase =
     official !== null &&
@@ -1184,11 +1200,13 @@ function confirmAttack(
       kind: "attack-confirmed",
       text: summary,
       playerIds:
-        outcome.type === "barbarians-win"
-          ? outcome.pillagedPlayerIds
-          : outcome.reward.type === "defender-point"
-            ? [outcome.reward.playerId]
-            : outcome.reward.playerIds,
+        outcome.type === "board-authoritative"
+          ? []
+          : outcome.type === "barbarians-win"
+            ? outcome.pillagedPlayerIds
+            : outcome.reward.type === "defender-point"
+              ? [outcome.reward.playerId]
+              : outcome.reward.playerIds,
     },
     { type: "barbarian-attack", record, phase },
   );

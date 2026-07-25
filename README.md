@@ -20,18 +20,18 @@ this implementation.
 - Independently shuffled event-die cycles with 3 barbarian, 1 science, 1
   trade, and 1 politics face.
 - Alchemy rolls that preserve the numbered-deck cursor.
-- Inline roll guidance for ordinary results, with a blocking modal only when a
-  barbarian attack needs its physical-board outcome and rewards recorded.
-- **Next: PLAYER** directly from the active table flow.
-- No standalone end-turn button: the next-player action records the turn
-  boundary and stops before the next roll so Roll and Use Alchemy are always
-  available.
+- Inline roll guidance for ordinary results; barbarian attacks are announced
+  and logged without duplicating physical-board resolution in a form.
+- **Next: PLAYER** ends the current turn and rolls for the next player in one
+  click, with **Alchemy: PLAYER** beside it as a direct alternative.
+- No standalone end-turn button and no extra pre-roll click for normal turns.
 - Live current-turn, per-player accumulated, and total active game timers.
 - A persisted Pause mode that stops every timer and blocks all controls except
   Resume.
 - Progress-card eligibility guidance using the current 2025 improvement board.
-- Barbarian movement, manually recorded physical-board outcomes, Defender/tie
-  rewards, pillaging, knight reset, and first-attack robber activation.
+- Barbarian movement, first-attack robber activation, and board-authoritative
+  attack logging without changing manually managed outcomes, points, cities,
+  or knights.
 - Public player scores, cities, metropolises, active knights, and city
   improvements.
 - **World Events v0.2.0:** A typed 20-event engine with five selectable packs

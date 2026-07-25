@@ -147,10 +147,12 @@ The turn state machine is:
 
 1. `awaiting-roll`
 2. `resolving-official-result`
-3. `resolving-barbarian-attack` when required
-4. `resolving-thematic-event` when triggered
-5. `action-phase`
-6. `turn-complete`
+3. `resolving-thematic-event` when triggered
+4. `action-phase`
+5. `turn-complete`
+
+`resolving-barbarian-attack` is a legacy recovery phase only; new attacks do
+not interrupt this flow.
 
 The app cannot roll twice in one turn unless the previous roll is undone.
 
@@ -161,7 +163,7 @@ the winner rather than ending automatically. Confirmation archives:
 
 - winner and final public scores;
 - duration, turns, rounds, and roll statistics;
-- barbarian attack outcomes;
+- barbarian attack occurrences (physical-board outcomes remain manual);
 - triggered and resolved World Events;
 - active house-rule configuration;
 - an exportable game record.
@@ -236,19 +238,16 @@ and vulnerable city count are derived rather than independently editable.
 ### FR-08: Barbarian assistance
 
 - Advance the barbarian ship when the event result is barbarian.
-- Open attack resolution immediately when the final track space is reached.
-- Retain derived barbarian/defender strengths as advisory state and for
-  backward-compatible attack records, not as the authoritative attack result.
-- Require the operator to record the physical board's result: defenders won or
-  barbarians won.
-- For a defense, record either the sole Defender-point recipient or two or more
-  tied contributors and each chosen progress deck.
-- For a barbarian victory, record every player who must downgrade an ordinary
-  city; only players with a recorded ordinary city are eligible.
-- Treat the submitted physical-board outcome as authoritative before changing
-  scores or city counts, even if it differs from a legacy calculated proposal.
-- Reset the ship and deactivate all active knights after confirmed resolution.
-- Keep attack resolution atomic and undoable.
+- When the final track space is reached, announce and log the attack without
+  opening a form or interrupting the official roll result.
+- Treat the physical board as authoritative for knight state, the attack
+  outcome, Defender points, tied progress rewards, city losses, and scoring.
+- Do not ask the operator to duplicate any of those decisions in the app and
+  do not mutate player scores, cities, or knight counters during the attack.
+- Reset the app's ship cycle, activate the robber after the first attack, and
+  append a board-authoritative history entry.
+- Recover old saves already paused in attack resolution automatically as
+  board-authoritative without changing player state.
 
 ### FR-09: World Events (v0.2.0)
 
@@ -286,13 +285,14 @@ and vulnerable city count are derived rather than independently editable.
 ### FR-11: Turn management
 
 - Do not expose a standalone End turn action.
-- The action-phase **Next: PLAYER** control ends the current turn and leaves the
-  next player in `awaiting-roll`.
+- The action-phase **Next: PLAYER** control ends the current turn and immediately
+  rolls for the next player in one click.
+- Provide **Alchemy: PLAYER** beside it; this ends the current turn and opens
+  Alchemy for the next player instead of auto-rolling.
 - Advance clockwise and increment the round after the final player.
 - Keep quick public-state controls available during the action phase.
-- Offer **Next: PLAYER** in the consolidated result modal. This acknowledges the
-  displayed result and ends the current turn without rolling automatically.
-- Present both **Roll** and **Use Alchemy** before every turn's roll.
+- Retain **Roll** and **Use Alchemy** in `awaiting-roll` for game start, resumed
+  legacy states, and recovery paths.
 - Announce the next player visually and through an accessible live region.
 
 ### FR-12: History and undo
