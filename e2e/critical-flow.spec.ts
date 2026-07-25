@@ -52,6 +52,14 @@ async function setupStandardGame(page: Page) {
   await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
 }
 
+async function openHeaderMenu(page: Page) {
+  const panel = page.locator(".header-menu__panel");
+  if (!(await panel.isVisible().catch(() => false))) {
+    await page.getByRole("button", { name: "More actions" }).click();
+    await expect(panel).toBeVisible();
+  }
+}
+
 async function resolveRoll(page: Page) {
   await expect(page.locator(".roll-result-summary")).toBeVisible();
   const worldEvent = page.getByRole("button", {
@@ -662,6 +670,7 @@ test("persists opt-in sound effects and volume without network assets", async ({
 
   await reloaded.getByRole("button", { name: "Close" }).click();
   await setupStandardGame(page);
+  await openHeaderMenu(page);
   const soundToggle = page.getByRole("button", { name: "Sound on" });
   await expect(soundToggle).toHaveAttribute("aria-pressed", "true");
   await soundToggle.click();
@@ -719,6 +728,7 @@ test("persists Alchemy, public state, turns, undo, and redo", async ({
     page.locator(".player-card").first().locator(".player-score strong"),
   ).toHaveText("4");
 
+  await openHeaderMenu(page);
   await page.getByRole("button", { name: "History" }).click();
   let history = page.locator("dialog[open]");
   await history.getByRole("button", { name: "Undo latest" }).click();
@@ -727,6 +737,7 @@ test("persists Alchemy, public state, turns, undo, and redo", async ({
     page.locator(".player-card").first().locator(".player-score strong"),
   ).toHaveText("3");
 
+  await openHeaderMenu(page);
   await page.getByRole("button", { name: "History" }).click();
   history = page.locator("dialog[open]");
   await history.getByRole("button", { name: "Redo" }).click();
@@ -737,11 +748,15 @@ test("persists Alchemy, public state, turns, undo, and redo", async ({
 
   await page.getByRole("button", { name: "Next: Grace" }).click();
   await resolveRoll(page);
-  await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Roll for Grace" }),
+  ).toBeVisible();
 
   await page.reload();
   await page.getByRole("button", { name: "Resume game" }).click();
-  await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Roll for Grace" }),
+  ).toBeVisible();
   await expect(
     page.locator(".player-card").first().locator(".player-score strong"),
   ).toHaveText("4");
@@ -780,7 +795,9 @@ test("next-player roll advances the turn and updates the inline result", async (
   await expect(
     page.getByRole("dialog", { name: /Roll result:/ }),
   ).not.toBeVisible();
-  await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Roll for Grace" }),
+  ).toBeVisible();
   await expect(page.locator(".game-meta")).toContainText("Turn 2");
 });
 
@@ -792,7 +809,9 @@ test("opens Alchemy directly for the next player", async ({ page }) => {
   await page.getByRole("button", { name: "Alchemy: Grace" }).click();
   const alchemy = page.locator("dialog[open]");
   await expect(alchemy).toBeVisible();
-  await expect(page.getByText("Grace's turn", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Roll for Grace" }),
+  ).toBeVisible();
   await alchemy.getByRole("spinbutton", { name: "Red die" }).fill("5");
   await alchemy.getByRole("spinbutton", { name: "Yellow die" }).fill("4");
   await alchemy.getByRole("button", { name: "Roll event die" }).click();
@@ -825,6 +844,7 @@ test("tracks per-player time and freezes every timer while paused", async ({
   await expect.poll(() => playerTime(0)).toBeGreaterThan(0);
   await expect.poll(() => playerTime(1)).toBeGreaterThan(0);
 
+  await openHeaderMenu(page);
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   const paused = page.getByRole("dialog", { name: "Game paused" });
   await expect(paused).toBeVisible();
@@ -845,8 +865,7 @@ test("tracks per-player time and freezes every timer while paused", async ({
   await expect(page.locator(".roll-result-summary")).toBeVisible();
   const turnClock = () =>
     page
-      .locator(".game-clock-row strong")
-      .nth(0)
+      .locator(".player-card--current .player-time strong")
       .textContent()
       .then(durationSeconds);
   const beforeResumeTick = await turnClock();
@@ -1003,6 +1022,7 @@ test("configures Seasons Mode and announces a round-boundary transition", async 
   );
   await expect(page.locator(".season-transition__art")).toBeVisible();
 
+  await openHeaderMenu(page);
   await page.getByRole("button", { name: "History" }).click();
   const history = page.locator("dialog[open]");
   await expect(history).toContainText("Spring began.");

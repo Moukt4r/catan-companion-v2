@@ -114,6 +114,7 @@ test("the inline roll result has no detectable accessibility violations", async 
     .analyze();
   expect(results.violations).toEqual([]);
 
+  await page.getByRole("button", { name: "More actions" }).click();
   await page.getByRole("button", { name: "Pause", exact: true }).click();
   const paused = page.getByRole("dialog", { name: "Game paused" });
   await expect(paused).toBeVisible();

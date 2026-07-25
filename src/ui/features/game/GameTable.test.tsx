@@ -145,8 +145,12 @@ describe("GameTable", () => {
     await user.click(screen.getByRole("button", { name: "Roll" }));
 
     expect(onRoll).toHaveBeenCalledOnce();
-    expect(screen.getAllByText("00:01:05")).toHaveLength(2);
-    expect(screen.getByText("01:01:01")).toBeVisible();
+    // Timers live on the player cards only: the header no longer repeats the
+    // turn clock, and the total game clock is available from Pause/History.
+    expect(screen.getAllByText("00:01:05")).toHaveLength(1);
+    expect(screen.queryByText("01:01:01")).not.toBeInTheDocument();
+    expect(screen.queryByText("Ada's turn")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Roll for Ada" })).toBeVisible();
     expect(screen.getByLabelText("Ada has 3 public points")).toHaveTextContent(
       "3",
     );

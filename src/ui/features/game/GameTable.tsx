@@ -222,10 +222,6 @@ export function GameTable({
       <header className="game-header">
         <div>
           <p className="eyebrow">{view.title}</p>
-          <PlayerMarker
-            color={view.currentPlayerColor}
-            label={`${view.currentPlayerName}'s turn`}
-          />
           <p className="game-meta">
             Round {view.round} · Turn {view.turnNumber} · {view.phaseLabel}
           </p>
@@ -254,14 +250,6 @@ export function GameTable({
               </span>
             </div>
           ) : null}
-          <div className="game-clock-row" aria-label="Game timers">
-            <span>
-              Turn <strong>{formatDuration(view.currentTurnMs)}</strong>
-            </span>
-            <span>
-              Game <strong>{formatDuration(view.totalGameMs)}</strong>
-            </span>
-          </div>
         </div>
         <div className="game-header__actions">
           {view.offline ? (
@@ -277,18 +265,10 @@ export function GameTable({
             {view.savedLabel}
           </span>
           {/*
-           * Only Pause is needed mid-turn. The rest are occasional, so they
-           * live behind a disclosure to keep the header from eating vertical
-           * space on every single turn.
+           * Pause sits beside Roll while it is someone's turn, where the player
+           * is already looking. Once the roll is resolved that row is gone, so
+           * the disclosure carries Pause for the rest of the turn.
            */}
-          <Button
-            variant="secondary"
-            size="small"
-            disabled={!view.canPause || view.readOnly || view.paused}
-            onClick={onPause}
-          >
-            Pause
-          </Button>
           <div className="header-menu">
             <Button
               variant="quiet"
@@ -310,6 +290,19 @@ export function GameTable({
                 role="group"
                 aria-label="More actions"
               >
+                {view.canRoll ? null : (
+                  <Button
+                    variant="quiet"
+                    size="small"
+                    disabled={!view.canPause || view.readOnly || view.paused}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onPause();
+                    }}
+                  >
+                    Pause
+                  </Button>
+                )}
                 <Button
                   variant="quiet"
                   size="small"
@@ -451,6 +444,15 @@ export function GameTable({
               onClick={onAlchemy}
             >
               Use Alchemy
+            </Button>
+            <Button
+              size="large"
+              block
+              variant="quiet"
+              disabled={!view.canPause || view.readOnly || view.paused}
+              onClick={onPause}
+            >
+              Pause
             </Button>
           </div>
         ) : (
