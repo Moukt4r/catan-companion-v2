@@ -550,58 +550,31 @@ export function GameTable({
                   ),
                 )}
               </div>
-              <p className="barbarian-distance">{spacesLabel} until attack</p>
-              <dl className="definition-grid">
-                <div>
-                  <dt>Barbarians</dt>
-                  <dd>{view.barbarian.strength}</dd>
-                </div>
-                <div>
-                  <dt>Active defense</dt>
-                  <dd>{view.barbarian.defenderStrength}</dd>
-                </div>
-              </dl>
-
-              <div className="barbarian-forecast">
-                <p className="eyebrow">If the attack resolved now</p>
-                <StatusBanner
-                  tone={
-                    view.forecast.defended
-                      ? "success"
-                      : view.forecast.attackImminent
-                        ? "danger"
-                        : "warning"
-                  }
-                >
-                  {view.forecast.defended ? (
-                    <>
-                      <strong>Catan holds.</strong>{" "}
-                      {view.forecast.rewardNames.length === 1
-                        ? `${view.forecast.rewardNames[0]} would take the Defender point.`
-                        : `${view.forecast.rewardNames.join(" and ")} would each choose a progress card.`}
-                    </>
-                  ) : view.forecast.pillagedNames.length === 0 ? (
-                    <>
-                      <strong>Catan falls</strong>, but no recorded city is
-                      exposed.
-                    </>
-                  ) : (
-                    <>
-                      <strong>Catan falls.</strong>{" "}
-                      {view.forecast.pillagedNames.join(" and ")}
-                      {view.forecast.pillagedNames.length === 1
-                        ? " would lose a city."
-                        : " would each lose a city."}
-                    </>
-                  )}
-                </StatusBanner>
-                {view.forecast.inactiveStrength > 0 ? (
-                  <p className="fine-print">
-                    Inactive knights are holding back{" "}
-                    <strong>{view.forecast.inactiveStrength}</strong> defense.
-                  </p>
-                ) : null}
-              </div>
+              <p
+                className={`barbarian-distance barbarian-forecast barbarian-forecast--${
+                  view.forecast.defended
+                    ? "held"
+                    : view.forecast.attackImminent
+                      ? "imminent"
+                      : "falls"
+                }`}
+              >
+                {spacesLabel} until attack · barbarians{" "}
+                {view.barbarian.strength} vs defense{" "}
+                {view.barbarian.defenderStrength}
+                <span className="barbarian-forecast__verdict">
+                  {view.forecast.defended
+                    ? view.forecast.rewardNames.length === 1
+                      ? `Held · ${view.forecast.rewardNames[0]} takes the Defender point`
+                      : `Held · ${view.forecast.rewardNames.join(" and ")} each draw a progress card`
+                    : view.forecast.pillagedNames.length === 0
+                      ? "Falls · no recorded city is exposed"
+                      : `Falls · ${view.forecast.pillagedNames.join(" and ")} lose a city`}
+                  {view.forecast.inactiveStrength > 0
+                    ? ` (${view.forecast.inactiveStrength} defense inactive)`
+                    : ""}
+                </span>
+              </p>
             </div>
           </details>
         </aside>
