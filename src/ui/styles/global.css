@@ -737,16 +737,78 @@ h3 {
   gap: 0.35rem;
 }
 
-.barbarian-track span {
-  min-height: 20px;
-  border: 1px solid rgb(23 50 77 / 22%);
-  border-radius: 999px;
-  background: rgb(23 50 77 / 8%);
+/*
+ * Each step is a circle: empty steps stay transparent, advanced steps fill
+ * solid, and the step the ship just reached carries a pulsing ring. The pulse
+ * tightens and reddens as the attack approaches so the threat is obvious from
+ * across the table rather than something you have to read.
+ */
+.barbarian-step {
+  aspect-ratio: 1;
+  min-height: 22px;
+  border: 2px solid rgb(23 50 77 / 30%);
+  border-radius: 50%;
+  background: transparent;
 }
 
-.barbarian-track .barbarian-track__filled {
-  border-color: var(--color-red-600);
-  background: var(--color-red-600);
+.barbarian-step--advanced {
+  border-color: #16191c;
+  background: #16191c;
+}
+
+.barbarian-step--current {
+  position: relative;
+  animation: barbarian-pulse 2s ease-in-out infinite;
+}
+
+@keyframes barbarian-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(183 63 63 / 70%);
+  }
+
+  50% {
+    box-shadow: 0 0 0 var(--barbarian-pulse-spread, 6px) rgb(183 63 63 / 0%);
+  }
+}
+
+/* Closer to Catan: faster, wider, more insistent. */
+.barbarian-track--threat-1 .barbarian-step--current,
+.barbarian-track--threat-2 .barbarian-step--current {
+  --barbarian-pulse-spread: 5px;
+
+  animation-duration: 2.4s;
+}
+
+.barbarian-track--threat-3 .barbarian-step--current,
+.barbarian-track--threat-4 .barbarian-step--current {
+  --barbarian-pulse-spread: 7px;
+
+  animation-duration: 1.8s;
+}
+
+.barbarian-track--threat-5 .barbarian-step--current {
+  --barbarian-pulse-spread: 9px;
+
+  animation-duration: 1.3s;
+}
+
+.barbarian-track--threat-6 .barbarian-step--current {
+  --barbarian-pulse-spread: 12px;
+
+  animation-duration: 0.9s;
+}
+
+.barbarian-track--threat-7 .barbarian-step--current {
+  --barbarian-pulse-spread: 14px;
+
+  animation-duration: 0.6s;
+}
+
+/* Quiet forecast: no verdict yet, so it should not draw the eye. */
+.barbarian-forecast--quiet {
+  border-left-color: rgb(23 50 77 / 18%);
+  color: var(--color-navy-700);
 }
 
 .barbarian-distance {
@@ -1517,6 +1579,47 @@ h3 {
 .die--event {
   background: var(--color-gold-300);
   color: var(--color-navy-950);
+}
+
+/*
+ * The physical event die is colour-coded per face. Match it so the result is
+ * readable across the table without deciphering the artwork.
+ */
+.die--face-science {
+  background: #2f7551;
+  color: #fff;
+}
+
+.die--face-trade {
+  background: #d8a33a;
+  color: #1e3032;
+}
+
+.die--face-politics {
+  background: #2b5f96;
+  color: #fff;
+}
+
+.die--face-barbarian {
+  background: #23282c;
+  color: #fff;
+}
+
+.die__event-caption {
+  position: relative;
+  z-index: 1;
+  align-self: end;
+  width: 100%;
+  padding: 0.2rem 0.1rem 0.28rem;
+  background: linear-gradient(to top, rgb(0 0 0 / 62%), transparent);
+  color: #fff;
+  font-family: inherit;
+  font-size: clamp(0.62rem, 1.5vw, 0.82rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .die__number,

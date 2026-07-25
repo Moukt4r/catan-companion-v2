@@ -76,17 +76,18 @@ function timingCopyForDuration(
   duration: WorldEventDuration,
   activated: boolean,
 ): string {
+  void activated;
   switch (duration) {
     case "immediate":
-      return "Immediate effect";
+      return "Resolve now, then it is done";
     case "rest-of-turn":
-      return "Active until end of this turn";
+      return "In force for the rest of this turn";
     case "full-round":
-      return activated ? "Active this round" : "Activates next round";
+      return "In force for this full round";
     case "until-next-occurrence":
-      return "Active until the next world event";
+      return "In force until the next world event";
     case "until-resolved":
-      return "Active until resolved";
+      return "In force until someone marks it resolved";
   }
 }
 

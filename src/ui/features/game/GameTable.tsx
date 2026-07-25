@@ -468,13 +468,43 @@ export function GameTable({
                       : "Balanced draw"}
                   </span>
                 </div>
+                {view.lastRoll.total === 7 && view.canContinueRoll ? (
+                  <section
+                    className={`roll-seven roll-seven--${
+                      view.lastRoll.production.robberActivated
+                        ? "active"
+                        : "dormant"
+                    }`}
+                    aria-labelledby="roll-seven-heading"
+                  >
+                    <p className="rule-label rule-label--seven">Rolled a 7</p>
+                    <h2 id="roll-seven-heading">
+                      {view.lastRoll.production.robberActivated
+                        ? "Discard, then move the robber"
+                        : "Discard only — the robber is not active yet"}
+                    </h2>
+                    <p>
+                      Every player above their safe hand limit discards half,
+                      rounded down. City walls raise that limit by two each.
+                    </p>
+                    <p>
+                      {view.lastRoll.production.robberActivated
+                        ? "Then move the robber to a new hex and steal one card from a player building on it."
+                        : "The robber stays where it is until the first barbarian attack has been resolved."}
+                    </p>
+                  </section>
+                ) : null}
                 {view.canContinueRoll ? (
                   <Button
                     size="small"
                     disabled={busy || view.readOnly || view.paused}
                     onClick={onContinueRoll}
                   >
-                    {busy ? "Saving..." : "Continue roll"}
+                    {busy
+                      ? "Saving..."
+                      : view.lastRoll.total === 7
+                        ? "Acknowledge the 7"
+                        : "Continue roll"}
                   </Button>
                 ) : null}
                 {view.worldEvent ? (
@@ -571,7 +601,10 @@ export function GameTable({
                 </span>
               </div>
               <div
-                className="barbarian-track"
+                className={`barbarian-track barbarian-track--threat-${Math.min(
+                  view.barbarian.position,
+                  view.barbarian.trackLength,
+                )}`}
                 role="meter"
                 aria-label={`${spacesLabel} until the barbarian attack`}
                 aria-valuemin={0}
@@ -580,16 +613,18 @@ export function GameTable({
               >
                 {Array.from(
                   { length: view.barbarian.trackLength },
-                  (_, index) => (
-                    <span
-                      key={index}
-                      className={
-                        index < view.barbarian.position
-                          ? "barbarian-track__filled"
-                          : ""
-                      }
-                    />
-                  ),
+                  (_, index) => {
+                    const advanced = index < view.barbarian.position;
+                    const current = index === view.barbarian.position - 1;
+                    return (
+                      <span
+                        key={index}
+                        className={`barbarian-step${
+                          advanced ? " barbarian-step--advanced" : ""
+                        }${current ? " barbarian-step--current" : ""}`}
+                      />
+                    );
+                  },
                 )}
               </div>
               <p

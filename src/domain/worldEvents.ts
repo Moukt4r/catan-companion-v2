@@ -612,21 +612,6 @@ export function isWorldEventExpired(
 }
 
 /**
- * Activate deferred full-round events at a round boundary.
- */
-export function activateDeferredEvents(
-  activeEvents: readonly ActiveWorldEvent[],
-  newRound: number,
-): ActiveWorldEvent[] {
-  return activeEvents.map((event) => {
-    if (event.duration === "full-round" && !event.activated) {
-      return { ...event, activated: true, activeRound: newRound };
-    }
-    return event;
-  });
-}
-
-/**
  * Remove expired events and "until-next-occurrence" events when a new event fires.
  */
 export function pruneActiveEvents(
@@ -664,13 +649,13 @@ export function createActiveWorldEvent(
   triggeredAtCompletedTurn: number,
   currentRound: number,
 ): ActiveWorldEvent | null {
-  void currentRound;
   if (event.duration === "immediate") {
     return null;
   }
 
-  const isFullRound = event.duration === "full-round";
-
+  // Every tracked event starts the moment it is drawn. Full-round events used
+  // to sit dormant until the next round boundary, which meant the table read
+  // an instruction that was not yet in force.
   return {
     occurrenceId,
     eventId: event.id,
@@ -683,9 +668,9 @@ export function createActiveWorldEvent(
     scope: event.scope,
     duration: event.duration,
     compatibility: { ...event.compatibility },
-    activeRound: null, // full-round events get activeRound set at activation
+    activeRound: event.duration === "full-round" ? currentRound : null,
     triggeredAtCompletedTurn,
-    activated: !isFullRound,
+    activated: true,
   };
 }
 
@@ -843,15 +828,6 @@ export function validateActiveEvents(
     ) {
       errors.push(
         `Active event ${event.occurrenceId}: activated full-round event must have activeRound`,
-      );
-    }
-    if (
-      event.duration === "full-round" &&
-      !event.activated &&
-      event.activeRound !== null
-    ) {
-      errors.push(
-        `Active event ${event.occurrenceId}: deferred full-round event must not have activeRound`,
       );
     }
   }

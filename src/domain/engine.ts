@@ -22,11 +22,7 @@ import {
 } from "./selectors";
 import { createThematicState, scheduleThematicEvent } from "./thematic";
 import { deriveSeason, isSeasonTransition, SEASON_LABELS } from "./seasons";
-import {
-  pruneActiveEvents,
-  activateDeferredEvents,
-  resolveActiveEvent,
-} from "./worldEvents";
+import { pruneActiveEvents, resolveActiveEvent } from "./worldEvents";
 import type {
   ActiveWorldEventRecord,
   BarbarianAttackOutcome,
@@ -1382,9 +1378,6 @@ function endTurn(state: GameState, deps: DomainDeps): DomainResult<Decision> {
     playerCount,
     false,
   );
-  if (completedRound) {
-    activeEvents = activateDeferredEvents(activeEvents, newRound);
-  }
 
   const candidate: GameState = {
     ...state,

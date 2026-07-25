@@ -575,6 +575,48 @@ h1 {
   color: var(--accent, var(--warning));
 }
 
+/*
+ * A rolled 7 is an event the table must act on before play continues, so it
+ * gets the same visual weight as a world event rather than being buried in
+ * the production line.
+ */
+.rule-label--seven {
+  border-color: var(--danger);
+  background: rgb(183 63 63 / 12%);
+  color: var(--danger);
+}
+
+.roll-seven {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-medium);
+  background: rgb(183 63 63 / 8%);
+}
+
+.roll-seven h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.roll-seven p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.roll-seven--dormant {
+  border-color: var(--line-strong);
+  background: var(--surface-muted);
+}
+
+.roll-seven--dormant .rule-label--seven {
+  border-color: var(--line-strong);
+  background: transparent;
+  color: var(--ink-muted);
+}
+
 .choice-card:has(input:checked) {
   border-color: var(--accent-strong);
   background: var(--accent-soft);
@@ -1118,6 +1160,30 @@ h1 {
   color: #1e3032;
 }
 
+/*
+ * Face colours must come after the generic .die--event rule above, which would
+ * otherwise repaint every face gold.
+ */
+.die--face-science {
+  background: #2f7551;
+  color: #fff;
+}
+
+.die--face-trade {
+  background: #d8a33a;
+  color: #1e3032;
+}
+
+.die--face-politics {
+  background: #2b5f96;
+  color: #fff;
+}
+
+.die--face-barbarian {
+  background: #23282c;
+  color: #fff;
+}
+
 .die__event {
   position: absolute;
   inset: 0;
@@ -1183,14 +1249,14 @@ h1 {
   padding-top: 0.25rem;
 }
 
-.barbarian-track span {
+.barbarian-step {
   border-color: var(--line-strong);
-  background: var(--surface-muted);
+  background: transparent;
 }
 
-.barbarian-track .barbarian-track__filled {
-  border-color: var(--danger);
-  background: var(--danger);
+.barbarian-step--advanced {
+  border-color: #16191c;
+  background: #16191c;
 }
 
 .player-strip {

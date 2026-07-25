@@ -3,7 +3,6 @@ import {
   WORLD_EVENTS_CATALOG,
   createBalancedWorldEventOrder,
   isWorldEventExpired,
-  activateDeferredEvents,
   pruneActiveEvents,
   createActiveWorldEvent,
   createActiveWorldEventFromDefinition,
@@ -213,48 +212,32 @@ describe("isWorldEventExpired", () => {
   });
 });
 
-describe("activateDeferredEvents", () => {
-  it("activates deferred full-round events at the new round", () => {
-    const events: ActiveWorldEvent[] = [
-      {
-        occurrenceId: "occ-1",
-        contentVersion: 1,
-        eventId: "we-trade-winds" as EventId,
-        title: "Trade Winds",
-        instruction: "test",
-        tone: "boon",
-        impact: 2,
-        category: "economy",
-        scope: "all",
-        duration: "full-round",
-        compatibility: { twoPlayer: true },
-        activeRound: null,
-        triggeredAtCompletedTurn: 5,
-        activated: false,
-      },
-      {
-        occurrenceId: "occ-2",
-        contentVersion: 1,
-        eventId: "we-market-day" as EventId,
-        title: "Market Day",
-        instruction: "test",
-        tone: "boon",
-        impact: 2,
-        category: "economy",
-        scope: "active-player",
-        duration: "rest-of-turn",
-        compatibility: { twoPlayer: true },
-        activeRound: null,
-        triggeredAtCompletedTurn: 5,
-        activated: true,
-      },
-    ];
-    const result = activateDeferredEvents(events, 3);
-    expect(result[0]!.activated).toBe(true);
-    expect(result[0]!.activeRound).toBe(3);
-    // rest-of-turn event should be unchanged
-    expect(result[1]!.activated).toBe(true);
-    expect(result[1]!.activeRound).toBeNull();
+describe("full-round activation", () => {
+  it("activates a full-round event immediately at its own round", () => {
+    const definition = WORLD_EVENTS_CATALOG.find(
+      (event) => event.duration === "full-round",
+    );
+    expect(definition).toBeDefined();
+    if (!definition) return;
+
+    // Events used to sit dormant until the next round boundary, which meant
+    // the table read an instruction that was not yet in force.
+    const active = createActiveWorldEvent("occ-1", definition, 5, 3);
+    expect(active).not.toBeNull();
+    expect(active?.activated).toBe(true);
+    expect(active?.activeRound).toBe(3);
+  });
+
+  it("expires a full-round event once its round has passed", () => {
+    const definition = WORLD_EVENTS_CATALOG.find(
+      (event) => event.duration === "full-round",
+    );
+    if (!definition) return;
+    const active = createActiveWorldEvent("occ-2", definition, 5, 3);
+    if (!active) return;
+
+    expect(isWorldEventExpired(active, 9, 3, 3)).toBe(false);
+    expect(isWorldEventExpired(active, 12, 4, 3)).toBe(true);
   });
 });
 
@@ -307,14 +290,15 @@ describe("createActiveWorldEvent", () => {
     expect(result).toBeNull();
   });
 
-  it("creates a deferred event for full-round duration", () => {
+  it("creates an immediately active event for full-round duration", () => {
     const event = WORLD_EVENTS_CATALOG.find(
       (e) => e.duration === "full-round",
     )!;
+    // Full-round events take effect in the round they are drawn, not the next.
     const result = createActiveWorldEvent("occ-1", event, 5, 2);
     expect(result).not.toBeNull();
-    expect(result!.activated).toBe(false);
-    expect(result!.activeRound).toBeNull();
+    expect(result!.activated).toBe(true);
+    expect(result!.activeRound).toBe(2);
     expect(result!.duration).toBe("full-round");
   });
 
@@ -510,11 +494,11 @@ describe("validateActiveEvents", () => {
     expect(errs.some((e) => e.includes("activeRound"))).toBe(true);
   });
 
-  it("rejects deferred full-round with activeRound", () => {
+  it("rejects an active full-round event without activeRound", () => {
     const errs = validateActiveEvents([
-      { ...valid, duration: "full-round", activated: false, activeRound: 3 },
+      { ...valid, duration: "full-round", activated: true, activeRound: null },
     ]);
-    expect(errs.some((e) => e.includes("deferred"))).toBe(true);
+    expect(errs.some((e) => e.includes("activeRound"))).toBe(true);
   });
 
   it("rejects missing title", () => {

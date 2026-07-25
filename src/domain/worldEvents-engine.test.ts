@@ -214,10 +214,13 @@ describe("engine world-event lifecycle integration", () => {
     expect(found).toBeUndefined();
   });
 
-  it("full-round deferred events activate at round boundary", () => {
+  it("keeps a full-round event in force for the round it was drawn", () => {
     let state = createTestGame();
-    const deferredEvent: ActiveWorldEventRecord = {
-      occurrenceId: "occ-deferred-1",
+    const round = state.turn.round;
+    // Full-round events now take effect immediately rather than waiting for
+    // the next round boundary.
+    const activeEvent: ActiveWorldEventRecord = {
+      occurrenceId: "occ-immediate-1",
       eventId: asEventId("we-trade-winds"),
       contentVersion: 1,
       title: "Trade Winds",
@@ -228,35 +231,25 @@ describe("engine world-event lifecycle integration", () => {
       scope: "all",
       duration: "full-round",
       compatibility: { twoPlayer: true, requires: ["maritime-trade"] },
-      activeRound: null,
+      activeRound: round,
       triggeredAtCompletedTurn: 0,
-      activated: false,
+      activated: true,
     };
     state = {
       ...state,
       thematicEvents: {
         ...state.thematicEvents,
-        activeEvents: [deferredEvent],
+        activeEvents: [activeEvent],
       },
     };
 
-    // Advance through a full round (3 players = 3 turns)
-    const startRound = state.turn.round;
-    for (let i = 0; i < 3; i++) {
-      state = advanceTurn(state, `round-${i}`);
-    }
-
-    // Should have advanced to a new round
-    expect(state.turn.round).toBeGreaterThan(startRound);
-
-    // The deferred event should now be activated
-    const active = state.thematicEvents.activeEvents ?? [];
-    const found = active.find((e) => e.occurrenceId === "occ-deferred-1");
-    if (found) {
-      expect(found.activated).toBe(true);
-      expect(found.activeRound).toBe(state.turn.round);
-    }
-    // It's also valid for it to have been pruned if already expired
+    // Still the same round: the event must survive.
+    state = advanceTurn(state, "same-round");
+    const during = (state.thematicEvents.activeEvents ?? []).find(
+      (e) => e.occurrenceId === "occ-immediate-1",
+    );
+    expect(during?.activated).toBe(true);
+    expect(during?.activeRound).toBe(round);
   });
 
   it("full-round events expire after their active round ends", () => {

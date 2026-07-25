@@ -22,9 +22,15 @@ export function DieFace({ kind, label, rolling = false, value }: DieFaceProps) {
         ? eventSymbols[value]
         : "-";
 
+  // The physical event die is colour-coded: green science, yellow trade, blue
+  // politics and a black barbarian ship. Match it so the die reads at a glance
+  // from across the table instead of relying on the artwork alone.
+  const faceClass =
+    kind === "event" && typeof value === "string" ? ` die--face-${value}` : "";
+
   return (
     <div
-      className={`die die--${kind}${rolling ? " die--rolling" : ""}`}
+      className={`die die--${kind}${faceClass}${rolling ? " die--rolling" : ""}`}
       role="img"
       aria-label={`${label}: ${display}`}
     >
@@ -35,14 +41,18 @@ export function DieFace({ kind, label, rolling = false, value }: DieFaceProps) {
       ) : (
         <span className="die__event" aria-hidden>
           {value ? (
-            <img
-              className="die__event-art"
-              src={EVENT_DIE_ART[value]}
-              alt=""
-              decoding="async"
-            />
-          ) : null}
-          {value ? null : <span className="die__event-placeholder">?</span>}
+            <>
+              <img
+                className="die__event-art"
+                src={EVENT_DIE_ART[value]}
+                alt=""
+                decoding="async"
+              />
+              <span className="die__event-caption">{eventSymbols[value]}</span>
+            </>
+          ) : (
+            <span className="die__event-placeholder">?</span>
+          )}
         </span>
       )}
     </div>
