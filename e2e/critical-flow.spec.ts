@@ -464,7 +464,7 @@ test("auto-generates a complete classic board", async ({ page }) => {
   }
 });
 
-test("uses balanced board-designer defaults", async ({ page }) => {
+test("uses the table's own board-designer defaults", async ({ page }) => {
   await page.getByRole("button", { name: /Board designer/ }).click();
   await page.getByRole("button", { name: "Start default board" }).click();
 
@@ -483,16 +483,18 @@ test("uses balanced board-designer defaults", async ({ page }) => {
     );
   }
   await page.getByText("Number tokens", { exact: true }).click();
+  // Counted from the physical set rather than derived from an even spread:
+  // most values mirror their partner around seven, but 6 and 8 do not.
   const expectedNumbers: Record<string, string> = {
     "Number 2": "2",
     "Number 3": "3",
     "Number 4": "3",
     "Number 5": "3",
-    "Number 6": "3",
+    "Number 6": "2",
     "Number 8": "3",
     "Number 9": "3",
     "Number 10": "3",
-    "Number 11": "2",
+    "Number 11": "3",
     "Number 12": "2",
   };
   for (const [label, value] of Object.entries(expectedNumbers)) {
