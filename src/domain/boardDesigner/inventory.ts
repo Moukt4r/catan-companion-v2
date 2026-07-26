@@ -69,6 +69,27 @@ export function createEmptyBoardInventory(): BoardInventory {
   };
 }
 
+/**
+ * The number tokens in the table's physical set.
+ *
+ * Deliberately a literal rather than a formula: this is what the box actually
+ * contains, confirmed by counting the tokens themselves. Most values mirror
+ * their partner around seven — 2 with 12, 3 with 11, 4 with 10, 5 with 9 —
+ * but 6 and 8 do not, so an even distribution cannot reproduce it.
+ */
+export const CLASSIC_NUMBER_TOKEN_COUNTS: NumberTokenCounts = {
+  2: 2,
+  3: 3,
+  4: 3,
+  5: 3,
+  6: 2,
+  8: 3,
+  9: 3,
+  10: 3,
+  11: 3,
+  12: 2,
+};
+
 export function createClassicIslandInventory(): BoardInventory {
   const terrain = {
     forest: 5,
@@ -80,16 +101,9 @@ export function createClassicIslandInventory(): BoardInventory {
     desert: 0,
     sea: 10,
   };
-  const producingCount =
-    terrain.forest +
-    terrain.pasture +
-    terrain.fields +
-    terrain.hills +
-    terrain.mountains +
-    terrain.gold;
   return {
     terrain,
-    numbers: createEvenNumberTokenCounts(producingCount),
+    numbers: { ...CLASSIC_NUMBER_TOKEN_COUNTS },
     ports: {
       generic: 4,
       forest: 1,
@@ -99,26 +113,6 @@ export function createClassicIslandInventory(): BoardInventory {
       mountains: 1,
     },
   };
-}
-
-export function createEvenNumberTokenCounts(
-  producingCount: number,
-): NumberTokenCounts {
-  const counts = createEmptyBoardInventory().numbers;
-  const balancedOrder: NumberTokenValue[] = [6, 8, 5, 9, 4, 10, 3, 11, 2, 12];
-  const safeCount = Math.max(0, Math.trunc(producingCount));
-  const baseCount = Math.floor(safeCount / NUMBER_TOKEN_VALUES.length);
-  const remainder = safeCount % NUMBER_TOKEN_VALUES.length;
-  for (const value of NUMBER_TOKEN_VALUES) {
-    counts[value] = baseCount;
-  }
-  for (let index = 0; index < remainder; index += 1) {
-    const value = balancedOrder[index];
-    if (value !== undefined) {
-      counts[value] += 1;
-    }
-  }
-  return counts;
 }
 
 export function producingTerrainCount(inventory: BoardInventory): number {
