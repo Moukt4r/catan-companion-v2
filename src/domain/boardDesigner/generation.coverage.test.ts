@@ -315,6 +315,17 @@ describe("board generation with degenerate inventories", () => {
     expect(landGroupSizes(layout.hexes)).toEqual([]);
   });
 
+  it("asks for no land components when the board is all sea", () => {
+    // The mainland preference only applies when there is land to shape, so
+    // the sea-only branch of that decision needs its own case.
+    const inventory = inventoryOf({ terrain: { sea: 12 } });
+
+    const layout = expectLayout(generate(inventory, 21));
+
+    expect(landGroupSizes(layout.hexes)).toEqual([]);
+    expect(layout.hexes).toHaveLength(12);
+  });
+
   it("cannot satisfy ports on a sea-only board", () => {
     const inventory = inventoryOf({
       terrain: { sea: 7 },
@@ -690,15 +701,20 @@ describe("port capacity repair", () => {
   });
 
   it("falls back to greedy swaps when beam search stops short", () => {
+    // Port demand sits just under what the coastline offers, which is what
+    // pushes the search past the beam stage into the greedy fallback. The
+    // generator now favours a single mainland over an archipelago, and a
+    // mainland has a shorter coast than the same land split into islands, so
+    // this asks for fewer ports than it once could.
     const inventory = inventoryOf({
       terrain: { forest: 20, sea: 16 },
-      ports: { generic: 60 },
+      ports: { generic: 46 },
     });
 
-    const layout = expectLayout(generate(inventory, 20 * 131 + 16 * 7 + 60));
+    const layout = expectLayout(generate(inventory, 20 * 131 + 16 * 7 + 46));
 
-    expect(layout.ports).toHaveLength(60);
-    expect(coastEdgeCount(layout.hexes)).toBeGreaterThanOrEqual(60);
+    expect(layout.ports).toHaveLength(46);
+    expect(coastEdgeCount(layout.hexes)).toBeGreaterThanOrEqual(46);
     assertHealthyLayout(layout, inventory);
   });
 

@@ -114,14 +114,12 @@ function terrainLayoutScore(
   const seaCount = hexes.filter((hex) => hex.terrain === "sea").length;
   const landCount = hexes.length - seaCount;
   const maximumLandComponents = Math.floor(landCount / 3);
+  // The table builds one main island and occasionally a small satellite, so
+  // aim for a mainland plus at most one extra rather than an archipelago.
+  // Sea then reads as bays and inlets cutting into the coast instead of as
+  // channels separating equal-sized islands.
   const desiredLandComponents =
-    landCount === 0
-      ? 0
-      : seaCount >= 8
-        ? Math.min(3, maximumLandComponents)
-        : seaCount >= 2
-          ? Math.min(2, maximumLandComponents)
-          : 1;
+    landCount === 0 ? 0 : Math.min(2, Math.max(1, maximumLandComponents));
   const landGroups = connectedHexGroups(hexes, (hex) => hex.terrain !== "sea");
   const smallIslandDeficit = landGroups.reduce(
     (total, group) => total + Math.max(0, 3 - group.length),
@@ -130,7 +128,19 @@ function terrainLayoutScore(
   score += smallIslandDeficit * 100_000;
   score +=
     Math.max(0, desiredLandComponents - landGroups.length) * 15_000 +
-    Math.max(0, landGroups.length - desiredLandComponents) * 18;
+    Math.max(0, landGroups.length - desiredLandComponents) * 4_000;
+
+  // Keep one component clearly dominant: a mainland holding most of the land
+  // is what the table actually lays out, and it is what makes the coastline
+  // readable. Without this the optimizer settles for two near-equal halves.
+  if (landGroups.length > 1 && landCount > 0) {
+    const largest = Math.max(...landGroups.map((group) => group.length));
+    const mainlandShortfall = Math.max(
+      0,
+      Math.ceil(landCount * 0.75) - largest,
+    );
+    score += mainlandShortfall * 2_000;
+  }
 
   if (seaCount >= 2 && seaAdjacencies === 0) {
     score += 2_000;

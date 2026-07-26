@@ -20,8 +20,14 @@ export interface SymmetricCoordinatePair {
  * The table's own board outline.
  *
  * A radius-3 hexagon stretched by one row, which gives a twenty-tile outer
- * ring, then pinched by a single tile at the top and bottom. Forty-two
- * positions in all: twenty-seven land and fifteen sea.
+ * ring, then notched by a single tile at the very top and the very bottom.
+ * Forty-two positions in all: twenty-seven land and fifteen sea.
+ *
+ * The notches sit in the tallest column, the one that reaches furthest north
+ * and south. An earlier attempt removed a tile from each end row instead,
+ * which trimmed the east and west corners and left the north and south points
+ * intact — the same tile count and the same twenty-tile ring, but visibly the
+ * wrong outline.
  *
  * Written out as explicit coordinates rather than derived from a tile count.
  * Asking for "a symmetric shape with N cells" only constrains the total and
@@ -30,48 +36,14 @@ export interface SymmetricCoordinatePair {
  * with three equal-height centre columns instead of a hexagon.
  */
 export const CLASSIC_BOARD_FOOTPRINT: readonly HexCoordinate[] = [
-  { q: 0, r: -3 },
-  { q: 1, r: -3 },
-  { q: 2, r: -3 },
-  { q: -1, r: -2 },
-  { q: 0, r: -2 },
-  { q: 1, r: -2 },
-  { q: 2, r: -2 },
-  { q: 3, r: -2 },
-  { q: -2, r: -1 },
-  { q: -1, r: -1 },
-  { q: 0, r: -1 },
-  { q: 1, r: -1 },
-  { q: 2, r: -1 },
-  { q: 3, r: -1 },
-  { q: -3, r: 0 },
-  { q: -2, r: 0 },
-  { q: -1, r: 0 },
-  { q: 0, r: 0 },
-  { q: 1, r: 0 },
-  { q: 2, r: 0 },
-  { q: 3, r: 0 },
-  { q: -3, r: 1 },
-  { q: -2, r: 1 },
-  { q: -1, r: 1 },
-  { q: 0, r: 1 },
-  { q: 1, r: 1 },
-  { q: 2, r: 1 },
-  { q: 3, r: 1 },
-  { q: -3, r: 2 },
-  { q: -2, r: 2 },
-  { q: -1, r: 2 },
-  { q: 0, r: 2 },
-  { q: 1, r: 2 },
-  { q: 2, r: 2 },
-  { q: -3, r: 3 },
-  { q: -2, r: 3 },
-  { q: -1, r: 3 },
-  { q: 0, r: 3 },
-  { q: 1, r: 3 },
-  { q: -2, r: 4 },
-  { q: -1, r: 4 },
-  { q: 0, r: 4 },
+  { q: 1, r: -3 }, { q: 2, r: -3 }, { q: 3, r: -3 },
+  { q: -1, r: -2 }, { q: 0, r: -2 }, { q: 1, r: -2 }, { q: 2, r: -2 }, { q: 3, r: -2 },
+  { q: -2, r: -1 }, { q: -1, r: -1 }, { q: 0, r: -1 }, { q: 1, r: -1 }, { q: 2, r: -1 }, { q: 3, r: -1 },
+  { q: -3, r: 0 }, { q: -2, r: 0 }, { q: -1, r: 0 }, { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 }, { q: 3, r: 0 },
+  { q: -3, r: 1 }, { q: -2, r: 1 }, { q: -1, r: 1 }, { q: 0, r: 1 }, { q: 1, r: 1 }, { q: 2, r: 1 }, { q: 3, r: 1 },
+  { q: -3, r: 2 }, { q: -2, r: 2 }, { q: -1, r: 2 }, { q: 0, r: 2 }, { q: 1, r: 2 }, { q: 2, r: 2 },
+  { q: -3, r: 3 }, { q: -2, r: 3 }, { q: -1, r: 3 }, { q: 0, r: 3 }, { q: 1, r: 3 },
+  { q: -3, r: 4 }, { q: -2, r: 4 }, { q: -1, r: 4 },
 ];
 
 export function oppositeCoordinate(

@@ -100,6 +100,56 @@ describe("the table's board outline", () => {
     expect(land).toBe(27);
   });
 
+  it("builds one mainland rather than an archipelago", () => {
+    // The table lays out a single island, sometimes with one small satellite,
+    // and the sea reads as bays cutting into that coast. An earlier generator
+    // aimed for three separate land masses whenever there was enough sea,
+    // which produced a scattering of similar-sized islands instead.
+    for (let seed = 1; seed <= 12; seed += 1) {
+      let state = seed * 2_654_435_761;
+      const random = (upperExclusive: number) => {
+        state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
+        return state % upperExclusive;
+      };
+      const result = generateBoardLayout(
+        createClassicIslandInventory(),
+        random,
+        [...CLASSIC_BOARD_FOOTPRINT],
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+
+      const land = result.value.hexes.filter((hex) => hex.terrain !== "sea");
+      const present = new Set(land.map((hex) => coordinateKey(hex.coordinate)));
+      const seen = new Set<string>();
+      const sizes: number[] = [];
+      for (const hex of land) {
+        const key = coordinateKey(hex.coordinate);
+        if (seen.has(key)) continue;
+        let size = 0;
+        const queue = [hex.coordinate];
+        seen.add(key);
+        while (queue.length > 0) {
+          const current = queue.pop() as HexCoordinate;
+          size += 1;
+          for (const next of neighbors(current)) {
+            const nextKey = coordinateKey(next);
+            if (present.has(nextKey) && !seen.has(nextKey)) {
+              seen.add(nextKey);
+              queue.push(next);
+            }
+          }
+        }
+        sizes.push(size);
+      }
+      sizes.sort((a, b) => b - a);
+
+      expect(sizes.length).toBeLessThanOrEqual(2);
+      // The mainland holds the clear majority of the land.
+      expect(sizes[0] as number).toBeGreaterThanOrEqual(Math.ceil(27 * 0.7));
+    }
+  });
+
   it("generates a full board on the real outline", () => {
     let state = 2026;
     const random = (upperExclusive: number) => {

@@ -479,10 +479,9 @@ export function validateBoardDesign(
       issue({
         code: "paired-high-numbers",
         severity: "warning",
-        message:
-          paired.length === 1
-            ? "One building spot pairs two four-pip numbers."
-            : `${paired.length} building spots pair two four-pip numbers.`,
+        // Always at least two: neighbouring hexes share an edge, and an edge
+        // has a corner at each end, so a pairing always shows up twice.
+        message: `${paired.length} building spots pair two four-pip numbers.`,
         coordinates: paired.flat(),
       }),
     );
@@ -494,10 +493,8 @@ export function validateBoardDesign(
       issue({
         code: "repeated-number-vertex",
         severity: "warning",
-        message:
-          repeated.length === 1
-            ? "One building spot touches the same number twice."
-            : `${repeated.length} building spots touch the same number twice.`,
+        // Counted twice for the same reason as the pairing above.
+        message: `${repeated.length} building spots touch the same number twice.`,
         coordinates: repeated.flat(),
       }),
     );
