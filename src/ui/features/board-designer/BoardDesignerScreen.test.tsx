@@ -59,7 +59,7 @@ describe("BoardDesignerScreen", () => {
       type: "inventory.countSet",
       category: "terrain",
       item: "sea",
-      count: 11,
+      count: 13,
     });
     expect(onGenerate).toHaveBeenCalledOnce();
   });
@@ -383,7 +383,12 @@ function renderScreen(
 
 function fixture(): BoardDesign {
   const inventory = createClassicIslandInventory();
-  const footprint = createSymmetricFootprint(37);
+  // Derive the border from the inventory rather than hardcoding a size: the
+  // generate control stays disabled unless the two match, so a stale literal
+  // silently turns this into a test of a disabled button.
+  const footprint = createSymmetricFootprint(
+    Object.values(inventory.terrain).reduce((total, count) => total + count, 0),
+  );
   if (!footprint.ok) {
     throw new Error(footprint.error.message);
   }

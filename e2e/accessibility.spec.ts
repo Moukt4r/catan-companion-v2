@@ -46,7 +46,7 @@ test("the board designer has no detectable accessibility violations", async ({
   await page.getByRole("button", { name: "Generate board" }).click();
   await expect(
     page.getByRole("group", {
-      name: "Untitled island board layout with 37 placed hexes",
+      name: "Untitled island board layout with 39 placed hexes",
     }),
   ).toBeVisible();
   const normalResults = await new AxeBuilder({ page })

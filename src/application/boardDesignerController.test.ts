@@ -75,7 +75,7 @@ describe("BoardDesignerController", () => {
     const originalId = await controller.createDesign("Generated island");
     await controller.generate();
 
-    expect(controller.getSnapshot().activeDesign?.hexes).toHaveLength(37);
+    expect(controller.getSnapshot().activeDesign?.hexes).toHaveLength(39);
 
     const copyId = await controller.duplicateDesign(originalId);
     expect(copyId).not.toBe(originalId);
@@ -174,7 +174,7 @@ describe("BoardDesignerController", () => {
     await controller.resizeFootprint(9, 5);
 
     const resized = controller.getSnapshot().activeDesign;
-    expect(resized?.footprint).toHaveLength(37);
+    expect(resized?.footprint).toHaveLength(39);
     expect(footprintDimensions(resized?.footprint ?? [])).toEqual({
       width: 9,
       height: 5,

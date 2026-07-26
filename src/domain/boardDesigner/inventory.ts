@@ -91,6 +91,9 @@ export const CLASSIC_NUMBER_TOKEN_COUNTS: NumberTokenCounts = {
 };
 
 export function createClassicIslandInventory(): BoardInventory {
+  // Counted from the table's own board: twenty-seven land tiles, matching the
+  // twenty-seven number tokens, and twelve sea tiles. Thirty-nine positions in
+  // all, which the symmetric border lays out as rows of 5-5-6-7-6-5-5.
   const terrain = {
     forest: 5,
     pasture: 5,
@@ -99,7 +102,7 @@ export function createClassicIslandInventory(): BoardInventory {
     mountains: 5,
     gold: 2,
     desert: 0,
-    sea: 10,
+    sea: 12,
   };
   return {
     terrain,

@@ -351,7 +351,7 @@ test("auto-generates a complete classic board", async ({ page }) => {
 
   await expect(
     page.getByRole("group", {
-      name: "Untitled island board layout with 37 placed hexes",
+      name: "Untitled island board layout with 39 placed hexes",
     }),
   ).toBeVisible();
   const topology = await page
@@ -476,7 +476,7 @@ test("uses the table's own board-designer defaults", async ({ page }) => {
     ["Mountains", "5"],
     ["Gold Field", "2"],
     ["Desert", "0"],
-    ["Sea", "10"],
+    ["Sea", "12"],
   ] as const) {
     await expect(page.getByRole("spinbutton", { name: label })).toHaveValue(
       value,
@@ -507,7 +507,7 @@ test("uses the table's own board-designer defaults", async ({ page }) => {
 test("resizes the border with width and height inputs", async ({ page }) => {
   await page.getByRole("button", { name: /Board designer/ }).click();
   await page.getByRole("button", { name: "Start default board" }).click();
-  await expect(page.locator(".board-hex--footprint")).toHaveCount(37);
+  await expect(page.locator(".board-hex--footprint")).toHaveCount(39);
   const before = await readFootprint(page);
 
   await page.getByRole("spinbutton", { name: "Width" }).fill("9");
