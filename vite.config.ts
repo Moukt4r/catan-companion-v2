@@ -89,6 +89,13 @@ export default defineConfig({
   ],
   test: {
     environment: "jsdom",
+    // Hosted CI runners are several times slower than a dev machine, and v8
+    // coverage instrumentation slows things further. Board generation runs a
+    // repair pass and a polish pass over many boards, so the generation-heavy
+    // suites sit well past the five-second default there while finishing in
+    // seconds locally. Give every test the same headroom rather than sprinkling
+    // per-test overrides that only get noticed after CI fails.
+    testTimeout: 30_000,
     exclude: [...configDefaults.exclude, "e2e/**"],
     setupFiles: ["./src/test/setup.ts"],
     css: true,

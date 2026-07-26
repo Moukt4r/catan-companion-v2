@@ -284,7 +284,7 @@ describe("board designer domain", () => {
       }),
       { numRuns: 16 },
     );
-  }, 15_000);
+  });
 
   it("repairs undersized islands even with a degenerate random source", () => {
     const result = generateWithSymmetricFootprint(
@@ -302,9 +302,7 @@ describe("board designer domain", () => {
         (hex) => hex.terrain !== "sea",
       ).every((group) => group.length >= 3),
     ).toBe(true);
-    // Generation runs a repair and a polish pass over many boards; under
-    // coverage instrumentation that lands close to the default budget.
-  }, 15_000);
+  });
 
   it("re-optimizes red number tokens after terrain repair", () => {
     const result = generateWithSymmetricFootprint(

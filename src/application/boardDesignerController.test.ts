@@ -98,9 +98,7 @@ describe("BoardDesignerController", () => {
     await controller.deleteDesign(importedId, 0);
     expect(controller.getSnapshot().activeDesign).toBeNull();
     expect(controller.getSnapshot().designs).toHaveLength(2);
-    // Board generation runs repair and polish passes; under coverage
-    // instrumentation that lands close to the default budget.
-  }, 15_000);
+  });
 
   it("does not publish an edit when persistence fails", async () => {
     const repository = new MemoryBoardDesignRepository();
