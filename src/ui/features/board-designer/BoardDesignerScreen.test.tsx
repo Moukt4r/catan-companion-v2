@@ -326,6 +326,9 @@ describe("BoardDesignerScreen", () => {
     ];
     renderScreen({ design, onCommand });
 
+    // Land tiles are drawn face down by default, the way they sit on the
+    // table. Reveal them before editing terrain.
+    await user.click(screen.getByRole("button", { name: "Reveal terrain" }));
     await user.click(
       screen.getByRole("button", {
         name: /forest hex at q 0, r 0, number 6/i,

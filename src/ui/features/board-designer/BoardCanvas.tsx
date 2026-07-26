@@ -54,7 +54,6 @@ interface BoardCanvasProps {
   onBorderAdd: (coordinate: HexCoordinate) => void;
   onSelectCoordinate: (coordinate: HexCoordinate | null) => void;
 }
-
 export function BoardCanvas({
   design,
   issueCoordinates,
@@ -68,6 +67,15 @@ export function BoardCanvas({
   showPortEdges,
 }: BoardCanvasProps) {
   const [zoom, setZoom] = useState(1);
+  /**
+   * Whether land tiles are drawn blank, the way they sit on the table.
+   *
+   * The table deals every land tile face down and reveals the terrain during
+   * play, so the number is public while the resource is not. This is purely
+   * how the board is drawn: which tiles have actually been turned over lives
+   * on the physical board, not in the app.
+   */
+  const [faceDown, setFaceDown] = useState(true);
   const occupiedKeys = useMemo(
     () => new Set(design.hexes.map((hex) => coordinateKey(hex.coordinate))),
     [design.hexes],
@@ -145,6 +153,16 @@ export function BoardCanvas({
           </select>
         </label>
         <div className="board-zoom-controls" aria-label="Board zoom">
+          <Button
+            size="small"
+            variant={faceDown ? "secondary" : "primary"}
+            aria-pressed={!faceDown}
+            onClick={() => {
+              setFaceDown((current) => !current);
+            }}
+          >
+            {faceDown ? "Reveal terrain" : "Hide terrain"}
+          </Button>
           <Button
             size="small"
             variant="secondary"
@@ -225,6 +243,9 @@ export function BoardCanvas({
             const moving =
               moveSource !== null && coordinateKey(moveSource) === key;
             const warning = issueCoordinates.has(key);
+            // Sea is part of the frame and stays visible; only land tiles are
+            // dealt face down.
+            const hidden = faceDown && hex.terrain !== "sea";
             return (
               <HexButton
                 key={key}
@@ -232,16 +253,16 @@ export function BoardCanvas({
                 terrain={hex.terrain}
                 className={[
                   "board-hex",
-                  `board-hex--${hex.terrain}`,
+                  hidden ? "board-hex--face-down" : `board-hex--${hex.terrain}`,
                   selected ? "board-hex--selected" : "",
                   moving ? "board-hex--moving" : "",
                   warning ? "board-hex--warning" : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
-                label={`${TERRAIN_LABELS[hex.terrain]} hex at q ${
-                  hex.coordinate.q
-                }, r ${hex.coordinate.r}${
+                label={`${
+                  hidden ? "Face-down" : TERRAIN_LABELS[hex.terrain]
+                } hex at q ${hex.coordinate.q}, r ${hex.coordinate.r}${
                   hex.numberToken === null
                     ? ", no number token"
                     : `, number ${hex.numberToken}`
@@ -250,13 +271,15 @@ export function BoardCanvas({
                   onHexActivate(hex.coordinate);
                 }}
               >
-                <text
-                  className="board-hex__terrain-label"
-                  textAnchor="middle"
-                  y={hex.numberToken === null ? 5 : -13}
-                >
-                  {TERRAIN_LABELS[hex.terrain]}
-                </text>
+                {hidden ? null : (
+                  <text
+                    className="board-hex__terrain-label"
+                    textAnchor="middle"
+                    y={hex.numberToken === null ? 5 : -13}
+                  >
+                    {TERRAIN_LABELS[hex.terrain]}
+                  </text>
+                )}
                 {hex.numberToken !== null ? (
                   <g className="board-number-token">
                     <circle

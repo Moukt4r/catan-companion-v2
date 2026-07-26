@@ -2451,6 +2451,17 @@ h1 {
   fill: #2f6f88;
 }
 
+/*
+ * A land tile dealt blank side up, the way it sits on the table before the
+ * terrain is revealed. The number token still shows, so the odds are public
+ * while the resource is not.
+ */
+.board-hex--face-down .board-hex__shape {
+  fill: #f3ece0;
+  stroke: #b3a591;
+  stroke-width: 2;
+}
+
 .board-hex text,
 .board-port text {
   pointer-events: none;
