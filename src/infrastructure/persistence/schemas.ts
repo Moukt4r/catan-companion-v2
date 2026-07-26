@@ -124,8 +124,11 @@ const playerStateSchema = z.strictObject({
   order: nonNegativeInteger,
   ordinaryCities: nonNegativeInteger,
   activeKnights: knightSchema,
-  inactiveKnights: knightSchema,
-  cityWalls: nonNegativeInteger,
+  // Saves written before city walls and inactive knights existed omit these
+  // fields entirely. Defaulting them keeps those games loadable instead of
+  // failing the strict parse and being written back as `corrupt`.
+  inactiveKnights: knightSchema.default({ basic: 0, strong: 0, mighty: 0 }),
+  cityWalls: nonNegativeInteger.default(0),
   improvements: improvementSchema,
 });
 
@@ -425,6 +428,8 @@ const publicPatchSchema = z.strictObject({
   name: z.string().max(200).optional(),
   ordinaryCities: nonNegativeInteger.optional(),
   activeKnights: knightSchema.partial().optional(),
+  inactiveKnights: knightSchema.partial().optional(),
+  cityWalls: nonNegativeInteger.optional(),
   improvements: improvementSchema.partial().optional(),
   scoreAdjustment: z
     .strictObject({
@@ -484,6 +489,12 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("attack.confirmed"),
     proposalId: id,
+    // Legacy saves recorded attacks without an explicit outcome. Those games
+    // resolved on the physical board, which is exactly what the current
+    // board-authoritative outcome represents.
+    manualOutcome: attackOutcomeSchema.default({
+      type: "board-authoritative",
+    }),
     progressChoices: z
       .array(z.strictObject({ playerId: id, discipline }))
       .optional(),

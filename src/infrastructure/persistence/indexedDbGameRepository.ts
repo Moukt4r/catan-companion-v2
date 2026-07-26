@@ -24,6 +24,7 @@ import type { GameId, GameState, IsoTimestamp, RevisionId } from "../../domain";
 import { storedGameFromState } from "../../application/records";
 import { sha256 } from "../../application/integrity";
 import { parseExportDocument, parseGameState } from "./schemas";
+import { migrateStoredRevision } from "./migrations";
 
 export const DATABASE_NAME = "catan-table-companion";
 
@@ -77,6 +78,9 @@ export class IndexedDbGameRepository implements GameRepository {
     if (game === undefined) {
       return null;
     }
+    // Bring legacy records up to the current shape before validating them,
+    // otherwise saves written before newer fields existed look corrupt.
+    await this.migrateStoredRevisions(db, id);
     const { invalidRevisionIds, validRevision } =
       await this.inspectRevisionChain(db, game);
     if (invalidRevisionIds.length === 0) {
@@ -635,6 +639,33 @@ export class IndexedDbGameRepository implements GameRepository {
     } catch (error) {
       await abortTransaction(transaction);
       throw this.transactionError(error, "Could not import the game.");
+    }
+  }
+
+  private async migrateStoredRevisions(
+    db: IDBPDatabase<CatanDatabase>,
+    gameId: GameId,
+  ): Promise<void> {
+    const stored = await db.getAllFromIndex("revisions", "gameId", gameId);
+    const migrated: StoredRevision[] = [];
+    for (const revision of stored) {
+      const result = await migrateStoredRevision(revision);
+      if (result.changed) {
+        migrated.push(result.revision);
+      }
+    }
+    if (migrated.length === 0) {
+      return;
+    }
+    const transaction = db.transaction("revisions", "readwrite");
+    try {
+      for (const revision of migrated) {
+        await transaction.objectStore("revisions").put(revision);
+      }
+      await transaction.done;
+    } catch (error) {
+      await abortTransaction(transaction);
+      throw this.transactionError(error, "Could not migrate stored revisions.");
     }
   }
 

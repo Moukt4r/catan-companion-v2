@@ -346,6 +346,31 @@ Failed source data is copied to quarantine and remains exportable.
 No release may remove a migration needed by any previously published
 production schema unless an explicit support-window decision is recorded.
 
+#### Additive field migrations
+
+Adding a required field to the persisted player state is a breaking change for
+every existing save. The strict persistence schema rejects records that omit
+it, the revision then fails validation, and the whole game is written back as
+`corrupt`.
+
+Two things are therefore required whenever a stored field is added:
+
+1. give the field a schema default so the legacy shape still parses; and
+2. migrate the stored records in `migrations.ts` so the raw data is repaired
+   before invariants and hashes are checked.
+
+Migration is additive only: absent fields are filled in, existing values are
+never rewritten. The state hash is recomputed only for records that actually
+changed, so healthy saves keep their original hash.
+
+Current additive migrations:
+
+| Field                            | Introduced | Legacy default        |
+| -------------------------------- | ---------- | --------------------- |
+| `players[].cityWalls`            | v0.6.1     | `0`                   |
+| `players[].inactiveKnights`      | v0.6.1     | all levels `0`        |
+| `attack.confirmed.manualOutcome` | v0.6.1     | `board-authoritative` |
+
 ## 11. Import format
 
 Export MIME type:

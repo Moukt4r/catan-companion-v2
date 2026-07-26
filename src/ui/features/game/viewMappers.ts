@@ -94,6 +94,7 @@ function timingCopyForDuration(
 function toActiveEventViews(
   activeEvents: readonly ActiveWorldEventRecord[] | undefined,
   pendingOccurrenceId: string | null,
+  phase: GamePhase,
 ): ActiveEventView[] {
   if (!activeEvents || activeEvents.length === 0) return [];
   return [...activeEvents]
@@ -109,7 +110,10 @@ function toActiveEventViews(
       category: event.category,
       duration: event.duration,
       timingCopy: timingCopyForDuration(event.duration, event.activated),
-      canResolve: event.duration === "until-resolved",
+      // The domain only accepts `event.resolved` during the action phase, so
+      // offering the control outside it would surface an avoidable error.
+      canResolve:
+        event.duration === "until-resolved" && phase === "action-phase",
     }));
 }
 
@@ -204,8 +208,14 @@ export function toGameTableView(
         }
       : null,
     numberedCycleProgress: `${state.numberedDeck.cursor} / ${state.numberedDeck.order.length}`,
+    // The year-change banner announces something that just happened, so it is
+    // tied to the roll that caused it. Without this it would stay on screen
+    // for the rest of the game.
     yearChange:
-      state.lastYearChange && state.lastYearChange.cycle > 1
+      state.lastYearChange &&
+      state.lastYearChange.cycle > 1 &&
+      state.lastRoll !== null &&
+      state.lastRoll.createdAt === state.lastYearChange.createdAt
         ? {
             cycle: state.lastYearChange.cycle,
             skipped: state.lastYearChange.skipped.map(
@@ -238,6 +248,7 @@ export function toGameTableView(
     activeEvents: toActiveEventViews(
       state.thematicEvents.activeEvents,
       state.thematicEvents.pendingEvent?.occurrenceId ?? null,
+      state.turn.phase,
     ),
     season: toSeasonView(state),
     winnerCandidateName: candidate?.name ?? null,

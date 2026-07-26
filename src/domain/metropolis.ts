@@ -64,6 +64,18 @@ export function proposeMetropolisChange(
         ),
       );
     }
+    // A wall is built onto an ordinary city, so converting the last unwalled
+    // city would leave more walls than cities. Rejecting it here keeps the
+    // table out of a pending proposal that could never be confirmed.
+    if (player.ordinaryCities + change.ordinaryCityDelta < player.cityWalls) {
+      return failure(
+        domainError(
+          "INVALID_METROPOLIS_STATE",
+          "A metropolis assignment requires an ordinary city without a wall.",
+          { playerId: change.playerId, discipline },
+        ),
+      );
+    }
   }
 
   return success({

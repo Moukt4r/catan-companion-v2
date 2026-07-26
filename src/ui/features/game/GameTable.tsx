@@ -198,6 +198,23 @@ export function GameTable({
     ? `season-${view.season.current}`
     : "neutral";
 
+  // Escape closes the disclosure, which is the behaviour anyone who opened it
+  // by accident will reach for first.
+  useEffect(() => {
+    if (!menuOpen || typeof window === "undefined") {
+      return;
+    }
+    const closeOnEscape = (keyboardEvent: KeyboardEvent) => {
+      if (keyboardEvent.key === "Escape") {
+        setMenuOpen(false);
+      }
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [menuOpen]);
+
   useEffect(() => {
     if (
       typeof window === "undefined" ||

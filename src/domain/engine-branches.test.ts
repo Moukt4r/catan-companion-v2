@@ -657,6 +657,56 @@ describe("public-state restrictions and score errors", () => {
       "no-convertible-city",
     );
   });
+
+  it("rejects a metropolis when every recorded city already carries a wall", () => {
+    // A wall is built onto an ordinary city, so converting the last unwalled
+    // city would leave more walls than cities. The proposal has to be refused
+    // up front, otherwise the table is stuck holding a pending proposal that
+    // can never be confirmed.
+    const walled = actionPhase(newGame());
+    walled.players[0]!.ordinaryCities = 1;
+    walled.players[0]!.cityWalls = 1;
+    walled.players[0]!.improvements.science = 5;
+
+    expectError(
+      walled,
+      {
+        type: "metropolis.assignmentProposed",
+        discipline: "science",
+        holderId: PLAYER_IDS[0]!,
+        status: "permanent",
+      },
+      "INVALID_METROPOLIS_STATE",
+      "fully-walled-city",
+    );
+
+    // Removing a wall frees an ordinary city, so the same assignment is
+    // accepted and can be confirmed.
+    const unwalled = actionPhase(newGame());
+    unwalled.players[0]!.ordinaryCities = 1;
+    unwalled.players[0]!.cityWalls = 0;
+    unwalled.players[0]!.improvements.science = 5;
+    const proposed = decide(
+      unwalled,
+      {
+        type: "metropolis.assignmentProposed",
+        discipline: "science",
+        holderId: PLAYER_IDS[0]!,
+        status: "permanent",
+      },
+      deps("walled-ok"),
+    );
+    expect(proposed.ok).toBe(true);
+    if (!proposed.ok) return;
+    const proposal = proposed.value.nextState.metropolises.pendingProposal;
+    expect(proposal).not.toBeNull();
+    const confirmed = decide(
+      proposed.value.nextState,
+      { type: "metropolis.proposalConfirmed", proposalId: proposal!.id },
+      deps("walled-confirm"),
+    );
+    expect(confirmed.ok).toBe(true);
+  });
 });
 
 describe("metropolis command variants, errors, and cancellation", () => {
