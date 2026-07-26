@@ -433,15 +433,32 @@ function polishNumberTokens(source: BoardHex[]): BoardHex[] {
   // Deterministic sweep: every ordered pair, repeated until a full pass finds
   // no improvement. No randomness, so a given board always polishes the same
   // way and the caller's draw budget is untouched.
-  for (let pass = 0; pass < 12 && currentSoft > 0; pass += 1) {
+  //
+  // Bounded by an explicit work budget rather than pass count alone. Each
+  // candidate swap rescores every vertex, so an unbounded sweep is quadratic
+  // in tokens and cubic in board size; on a slow runner under coverage
+  // instrumentation that was enough to overrun the test budget. Most of the
+  // gain comes from the first couple of passes, so capping the work costs
+  // almost nothing in quality.
+  const swapBudget = 4_000;
+  let swaps = 0;
+  for (
+    let pass = 0;
+    pass < 4 && currentSoft > 0 && swaps < swapBudget;
+    pass += 1
+  ) {
     let improved = false;
     for (let left = 0; left < numbered.length; left += 1) {
       for (let right = left + 1; right < numbered.length; right += 1) {
+        if (swaps >= swapBudget) {
+          break;
+        }
         const first = numbered[left] as BoardHex;
         const second = numbered[right] as BoardHex;
         if (first.numberToken === second.numberToken) {
           continue;
         }
+        swaps += 1;
         const firstValue = first.numberToken;
         const secondValue = second.numberToken;
         first.numberToken = secondValue;
