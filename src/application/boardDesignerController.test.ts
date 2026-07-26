@@ -75,7 +75,7 @@ describe("BoardDesignerController", () => {
     const originalId = await controller.createDesign("Generated island");
     await controller.generate();
 
-    expect(controller.getSnapshot().activeDesign?.hexes).toHaveLength(39);
+    expect(controller.getSnapshot().activeDesign?.hexes).toHaveLength(42);
 
     const copyId = await controller.duplicateDesign(originalId);
     expect(copyId).not.toBe(originalId);
@@ -171,12 +171,12 @@ describe("BoardDesignerController", () => {
     await controller.initialize();
     await controller.createDesign();
 
-    await controller.resizeFootprint(9, 5);
+    await controller.resizeFootprint(10, 5);
 
     const resized = controller.getSnapshot().activeDesign;
-    expect(resized?.footprint).toHaveLength(39);
+    expect(resized?.footprint).toHaveLength(42);
     expect(footprintDimensions(resized?.footprint ?? [])).toEqual({
-      width: 9,
+      width: 10,
       height: 5,
     });
     await controller.undo();
@@ -184,7 +184,7 @@ describe("BoardDesignerController", () => {
       footprintDimensions(
         controller.getSnapshot().activeDesign?.footprint ?? [],
       ),
-    ).toEqual({ width: 7, height: 7 });
+    ).toEqual({ width: 7, height: 8 });
   });
 
   it("loads the latest design instead of overwriting another tab", async () => {

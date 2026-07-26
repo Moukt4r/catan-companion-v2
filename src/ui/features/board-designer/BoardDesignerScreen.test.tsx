@@ -59,7 +59,7 @@ describe("BoardDesignerScreen", () => {
       type: "inventory.countSet",
       category: "terrain",
       item: "sea",
-      count: 13,
+      count: 16,
     });
     expect(onGenerate).toHaveBeenCalledOnce();
   });
@@ -108,13 +108,13 @@ describe("BoardDesignerScreen", () => {
     const width = screen.getByRole("spinbutton", { name: "Width" });
     const height = screen.getByRole("spinbutton", { name: "Height" });
     await user.clear(width);
-    await user.type(width, "9");
+    await user.type(width, "10");
     await user.clear(height);
     await user.type(height, "5");
     await user.click(
       screen.getByRole("button", { name: "Apply width × height" }),
     );
-    expect(onResizeFootprint).toHaveBeenCalledWith(9, 5);
+    expect(onResizeFootprint).toHaveBeenCalledWith(10, 5);
   });
 
   it("keeps rapid inventory changes instead of reusing a stale value", async () => {

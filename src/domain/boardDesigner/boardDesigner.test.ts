@@ -86,7 +86,7 @@ function countingRandomSequence(seed: number): {
 }
 
 describe("board designer domain", () => {
-  it("uses the table's 39-tile default inventory", () => {
+  it("uses the table's 42-tile default inventory", () => {
     const inventory = createClassicIslandInventory();
     expect(inventory.terrain).toEqual({
       forest: 5,
@@ -96,7 +96,7 @@ describe("board designer domain", () => {
       mountains: 5,
       gold: 2,
       desert: 0,
-      sea: 12,
+      sea: 15,
     });
     expect(
       Object.values(inventory.numbers).reduce(
@@ -242,11 +242,11 @@ describe("board designer domain", () => {
       ...makeDesign(inventory),
       ...result.value,
     };
-    expect(result.value.hexes).toHaveLength(39);
+    expect(result.value.hexes).toHaveLength(42);
     expect(
       new Set(result.value.hexes.map((hex) => coordinateKey(hex.coordinate)))
         .size,
-    ).toBe(39);
+    ).toBe(42);
     expect(isConnected(result.value.hexes)).toBe(true);
     expect(landComponentCount(result.value.hexes)).toBeGreaterThan(1);
     expect(minimumLandComponentSize(result.value.hexes)).toBeGreaterThanOrEqual(

@@ -351,7 +351,7 @@ test("auto-generates a complete classic board", async ({ page }) => {
 
   await expect(
     page.getByRole("group", {
-      name: "Untitled island board layout with 39 placed hexes",
+      name: "Untitled island board layout with 42 placed hexes",
     }),
   ).toBeVisible();
   const topology = await page
@@ -439,9 +439,23 @@ test("auto-generates a complete classic board", async ({ page }) => {
         adjacentSea,
         landComponents,
         minimumIslandSize: Math.min(...componentSizes),
-        symmetric: cells.every(({ q, r }) =>
-          cells.some((candidate) => candidate.q === -q && candidate.r === -r),
-        ),
+        // Rotate about the board's own centre rather than the origin: a
+        // stretched outline is still 180-degree symmetric, just not around
+        // (0, 0).
+        symmetric: (() => {
+          const offsetQ = Math.round(
+            (2 * cells.reduce((total, { q }) => total + q, 0)) / cells.length,
+          );
+          const offsetR = Math.round(
+            (2 * cells.reduce((total, { r }) => total + r, 0)) / cells.length,
+          );
+          return cells.every(({ q, r }) =>
+            cells.some(
+              (candidate) =>
+                candidate.q === offsetQ - q && candidate.r === offsetR - r,
+            ),
+          );
+        })(),
       };
     });
   expect(topology.minimumIslandSize).toBeGreaterThanOrEqual(3);
@@ -476,7 +490,7 @@ test("uses the table's own board-designer defaults", async ({ page }) => {
     ["Mountains", "5"],
     ["Gold Field", "2"],
     ["Desert", "0"],
-    ["Sea", "12"],
+    ["Sea", "15"],
   ] as const) {
     await expect(page.getByRole("spinbutton", { name: label })).toHaveValue(
       value,
@@ -507,10 +521,10 @@ test("uses the table's own board-designer defaults", async ({ page }) => {
 test("resizes the border with width and height inputs", async ({ page }) => {
   await page.getByRole("button", { name: /Board designer/ }).click();
   await page.getByRole("button", { name: "Start default board" }).click();
-  await expect(page.locator(".board-hex--footprint")).toHaveCount(39);
+  await expect(page.locator(".board-hex--footprint")).toHaveCount(42);
   const before = await readFootprint(page);
 
-  await page.getByRole("spinbutton", { name: "Width" }).fill("9");
+  await page.getByRole("spinbutton", { name: "Width" }).fill("10");
   await page.getByRole("spinbutton", { name: "Height" }).fill("5");
   await page.getByRole("button", { name: "Apply width × height" }).click();
   await expect(page.locator("main.board-designer-layout")).toHaveAttribute(
@@ -519,7 +533,7 @@ test("resizes the border with width and height inputs", async ({ page }) => {
   );
   const after = await readFootprint(page);
   expect(after).toHaveLength(before.length);
-  expect(footprintSpans(after).slice(0, 2)).toEqual([9, 5]);
+  expect(footprintSpans(after).slice(0, 2)).toEqual([10, 5]);
   expect(isRotationallySymmetric(after)).toBe(true);
 
   await page.getByRole("button", { name: "Undo" }).click();

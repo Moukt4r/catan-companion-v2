@@ -2,6 +2,7 @@ import {
   BOARD_DOCUMENT_VERSION,
   applyBoardCommand,
   createClassicIslandInventory,
+  CLASSIC_BOARD_FOOTPRINT,
   createSymmetricFootprint,
   createSymmetricFootprintWithDimensions,
   generateBoardLayout,
@@ -102,7 +103,13 @@ export class BoardDesignerController {
   ): Promise<BoardDesignId> {
     return this.mutate(async () => {
       const now = this.runtime.now();
-      const footprint = createSymmetricFootprint(totalTerrain(inventory));
+      // The default inventory belongs to the table's own board, so use its
+      // real outline. Any other inventory still gets a generated shape.
+      const tiles = totalTerrain(inventory);
+      const footprint =
+        tiles === CLASSIC_BOARD_FOOTPRINT.length
+          ? { ok: true as const, value: [...CLASSIC_BOARD_FOOTPRINT] }
+          : createSymmetricFootprint(tiles);
       const design: BoardDesign = {
         documentVersion: BOARD_DOCUMENT_VERSION,
         id: this.runtime.boardDesignId(),
