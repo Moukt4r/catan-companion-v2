@@ -12,7 +12,13 @@ import {
 } from "./coordinates";
 import { isSymmetricFootprint } from "./footprint";
 import { isProducingTerrain, totalTerrain } from "./inventory";
-import { MAX_VERTEX_PIPS, NUMBER_TOKEN_PIPS } from "./validation";
+import {
+  HIGH_PRODUCTION_PIPS,
+  MAX_VERTEX_PIPS,
+  NUMBER_TOKEN_PIPS,
+  pairedHighNumberVertices,
+  repeatedNumberVertices,
+} from "./validation";
 import {
   MAX_BOARD_HEXES,
   NUMBER_TOKEN_VALUES,
@@ -210,6 +216,14 @@ function numberPlacementScore(hexes: readonly BoardHex[]): number {
   // the red-adjacency weight so it never trades one hard rule for another.
   score += vertexPipPenalty(hexes);
 
+  // Two four-pip numbers on one corner, or the same number twice, both make a
+  // spot stronger or swingier than its pip total suggests. Deliberately small
+  // weights: even a board full of these must never total as much as a single
+  // overloaded corner (1_000), so the optimizer can never buy off a hard rule
+  // by clearing a pile of soft ones.
+  score += pairedHighNumberPenalty(hexes) * 20;
+  score += repeatedNumberVertexPenalty(hexes) * 8;
+
   return score;
 }
 
@@ -236,6 +250,16 @@ function vertexPipPenalty(hexes: readonly BoardHex[]): number {
     }
   }
   return penalty;
+}
+
+/** Count of vertices pairing two four-pip numbers. */
+function pairedHighNumberPenalty(hexes: readonly BoardHex[]): number {
+  return pairedHighNumberVertices(hexes).length;
+}
+
+/** Count of vertices touching the same number more than once. */
+function repeatedNumberVertexPenalty(hexes: readonly BoardHex[]): number {
+  return repeatedNumberVertices(hexes).length;
 }
 
 function assignNumberTokens(
@@ -297,9 +321,148 @@ function optimizeNumberTokens(
     }
   }
 
-  return repairVertexPipOverload(
-    repairRedNumberAdjacency(best ?? [], boundedInt),
+  return polishNumberTokens(
+    repairVertexPipOverload(repairRedNumberAdjacency(best ?? [], boundedInt)),
   );
+}
+
+/**
+ * Clear strong-but-legal corners without disturbing the hard constraints.
+ *
+ * Two four-pip numbers on one corner, or the same number twice, both make a
+ * building spot stronger or swingier than its pip total suggests. Neither
+ * breaks a rule on its own, so they are cleaned up only after adjacent reds
+ * and overloaded corners have been settled.
+ *
+ * Every candidate swap is measured against the hard constraints first and
+ * rejected outright if it makes them worse. That makes a regression on the
+ * stricter rules impossible by construction rather than by weighting, which
+ * an earlier attempt got wrong: folding all four terms into one score moved
+ * the search into different local optima and left more overloaded corners
+ * than before.
+ */
+function polishNumberTokens(source: BoardHex[]): BoardHex[] {
+  const hexes = source.map((hex) => ({
+    ...hex,
+    coordinate: { ...hex.coordinate },
+  }));
+  const numbered = hexes.filter((hex) => hex.numberToken !== null);
+  if (numbered.length < 2) {
+    return hexes;
+  }
+
+  const hexByKey = new Map(
+    hexes.map((hex) => [coordinateKey(hex.coordinate), hex]),
+  );
+  const vertexGroups = boardVertices(hexes.map((hex) => hex.coordinate)).map(
+    (vertex) =>
+      vertex.coordinates.flatMap((coordinate) => {
+        const hex = hexByKey.get(coordinateKey(coordinate));
+        return hex ? [hex] : [];
+      }),
+  );
+  const adjacentPairs: Array<[BoardHex, BoardHex]> = [];
+  for (const hex of hexes) {
+    for (const coordinate of neighbors(hex.coordinate)) {
+      const other = hexByKey.get(coordinateKey(coordinate));
+      if (
+        other &&
+        coordinateKey(hex.coordinate) < coordinateKey(other.coordinate)
+      ) {
+        adjacentPairs.push([hex, other]);
+      }
+    }
+  }
+
+  /** Adjacent reds and overloaded corners: never allowed to get worse. */
+  const hardCost = (): number => {
+    let overloaded = 0;
+    for (const group of vertexGroups) {
+      let pips = 0;
+      for (const hex of group) {
+        pips += hex.numberToken ? NUMBER_TOKEN_PIPS[hex.numberToken] : 0;
+      }
+      if (pips > MAX_VERTEX_PIPS) {
+        overloaded += 1;
+      }
+    }
+    let reds = 0;
+    for (const [left, right] of adjacentPairs) {
+      if (isRedNumber(left.numberToken) && isRedNumber(right.numberToken)) {
+        reds += 1;
+      }
+    }
+    return reds * 100 + overloaded;
+  };
+
+  /** Paired four-pip corners, then repeated numbers on a corner. */
+  const softCost = (): number => {
+    let paired = 0;
+    let repeated = 0;
+    for (const group of vertexGroups) {
+      let high = 0;
+      const seen = new Map<number, number>();
+      for (const hex of group) {
+        const token = hex.numberToken;
+        if (token === null) {
+          continue;
+        }
+        if (NUMBER_TOKEN_PIPS[token] === HIGH_PRODUCTION_PIPS) {
+          high += 1;
+        }
+        seen.set(token, (seen.get(token) ?? 0) + 1);
+      }
+      if (high >= 2) {
+        paired += 1;
+      }
+      for (const count of seen.values()) {
+        if (count >= 2) {
+          repeated += 1;
+        }
+      }
+    }
+    return paired * 10 + repeated;
+  };
+
+  const baselineHard = hardCost();
+  let currentSoft = softCost();
+  if (currentSoft === 0) {
+    return hexes;
+  }
+
+  // Deterministic sweep: every ordered pair, repeated until a full pass finds
+  // no improvement. No randomness, so a given board always polishes the same
+  // way and the caller's draw budget is untouched.
+  for (let pass = 0; pass < 12 && currentSoft > 0; pass += 1) {
+    let improved = false;
+    for (let left = 0; left < numbered.length; left += 1) {
+      for (let right = left + 1; right < numbered.length; right += 1) {
+        const first = numbered[left] as BoardHex;
+        const second = numbered[right] as BoardHex;
+        if (first.numberToken === second.numberToken) {
+          continue;
+        }
+        const firstValue = first.numberToken;
+        const secondValue = second.numberToken;
+        first.numberToken = secondValue;
+        second.numberToken = firstValue;
+
+        const nextSoft = softCost();
+        if (nextSoft < currentSoft && hardCost() <= baselineHard) {
+          currentSoft = nextSoft;
+          improved = true;
+        } else {
+          first.numberToken = firstValue;
+          second.numberToken = secondValue;
+        }
+      }
+    }
+    if (!improved) {
+      break;
+    }
+  }
+
+  return hexes;
 }
 
 /**
@@ -374,6 +537,8 @@ function repairVertexPipOverload(source: BoardHex[]): BoardHex[] {
         reds += 1;
       }
     }
+    // Hard constraints only. The soft preferences are handled by a separate
+    // pass afterwards, so this walk lands on exactly the layouts it used to.
     return reds * 100 + overloaded;
   };
 

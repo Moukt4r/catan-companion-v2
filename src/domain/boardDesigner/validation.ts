@@ -54,6 +54,16 @@ export const NUMBER_TOKEN_PIPS: Record<NumberTokenValue, number> = {
  */
 export const MAX_VERTEX_PIPS = 9;
 
+/**
+ * Pip count that marks a token as high production.
+ *
+ * 5 and 9 carry four pips, 6 and 8 carry five. A corner holding two of these
+ * is a premium opening even when the pip total stays under
+ * {@link MAX_VERTEX_PIPS}: 5 + 9 sums to eight, inside the cap, yet it is a
+ * stronger spot than the cap alone suggests.
+ */
+export const HIGH_PRODUCTION_PIPS = 4;
+
 /** Pip value of a hex, treating unnumbered and desert hexes as zero. */
 function hexPips(hex: BoardHex | undefined): number {
   return hex?.numberToken ? NUMBER_TOKEN_PIPS[hex.numberToken] : 0;
@@ -83,6 +93,61 @@ export function overloadedVertices(
   }
 
   return overloaded.sort((left, right) => right.pips - left.pips);
+}
+
+/** Vertices where two tokens of exactly {@link HIGH_PRODUCTION_PIPS} pips meet. */
+export function pairedHighNumberVertices(
+  hexes: readonly BoardHex[],
+): HexCoordinate[][] {
+  const byKey = new Map(
+    hexes.map((hex) => [coordinateKey(hex.coordinate), hex]),
+  );
+  const paired: HexCoordinate[][] = [];
+
+  for (const vertex of boardVertices(hexes.map((hex) => hex.coordinate))) {
+    const high = vertex.coordinates.filter(
+      (coordinate) =>
+        hexPips(byKey.get(coordinateKey(coordinate))) === HIGH_PRODUCTION_PIPS,
+    );
+    if (high.length >= 2) {
+      paired.push(high);
+    }
+  }
+
+  return paired;
+}
+
+/**
+ * Vertices where the same number appears more than once.
+ *
+ * Two 10s on one corner pay out together on every roll of ten, which makes
+ * the spot far swingier than its pip total implies.
+ */
+export function repeatedNumberVertices(
+  hexes: readonly BoardHex[],
+): HexCoordinate[][] {
+  const byKey = new Map(
+    hexes.map((hex) => [coordinateKey(hex.coordinate), hex]),
+  );
+  const repeated: HexCoordinate[][] = [];
+
+  for (const vertex of boardVertices(hexes.map((hex) => hex.coordinate))) {
+    const seen = new Map<number, HexCoordinate[]>();
+    for (const coordinate of vertex.coordinates) {
+      const token = byKey.get(coordinateKey(coordinate))?.numberToken;
+      if (token == null) {
+        continue;
+      }
+      seen.set(token, [...(seen.get(token) ?? []), coordinate]);
+    }
+    for (const group of seen.values()) {
+      if (group.length >= 2) {
+        repeated.push(group);
+      }
+    }
+  }
+
+  return repeated;
 }
 
 function issue(
@@ -404,6 +469,36 @@ export function validateBoardDesign(
             ? `One building spot totals ${worst.pips} pips, above the limit of ${MAX_VERTEX_PIPS}.`
             : `${overloaded.length} building spots exceed ${MAX_VERTEX_PIPS} pips; the highest totals ${worst.pips}.`,
         coordinates: overloaded.flatMap((vertex) => vertex.coordinates),
+      }),
+    );
+  }
+
+  const paired = pairedHighNumberVertices(design.hexes);
+  if (paired.length > 0) {
+    issues.push(
+      issue({
+        code: "paired-high-numbers",
+        severity: "warning",
+        message:
+          paired.length === 1
+            ? "One building spot pairs two four-pip numbers."
+            : `${paired.length} building spots pair two four-pip numbers.`,
+        coordinates: paired.flat(),
+      }),
+    );
+  }
+
+  const repeated = repeatedNumberVertices(design.hexes);
+  if (repeated.length > 0) {
+    issues.push(
+      issue({
+        code: "repeated-number-vertex",
+        severity: "warning",
+        message:
+          repeated.length === 1
+            ? "One building spot touches the same number twice."
+            : `${repeated.length} building spots touch the same number twice.`,
+        coordinates: repeated.flat(),
       }),
     );
   }
