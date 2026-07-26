@@ -7,7 +7,7 @@ import {
   createGame,
   validateGameState,
 } from "../../domain";
-import type { GameSetup, GameState, PlayerState } from "../../domain";
+import type { GameSetup, GameState } from "../../domain";
 import type { StoredRevision } from "../../application/persistence";
 import { sha256 } from "../../application/integrity";
 import {
@@ -67,49 +67,154 @@ function currentState(): GameState {
 }
 
 /**
- * A save written before city walls and inactive knights existed. Those keys
- * are absent entirely rather than zeroed.
+ * A save written while the app still mirrored board-owned bookkeeping:
+ * cities, walls, knights, attack proposals and win/loss counters.
  */
-function legacyState(): GameState {
-  const state = structuredClone(currentState());
-  for (const player of state.players) {
-    delete (player as Partial<PlayerState>).cityWalls;
-    delete (player as Partial<PlayerState>).inactiveKnights;
+function legacyState(
+  overrides: (raw: Record<string, unknown>) => void = () => {
+    /* no overrides */
+  },
+): GameState {
+  const raw = structuredClone(currentState()) as unknown as Record<
+    string,
+    unknown
+  >;
+  for (const player of raw.players as Record<string, unknown>[]) {
+    player.ordinaryCities = 2;
+    player.cityWalls = 1;
+    player.activeKnights = { basic: 1, strong: 0, mighty: 0 };
+    player.inactiveKnights = { basic: 0, strong: 1, mighty: 0 };
   }
-  return state;
+  const setupBlock = raw.setup as Record<string, unknown>;
+  for (const player of setupBlock.players as Record<string, unknown>[]) {
+    player.ordinaryCities = 2;
+    player.cityWalls = 1;
+  }
+  const barbarian = raw.barbarian as Record<string, unknown>;
+  (barbarian.rules as Record<string, unknown>).knightComponentLimitPerLevel = 2;
+  barbarian.pendingAttack = null;
+  const statistics = raw.statistics as Record<string, unknown>;
+  delete statistics.barbarianAttacks;
+  statistics.barbarianAttacksWon = 2;
+  statistics.barbarianAttacksLost = 1;
+  overrides(raw);
+  return raw as unknown as GameState;
 }
 
-describe("legacy save migration", () => {
-  it("reproduces the failure that marked pre-walls saves corrupt", () => {
-    // Schema defaults now let the legacy shape parse again...
-    expect(() => parseGameState(legacyState())).not.toThrow();
+describe("removing board-owned bookkeeping from legacy saves", () => {
+  it("reproduces the failure a bare schema change would have caused", () => {
+    // The schema is strict, so an unmigrated legacy save is rejected for
+    // carrying keys the app no longer knows about. Without migration this is
+    // exactly what would mark every existing game `corrupt`.
+    expect(() => parseGameState(legacyState())).toThrow();
 
-    // ...but the raw stored record is still not a usable domain state, which
-    // is exactly what caused every existing game to be written back as
-    // `corrupt`. Validation cannot even complete on it.
-    expect(() => validateGameState(legacyState())).toThrow();
+    // After migration the same save parses and is a valid domain state.
+    const migrated = migrateGameState(legacyState());
+    expect(migrated.changed).toBe(true);
+    expect(() => parseGameState(migrated.state)).not.toThrow();
+    expect(validateGameState(migrated.state)).toEqual([]);
   });
 
-  it("fills in missing walls and inactive knights without touching other data", () => {
-    const legacy = legacyState();
-    const { state, changed } = migrateGameState(legacy);
+  it("strips board-owned fields from players and setup", () => {
+    const { state } = migrateGameState(legacyState());
 
-    expect(changed).toBe(true);
     for (const player of state.players) {
-      expect(player.cityWalls).toBe(0);
-      expect(player.inactiveKnights).toEqual({
-        basic: 0,
-        strong: 0,
-        mighty: 0,
-      });
+      expect(player).not.toHaveProperty("ordinaryCities");
+      expect(player).not.toHaveProperty("cityWalls");
+      expect(player).not.toHaveProperty("activeKnights");
+      expect(player).not.toHaveProperty("inactiveKnights");
+      // Improvements survive: they drive progress-card eligibility.
+      expect(player.improvements).toBeDefined();
     }
-    // Migrated state is a fully valid domain state again.
-    expect(validateGameState(state)).toEqual([]);
-    // Unrelated fields survive untouched.
+    for (const player of state.setup.players) {
+      expect(player).not.toHaveProperty("ordinaryCities");
+      expect(player).not.toHaveProperty("cityWalls");
+    }
+  });
+
+  it("keeps identity and unrelated data untouched", () => {
+    const legacy = legacyState();
+    const { state } = migrateGameState(legacy);
+
+    expect(state.id).toBe(legacy.id);
     expect(state.players.map((player) => player.name)).toEqual(
       legacy.players.map((player) => player.name),
     );
-    expect(state.id).toBe(legacy.id);
+    expect(state.players.map((player) => player.order)).toEqual([0, 1, 2]);
+    expect(state.scoreLedger).toEqual(legacy.scoreLedger);
+  });
+
+  it("folds attack win/loss counters into a single attack count", () => {
+    const { state } = migrateGameState(legacyState());
+
+    expect(state.statistics.barbarianAttacks).toBe(3);
+    expect(state.statistics).not.toHaveProperty("barbarianAttacksWon");
+    expect(state.statistics).not.toHaveProperty("barbarianAttacksLost");
+  });
+
+  it("reduces recorded attack history to what the app still owns", () => {
+    const legacy = legacyState((raw) => {
+      const barbarian = raw.barbarian as Record<string, unknown>;
+      barbarian.history = [
+        {
+          proposalId: "old-attack",
+          completedAt: "2026-07-20T10:00:00.000Z",
+          strengths: { barbarian: 4, defenders: 2, contributions: [] },
+          outcome: { type: "barbarians-win", pillagedPlayerIds: [] },
+          progressChoices: [],
+        },
+      ];
+    });
+
+    const { state } = migrateGameState(legacy);
+
+    expect(state.barbarian.history).toEqual([
+      {
+        proposalId: "old-attack",
+        completedAt: "2026-07-20T10:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("completes a save that was paused mid-attack", () => {
+    // A game stopped in the old attack-resolution phase must not strand the
+    // table. The board already settled it, so the migration logs the attack,
+    // resets the ship and arms the robber.
+    const legacy = legacyState((raw) => {
+      const barbarian = raw.barbarian as Record<string, unknown>;
+      barbarian.shipPosition = 7;
+      barbarian.robberActivated = false;
+      barbarian.attacksCompleted = 0;
+      barbarian.pendingAttack = {
+        id: "pending-1",
+        strengths: { barbarian: 3, defenders: 1, contributions: [] },
+        outcome: { type: "barbarians-win", pillagedPlayerIds: [] },
+        firstAttack: true,
+        summary: "The barbarians win.",
+      };
+      (raw.turn as Record<string, unknown>).phase =
+        "resolving-barbarian-attack";
+    });
+
+    const { state } = migrateGameState(legacy);
+
+    expect(state.barbarian).not.toHaveProperty("pendingAttack");
+    expect(state.barbarian.shipPosition).toBe(0);
+    expect(state.barbarian.robberActivated).toBe(true);
+    expect(state.barbarian.attacksCompleted).toBe(1);
+    expect(state.barbarian.history.at(-1)?.proposalId).toBe("pending-1");
+    // The removed phase must resolve to a phase that still exists.
+    expect(state.turn.phase).toBe("action-phase");
+    expect(validateGameState(state)).toEqual([]);
+  });
+
+  it("drops the knight component limit from barbarian rules", () => {
+    const { state } = migrateGameState(legacyState());
+
+    expect(state.barbarian.rules).not.toHaveProperty(
+      "knightComponentLimitPerLevel",
+    );
+    expect(state.barbarian.rules.trackLength).toBe(7);
   });
 
   it("leaves an already-current save completely untouched", () => {
@@ -121,56 +226,56 @@ describe("legacy save migration", () => {
     expect(result.state).toBe(state);
   });
 
-  it("never overwrites values a save already carries", () => {
-    const state = structuredClone(currentState());
-    state.players[0]!.ordinaryCities = 3;
-    state.players[0]!.cityWalls = 2;
-    state.players[0]!.inactiveKnights = { basic: 1, strong: 2, mighty: 0 };
-
-    const migrated = migrateGameState(state);
-
-    expect(migrated.changed).toBe(false);
-    expect(migrated.state.players[0]!.cityWalls).toBe(2);
-    expect(migrated.state.players[0]!.inactiveKnights).toEqual({
-      basic: 1,
-      strong: 2,
-      mighty: 0,
-    });
-  });
-
-  it("treats a legacy attack without an outcome as board-authoritative", () => {
-    // A save written before manual outcomes existed: the key is absent.
-    const legacy = {
-      type: "attack.confirmed" as const,
-      proposalId: "legacy-proposal",
+  it("strips removed fields from recorded commands", () => {
+    const legacyAdjust = {
+      type: "player.publicStateAdjusted",
+      playerId: "migration-player-a",
+      patch: {
+        ordinaryCities: 3,
+        cityWalls: 1,
+        activeKnights: { basic: 1 },
+        improvements: { science: 2 },
+      },
     } as unknown as Parameters<typeof migrateCommand>[0];
 
-    const { command, changed } = migrateCommand(legacy);
+    const { command, changed } = migrateCommand(legacyAdjust);
 
     expect(changed).toBe(true);
-    expect(command).toMatchObject({
-      type: "attack.confirmed",
-      manualOutcome: { type: "board-authoritative" },
+    expect(command).toEqual({
+      type: "player.publicStateAdjusted",
+      playerId: "migration-player-a",
+      patch: { improvements: { science: 2 } },
     });
-    // The migrated command satisfies the strict persistence schema.
     expect(() => commandSchema.parse(command)).not.toThrow();
   });
 
-  it("preserves a recorded attack outcome", () => {
-    const recorded = {
-      type: "attack.confirmed" as const,
-      proposalId: "recorded-proposal" as never,
-      manualOutcome: {
-        type: "barbarians-win" as const,
-        pillagedPlayerIds: [asPlayerId("migration-player-a")],
-      },
+  it("reduces a legacy attack command to its identity", () => {
+    const legacyAttack = {
+      type: "attack.confirmed",
+      proposalId: "legacy-proposal",
+      manualOutcome: { type: "board-authoritative" },
       progressChoices: [],
-    };
+    } as unknown as Parameters<typeof migrateCommand>[0];
 
-    const { command, changed } = migrateCommand(recorded);
+    const { command, changed } = migrateCommand(legacyAttack);
 
-    expect(changed).toBe(false);
-    expect(command).toBe(recorded);
+    expect(changed).toBe(true);
+    expect(command).toEqual({
+      type: "attack.confirmed",
+      proposalId: "legacy-proposal",
+    });
+    expect(() => commandSchema.parse(command)).not.toThrow();
+  });
+
+  it("leaves commands that carry no removed fields alone", () => {
+    const command = { type: "turn.ended" } as Parameters<
+      typeof migrateCommand
+    >[0];
+
+    const result = migrateCommand(command);
+
+    expect(result.changed).toBe(false);
+    expect(result.command).toBe(command);
   });
 
   it("recomputes the state hash only when the state actually changed", async () => {
@@ -184,10 +289,9 @@ describe("legacy save migration", () => {
       command: { type: "game.created" },
       summary: { kind: "game-created", text: "Created", playerIds: [] },
       state: legacy,
-      // Hash of the pre-migration state, so it must be replaced.
       stateHash: await sha256(legacy),
       createdAt: asIsoTimestamp("2026-07-25T12:00:00.000Z"),
-      applicationVersion: "0.6.0",
+      applicationVersion: "0.6.1",
       databaseSchemaVersion: 1,
       gameDocumentVersion: 1,
       rulesDataVersion: "2025.1",
@@ -215,7 +319,7 @@ describe("legacy save migration", () => {
       state,
       stateHash: await sha256(state),
       createdAt: asIsoTimestamp("2026-07-25T12:00:00.000Z"),
-      applicationVersion: "0.6.1",
+      applicationVersion: "0.6.2",
       databaseSchemaVersion: 1,
       gameDocumentVersion: 1,
       rulesDataVersion: "2025.1",

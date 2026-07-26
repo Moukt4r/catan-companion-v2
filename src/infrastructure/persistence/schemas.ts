@@ -28,12 +28,6 @@ const colorSchema = z.strictObject({
   distinguishabilityKey: id,
 });
 
-const knightSchema = z.strictObject({
-  basic: nonNegativeInteger,
-  strong: nonNegativeInteger,
-  mighty: nonNegativeInteger,
-});
-
 const improvementSchema = z.strictObject({
   science: integer.min(0).max(5),
   trade: integer.min(0).max(5),
@@ -44,10 +38,6 @@ const playerSetupSchema = z.strictObject({
   id,
   name: z.string().min(1).max(200),
   color: colorSchema,
-  ordinaryCities: nonNegativeInteger.optional(),
-  activeKnights: knightSchema.partial().optional(),
-  inactiveKnights: knightSchema.partial().optional(),
-  cityWalls: nonNegativeInteger.optional(),
   improvements: improvementSchema.partial().optional(),
   initialScore: integer.optional(),
 });
@@ -122,13 +112,6 @@ const playerStateSchema = z.strictObject({
   name: z.string().min(1).max(200),
   color: colorSchema,
   order: nonNegativeInteger,
-  ordinaryCities: nonNegativeInteger,
-  activeKnights: knightSchema,
-  // Saves written before city walls and inactive knights existed omit these
-  // fields entirely. Defaulting them keeps those games loadable instead of
-  // failing the strict parse and being written back as `corrupt`.
-  inactiveKnights: knightSchema.default({ basic: 0, strong: 0, mighty: 0 }),
-  cityWalls: nonNegativeInteger.default(0),
   improvements: improvementSchema,
 });
 
@@ -232,50 +215,9 @@ const metropolisProposalSchema = z
   })
   .nullable();
 
-const attackStrengthsSchema = z.strictObject({
-  barbarian: nonNegativeInteger,
-  defenders: nonNegativeInteger,
-  contributions: z.array(
-    z.strictObject({ playerId: id, strength: nonNegativeInteger }),
-  ),
-});
-const attackOutcomeSchema = z.discriminatedUnion("type", [
-  z.strictObject({
-    type: z.literal("defenders-win"),
-    reward: z.union([
-      z.strictObject({
-        type: z.literal("defender-point"),
-        playerId: id,
-      }),
-      z.strictObject({
-        type: z.literal("progress-choice"),
-        playerIds: z.array(id),
-      }),
-    ]),
-  }),
-  z.strictObject({
-    type: z.literal("barbarians-win"),
-    pillagedPlayerIds: z.array(id),
-  }),
-  z.strictObject({
-    type: z.literal("board-authoritative"),
-  }),
-]);
-const attackProposalSchema = z
-  .strictObject({
-    id,
-    strengths: attackStrengthsSchema,
-    outcome: attackOutcomeSchema,
-    firstAttack: z.boolean(),
-    summary: z.string().max(2_000),
-  })
-  .nullable();
 const attackRecordSchema = z.strictObject({
   proposalId: id,
   completedAt: isoTimestamp,
-  strengths: attackStrengthsSchema,
-  outcome: attackOutcomeSchema,
-  progressChoices: z.array(z.strictObject({ playerId: id, discipline })),
 });
 
 const progressGuidanceSchema = z
@@ -344,7 +286,6 @@ export const gameStateSchema = z.strictObject({
     phase: z.enum([
       "awaiting-roll",
       "resolving-official-result",
-      "resolving-barbarian-attack",
       "resolving-thematic-event",
       "action-phase",
       "turn-complete",
@@ -381,9 +322,7 @@ export const gameStateSchema = z.strictObject({
     attacksCompleted: nonNegativeInteger,
     rules: z.strictObject({
       trackLength: integer.min(1),
-      knightComponentLimitPerLevel: integer.min(1),
     }),
-    pendingAttack: attackProposalSchema,
     history: z.array(attackRecordSchema),
   }),
   resolution: z.strictObject({
@@ -411,8 +350,7 @@ export const gameStateSchema = z.strictObject({
       trade: nonNegativeInteger,
       politics: nonNegativeInteger,
     }),
-    barbarianAttacksWon: nonNegativeInteger,
-    barbarianAttacksLost: nonNegativeInteger,
+    barbarianAttacks: nonNegativeInteger,
     thematicEventsTriggered: nonNegativeInteger,
   }),
   history: z.strictObject({
@@ -426,10 +364,6 @@ export const gameStateSchema = z.strictObject({
 
 const publicPatchSchema = z.strictObject({
   name: z.string().max(200).optional(),
-  ordinaryCities: nonNegativeInteger.optional(),
-  activeKnights: knightSchema.partial().optional(),
-  inactiveKnights: knightSchema.partial().optional(),
-  cityWalls: nonNegativeInteger.optional(),
   improvements: improvementSchema.partial().optional(),
   scoreAdjustment: z
     .strictObject({
@@ -487,17 +421,10 @@ export const commandSchema = z.discriminatedUnion("type", [
     proposalId: id,
   }),
   z.strictObject({
+    // Retained so historical revisions still parse. Attacks now resolve on the
+    // board, so this command is never issued again.
     type: z.literal("attack.confirmed"),
     proposalId: id,
-    // Legacy saves recorded attacks without an explicit outcome. Those games
-    // resolved on the physical board, which is exactly what the current
-    // board-authoritative outcome represents.
-    manualOutcome: attackOutcomeSchema.default({
-      type: "board-authoritative",
-    }),
-    progressChoices: z
-      .array(z.strictObject({ playerId: id, discipline }))
-      .optional(),
   }),
   z.strictObject({ type: z.literal("event.acknowledged"), occurrenceId: id }),
   z.strictObject({ type: z.literal("event.resolved"), occurrenceId: id }),

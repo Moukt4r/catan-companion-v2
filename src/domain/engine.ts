@@ -9,23 +9,13 @@ import { domainError, failure, success } from "./errors";
 import { validateGameState, validateSetup } from "./invariants";
 import { proposeMetropolisChange } from "./metropolis";
 import { eligiblePlayersForProgress } from "./progress";
-import {
-  DEFAULT_BARBARIAN_TRACK_LENGTH,
-  DEFAULT_KNIGHT_COMPONENT_LIMIT_PER_LEVEL,
-  DISCIPLINES,
-} from "./rules";
-import {
-  currentPlayer,
-  metropolisCountForPlayer,
-  scoreForPlayer,
-  winnerCandidates,
-} from "./selectors";
+import { DEFAULT_BARBARIAN_TRACK_LENGTH, DISCIPLINES } from "./rules";
+import { currentPlayer, scoreForPlayer, winnerCandidates } from "./selectors";
 import { createThematicState, scheduleThematicEvent } from "./thematic";
 import { deriveSeason, isSeasonTransition, SEASON_LABELS } from "./seasons";
 import { pruneActiveEvents, resolveActiveEvent } from "./worldEvents";
 import type {
   ActiveWorldEventRecord,
-  BarbarianAttackOutcome,
   BarbarianAttackRecord,
   CreateGameInput,
   Decision,
@@ -36,12 +26,10 @@ import type {
   GameCommand,
   GameState,
   ImprovementLevels,
-  KnightCounts,
   MetropolisControl,
   MetropolisDiscipline,
   PlayerId,
   PlayerState,
-  ProgressDiscipline,
   ProposalId,
   PublicStatePatch,
   RollId,
@@ -63,18 +51,6 @@ export function createGame(input: CreateGameInput): DomainResult<Decision> {
     name: player.name.trim(),
     color: { ...player.color },
     order,
-    ordinaryCities: player.ordinaryCities ?? 1,
-    activeKnights: {
-      basic: player.activeKnights?.basic ?? 0,
-      strong: player.activeKnights?.strong ?? 0,
-      mighty: player.activeKnights?.mighty ?? 0,
-    },
-    inactiveKnights: {
-      basic: player.inactiveKnights?.basic ?? 0,
-      strong: player.inactiveKnights?.strong ?? 0,
-      mighty: player.inactiveKnights?.mighty ?? 0,
-    },
-    cityWalls: player.cityWalls ?? 0,
     improvements: {
       science: player.improvements?.science ?? 0,
       trade: player.improvements?.trade ?? 0,
@@ -137,11 +113,7 @@ export function createGame(input: CreateGameInput): DomainResult<Decision> {
       rules: {
         trackLength:
           input.barbarianRules?.trackLength ?? DEFAULT_BARBARIAN_TRACK_LENGTH,
-        knightComponentLimitPerLevel:
-          input.barbarianRules?.knightComponentLimitPerLevel ??
-          DEFAULT_KNIGHT_COMPONENT_LIMIT_PER_LEVEL,
       },
-      pendingAttack: null,
       history: [],
     },
     resolution: { official: null },
@@ -162,8 +134,7 @@ export function createGame(input: CreateGameInput): DomainResult<Decision> {
         trade: 0,
         politics: 0,
       },
-      barbarianAttacksWon: 0,
-      barbarianAttacksLost: 0,
+      barbarianAttacks: 0,
       thematicEventsTriggered: 0,
     },
     history: { rolls: [], thematicEvents: [], yearChanges: [] },
@@ -313,12 +284,14 @@ function decideNormal(
     case "metropolis.proposalCancelled":
       return cancelMetropolis(state, command.proposalId, deps);
     case "attack.confirmed":
-      return confirmAttack(
-        state,
-        command.proposalId,
-        command.manualOutcome,
-        command.progressChoices ?? [],
-        deps,
+      // Barbarian attacks resolve entirely on the physical board and are logged
+      // automatically when the ship lands. The command shape survives only so
+      // historical revisions still parse.
+      return failure(
+        domainError(
+          "INVALID_COMMAND",
+          "Barbarian attacks resolve on the board and need no confirmation.",
+        ),
       );
     case "event.acknowledged":
       return acknowledgeThematicEvent(state, command.occurrenceId, deps);
@@ -511,26 +484,17 @@ function roll(
     const shipPosition = barbarian.shipPosition + 1;
     barbarian = { ...barbarian, shipPosition };
     if (shipPosition === barbarian.rules.trackLength) {
-      // Auto-resolve: the physical board is authoritative for all attack
-      // details. The app only signals/logs that the attack happened and
-      // resets the barbarian cycle.
+      // The physical board is authoritative for every attack detail. The app
+      // only logs that the attack happened and resets its own ship cycle.
       const attackRecord: BarbarianAttackRecord = {
         proposalId: nextProposalId(deps.ids),
         completedAt: deps.at,
-        strengths: {
-          barbarian: 0,
-          defenders: 0,
-          contributions: [],
-        },
-        outcome: { type: "board-authoritative" },
-        progressChoices: [],
       };
       barbarian = {
         ...barbarian,
         shipPosition: 0,
         robberActivated: true,
         attacksCompleted: barbarian.attacksCompleted + 1,
-        pendingAttack: null,
         history: [...barbarian.history, attackRecord],
       };
     }
@@ -606,6 +570,9 @@ function roll(
       thematicEventsTriggered:
         state.statistics.thematicEventsTriggered +
         (thematic.value.event === null ? 0 : 1),
+      barbarianAttacks:
+        state.statistics.barbarianAttacks +
+        (barbarian.attacksCompleted > state.barbarian.attacksCompleted ? 1 : 0),
     },
     history: {
       rolls: [...state.history.rolls, record],
@@ -634,7 +601,8 @@ function roll(
       type: "roll",
       roll: record,
       phase,
-      barbarianAttack: barbarian.pendingAttack,
+      barbarianAttacked:
+        barbarian.attacksCompleted > state.barbarian.attacksCompleted,
       thematicEventPending: thematic.value.event !== null,
     },
   );
@@ -737,12 +705,11 @@ function adjustPlayer(
   patch: PublicStatePatch,
   deps: DomainDeps,
 ): DomainResult<Decision> {
-  const correctingAttack = state.turn.phase === "resolving-barbarian-attack";
-  if (!correctingAttack && state.turn.phase !== "action-phase") {
+  if (state.turn.phase !== "action-phase") {
     return failure(
       domainError(
         "INVALID_PHASE",
-        "Public state can only be edited during the action phase or attack verification.",
+        "Public state can only be edited during the action phase.",
         {
           actual: state.turn.phase,
         },
@@ -771,32 +738,8 @@ function adjustPlayer(
   const updatedPlayer: PlayerState = {
     ...player,
     name: patch.name?.trim() ?? player.name,
-    ordinaryCities: patch.ordinaryCities ?? player.ordinaryCities,
-    activeKnights: mergeKnights(player.activeKnights, patch.activeKnights),
-    inactiveKnights: mergeKnights(
-      player.inactiveKnights,
-      patch.inactiveKnights,
-    ),
-    cityWalls: patch.cityWalls ?? player.cityWalls,
     improvements: mergeImprovements(player.improvements, patch.improvements),
   };
-  const increasedImprovement = DISCIPLINES.some(
-    (discipline) =>
-      updatedPlayer.improvements[discipline] > player.improvements[discipline],
-  );
-  if (
-    increasedImprovement &&
-    updatedPlayer.ordinaryCities + metropolisCountForPlayer(state, playerId) ===
-      0
-  ) {
-    return failure(
-      domainError(
-        "INVALID_PLAYER_STATE",
-        "A player without a city cannot increase improvement levels.",
-        { playerId },
-      ),
-    );
-  }
   for (const discipline of DISCIPLINES) {
     const control = state.metropolises.controls[discipline];
     if (
@@ -845,7 +788,7 @@ function adjustPlayer(
     ];
   }
   let candidate: GameState = { ...state, players, scoreLedger };
-  if (!correctingAttack) {
+  {
     const automaticProposal = findAutomaticMetropolisProposal(
       state,
       candidate,
@@ -1018,12 +961,9 @@ function confirmMetropolis(
     const change = proposal.changes.find(
       (candidate) => candidate.playerId === player.id,
     );
-    return change === undefined
-      ? player
-      : {
-          ...player,
-          ordinaryCities: player.ordinaryCities + change.ordinaryCityDelta,
-        };
+    // Metropolis transfers only move public points now; the physical board
+    // owns the city pieces themselves.
+    return change === undefined ? player : { ...player };
   });
   const scoreEntries: ScoreEntry[] = proposal.changes
     .filter((change) => change.scoreDelta !== 0)
@@ -1096,141 +1036,6 @@ function cancelMetropolis(
       proposal: null,
       controls: candidate.metropolises.controls,
     },
-  );
-}
-
-function confirmAttack(
-  state: GameState,
-  proposalId: ProposalId,
-  manualOutcome: BarbarianAttackOutcome,
-  progressChoices: Array<{
-    playerId: PlayerId;
-    discipline: ProgressDiscipline;
-  }>,
-  deps: DomainDeps,
-): DomainResult<Decision> {
-  const phaseError = requirePhase(state, "resolving-barbarian-attack");
-  if (phaseError !== null) {
-    return failure(phaseError);
-  }
-  const proposal = state.barbarian.pendingAttack;
-  if (proposal === null || proposal.id !== proposalId) {
-    return failure(
-      domainError(
-        "ATTACK_CONFIRMATION_STALE",
-        "Barbarian attack proposal is missing or stale.",
-      ),
-    );
-  }
-  // Validate manual outcome
-  const outcome = manualOutcome;
-  if (outcome.type === "barbarians-win") {
-    for (const playerId of outcome.pillagedPlayerIds) {
-      const player = state.players.find((p) => p.id === playerId);
-      if (!player || player.ordinaryCities === 0) {
-        return failure(
-          domainError(
-            "INVALID_COMMAND",
-            "Selected player has no ordinary city to pillage.",
-            { playerId },
-          ),
-        );
-      }
-    }
-  }
-  const choiceError = validateProgressChoices(outcome, progressChoices);
-  if (choiceError !== null) {
-    return failure(choiceError);
-  }
-
-  let players =
-    outcome.type === "board-authoritative"
-      ? state.players
-      : state.players.map(deactivateKnights);
-  const scoreEntries: ScoreEntry[] = [];
-  if (
-    outcome.type === "defenders-win" &&
-    outcome.reward.type === "defender-point"
-  ) {
-    scoreEntries.push({
-      id: nextScoreEntryId(deps.ids),
-      playerId: outcome.reward.playerId,
-      delta: 1,
-      reason: "defender",
-      createdAt: deps.at,
-    });
-  }
-  if (outcome.type === "barbarians-win") {
-    players = players.map((player) =>
-      outcome.pillagedPlayerIds.includes(player.id)
-        ? { ...player, ordinaryCities: player.ordinaryCities - 1 }
-        : player,
-    );
-  }
-  const record: BarbarianAttackRecord = {
-    proposalId,
-    completedAt: deps.at,
-    strengths: proposal.strengths,
-    outcome,
-    progressChoices,
-  };
-  const summary =
-    outcome.type === "board-authoritative"
-      ? "Barbarian attack resolved on the physical board."
-      : outcome.type === "defenders-win"
-        ? outcome.reward.type === "defender-point"
-          ? "The defenders win; the sole top contributor gains one Defender point."
-          : "The defenders win; tied top contributors each choose a progress deck."
-        : outcome.pillagedPlayerIds.length === 0
-          ? "The barbarians win, but no recorded ordinary city is vulnerable."
-          : "The barbarians win; selected players lose one ordinary city each.";
-  const official = state.resolution.official;
-  const phase =
-    official !== null &&
-    (official.progressPending || official.productionPending)
-      ? "resolving-official-result"
-      : state.thematicEvents.pendingEvent === null
-        ? "action-phase"
-        : "resolving-thematic-event";
-  const candidate: GameState = {
-    ...state,
-    players,
-    scoreLedger: [...state.scoreLedger, ...scoreEntries],
-    turn: { ...state.turn, phase },
-    barbarian: {
-      ...state.barbarian,
-      shipPosition: 0,
-      robberActivated: true,
-      attacksCompleted: state.barbarian.attacksCompleted + 1,
-      pendingAttack: null,
-      history: [...state.barbarian.history, record],
-    },
-    statistics: {
-      ...state.statistics,
-      barbarianAttacksWon:
-        state.statistics.barbarianAttacksWon +
-        (outcome.type === "defenders-win" ? 1 : 0),
-      barbarianAttacksLost:
-        state.statistics.barbarianAttacksLost +
-        (outcome.type === "barbarians-win" ? 1 : 0),
-    },
-  };
-  return commit(
-    candidate,
-    deps,
-    {
-      kind: "attack-confirmed",
-      text: summary,
-      playerIds:
-        outcome.type === "board-authoritative"
-          ? []
-          : outcome.type === "barbarians-win"
-            ? outcome.pillagedPlayerIds
-            : outcome.reward.type === "defender-point"
-              ? [outcome.reward.playerId]
-              : outcome.reward.playerIds,
-    },
-    { type: "barbarian-attack", record, phase },
   );
 }
 
@@ -1514,76 +1319,6 @@ function controlFromCommand(
   );
 }
 
-function validateProgressChoices(
-  outcome: BarbarianAttackOutcome,
-  choices: Array<{ playerId: PlayerId; discipline: ProgressDiscipline }>,
-) {
-  if (
-    outcome.type === "defenders-win" &&
-    outcome.reward.type === "progress-choice"
-  ) {
-    const required = outcome.reward.playerIds;
-    if (
-      choices.length !== required.length ||
-      new Set(choices.map((choice) => choice.playerId)).size !==
-        choices.length ||
-      required.some(
-        (playerId) => !choices.some((choice) => choice.playerId === playerId),
-      )
-    ) {
-      return domainError(
-        "INVALID_COMMAND",
-        "Every tied top contributor must choose exactly one progress deck.",
-      );
-    }
-    return null;
-  }
-  return choices.length === 0
-    ? null
-    : domainError(
-        "INVALID_COMMAND",
-        "This attack outcome has no progress-deck choices.",
-      );
-}
-
-function mergeKnights(
-  current: KnightCounts,
-  patch: Partial<KnightCounts> | undefined,
-): KnightCounts {
-  return {
-    basic: patch?.basic ?? current.basic,
-    strong: patch?.strong ?? current.strong,
-    mighty: patch?.mighty ?? current.mighty,
-  };
-}
-
-/**
- * Move every activated knight back to its inactive state.
- *
- * A barbarian attack deactivates all knights, but the knights themselves stay
- * on the board holding their positions. They are therefore transferred to the
- * inactive counts rather than discarded.
- */
-function deactivateKnights(player: PlayerState): PlayerState {
-  const { activeKnights, inactiveKnights } = player;
-  if (
-    activeKnights.basic === 0 &&
-    activeKnights.strong === 0 &&
-    activeKnights.mighty === 0
-  ) {
-    return player;
-  }
-  return {
-    ...player,
-    activeKnights: { basic: 0, strong: 0, mighty: 0 },
-    inactiveKnights: {
-      basic: inactiveKnights.basic + activeKnights.basic,
-      strong: inactiveKnights.strong + activeKnights.strong,
-      mighty: inactiveKnights.mighty + activeKnights.mighty,
-    },
-  };
-}
-
 function mergeImprovements(
   current: ImprovementLevels,
   patch: Partial<ImprovementLevels> | undefined,
@@ -1601,12 +1336,6 @@ function cloneSetup(setup: CreateGameInput["setup"]): CreateGameInput["setup"] {
     players: setup.players.map((player) => ({
       ...player,
       color: { ...player.color },
-      ...(player.activeKnights === undefined
-        ? {}
-        : { activeKnights: { ...player.activeKnights } }),
-      ...(player.inactiveKnights === undefined
-        ? {}
-        : { inactiveKnights: { ...player.inactiveKnights } }),
       ...(player.improvements === undefined
         ? {}
         : { improvements: { ...player.improvements } }),

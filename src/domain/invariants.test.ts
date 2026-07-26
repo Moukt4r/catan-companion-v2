@@ -348,18 +348,6 @@ describe("persisted game invariants", () => {
     order.players[0]!.order = 2;
     expectCode(order, "INVALID_PLAYER_STATE");
 
-    for (const ordinaryCities of [-1, 1.5]) {
-      const state = game();
-      state.players[0]!.ordinaryCities = ordinaryCities;
-      expectCode(state, "INVALID_PLAYER_STATE");
-    }
-
-    for (const count of [-1, 1.5, 3]) {
-      const state = game();
-      state.players[0]!.activeKnights.basic = count;
-      expectCode(state, "INVALID_PLAYER_STATE");
-    }
-
     for (const level of [-1, 1.5, 6]) {
       const state = game();
       state.players[0]!.improvements.science = level as never;
@@ -367,7 +355,7 @@ describe("persisted game invariants", () => {
     }
   });
 
-  it("rejects invalid metropolis holders, levels, proposals, and city counts", () => {
+  it("rejects invalid metropolis holders, levels, and stale proposals", () => {
     const unknown = game();
     unknown.metropolises.controls.science = {
       holderId: asPlayerId("missing"),
@@ -395,10 +383,6 @@ describe("persisted game invariants", () => {
       summary: "stale",
     };
     expectCode(staleProposal, "INVALID_METROPOLIS_STATE");
-
-    const negativePieces = game();
-    negativePieces.players[0]!.ordinaryCities = -1;
-    expectCode(negativePieces, "INVALID_METROPOLIS_STATE");
   });
 
   it("rejects duplicate, malformed, unknown-player, and negative score entries", () => {
@@ -519,12 +503,6 @@ describe("persisted game invariants", () => {
         state.barbarian.rules.trackLength = 1.5;
       },
       (state) => {
-        state.barbarian.rules.knightComponentLimitPerLevel = 0;
-      },
-      (state) => {
-        state.barbarian.rules.knightComponentLimitPerLevel = 1.5;
-      },
-      (state) => {
         state.barbarian.shipPosition = -1;
       },
       (state) => {
@@ -545,16 +523,6 @@ describe("persisted game invariants", () => {
       mutate(state);
       expectCode(state, "INVALID_BARBARIAN_STATE");
     }
-
-    const pending = game();
-    pending.barbarian.pendingAttack = {
-      id: asProposalId("attack"),
-      strengths: { barbarian: 3, defenders: 0, contributions: [] },
-      firstAttack: true,
-      outcome: { type: "barbarians-win", pillagedPlayerIds: [] },
-      summary: "Attack",
-    };
-    expectCode(pending, "INVALID_BARBARIAN_STATE");
   });
 
   it("rejects resolution phases without their referenced pending work", () => {
@@ -579,10 +547,6 @@ describe("persisted game invariants", () => {
     };
     noSteps.lastRoll = { id: asRollId("roll") } as GameState["lastRoll"];
     expectCode(noSteps, "INVALID_RESOLUTION_STATE");
-
-    const noAttack = game();
-    noAttack.turn.phase = "resolving-barbarian-attack";
-    expectCode(noAttack, "INVALID_RESOLUTION_STATE");
 
     const noEvent = game();
     noEvent.turn.phase = "resolving-thematic-event";

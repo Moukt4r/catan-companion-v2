@@ -174,12 +174,9 @@ interface PlayerState {
   name: string;
   color: PlayerColor;
   order: number;
-  ordinaryCities: number;
-  activeKnights: {
-    basic: number;
-    strong: number;
-    mighty: number;
-  };
+  // Cities, city walls and knights are deliberately absent: the physical
+  // board is authoritative for them. Improvement levels stay because they
+  // drive progress-card eligibility.
   improvements: {
     science: ImprovementLevel;
     trade: ImprovementLevel;
@@ -353,23 +350,38 @@ every existing save. The strict persistence schema rejects records that omit
 it, the revision then fails validation, and the whole game is written back as
 `corrupt`.
 
-Two things are therefore required whenever a stored field is added:
+The schema is strict in both directions: it rejects _unknown_ keys just as
+hard as missing ones. Adding a field and removing a field are therefore the
+same class of breaking change.
 
-1. give the field a schema default so the legacy shape still parses; and
-2. migrate the stored records in `migrations.ts` so the raw data is repaired
+Two things are required whenever a stored field is added or removed:
+
+1. update the schema so the current shape parses; and
+2. migrate the stored records in `migrations.ts` so the raw data matches
    before invariants and hashes are checked.
 
-Migration is additive only: absent fields are filled in, existing values are
-never rewritten. The state hash is recomputed only for records that actually
-changed, so healthy saves keep their original hash.
+Migration never invents data. It fills in fields the app now owns, deletes
+fields it no longer owns, and leaves every existing value alone. The state
+hash is recomputed only for records that actually changed, so healthy saves
+keep their original hash and stay byte-identical.
 
-Current additive migrations:
+Removed in v0.7.0, stripped from legacy saves on load:
 
-| Field                            | Introduced | Legacy default        |
-| -------------------------------- | ---------- | --------------------- |
-| `players[].cityWalls`            | v0.6.1     | `0`                   |
-| `players[].inactiveKnights`      | v0.6.1     | all levels `0`        |
-| `attack.confirmed.manualOutcome` | v0.6.1     | `board-authoritative` |
+| Field                              | Note                            |
+| ---------------------------------- | ------------------------------- |
+| `players[].ordinaryCities`         | Board is authoritative          |
+| `players[].cityWalls`              | Board is authoritative          |
+| `players[].activeKnights`          | Board is authoritative          |
+| `players[].inactiveKnights`        | Board is authoritative          |
+| `barbarian.pendingAttack`          | Attacks resolve on the board    |
+| `barbarian.rules.knightComponent…` | Knight limits no longer tracked |
+| `statistics.barbarianAttacksWon`   | Folded into `barbarianAttacks`  |
+| `statistics.barbarianAttacksLost`  | Folded into `barbarianAttacks`  |
+| `attack.confirmed.manualOutcome`   | Outcome is never recorded       |
+
+A save paused in the removed `resolving-barbarian-attack` phase is completed
+on load: the attack is logged, the ship resets, the robber arms, and the turn
+resumes in a phase that still exists.
 
 ## 11. Import format
 

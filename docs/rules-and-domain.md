@@ -67,9 +67,9 @@ setup
 ```
 
 Invalid phase transitions are rejected by the domain engine with a typed error.
-The UI must surface the error and retain the last durable revision. The
-`resolving-barbarian-attack` phase is retained only for recovering legacy saves;
-new attacks remain in the normal official-result flow.
+The UI must surface the error and retain the last durable revision. Barbarian
+attacks never introduce a phase of their own: they are logged when the ship
+lands and the turn continues in the normal official-result flow.
 
 ## 4. Balanced numbered-dice deck
 
@@ -253,77 +253,30 @@ outcome and does not mutate those player-owned values.
 
 For each player:
 
-```text
-activeStrength =
-  activeBasicKnights
-  + (2 * activeStrongKnights)
-  + (3 * activeMightyKnights)
-```
-
-For the table:
-
-```text
-barbarianStrength =
-  sum(player.ordinaryCities)
-  + count(non-null metropolis holders)
-defenderStrength = sum(activeStrength)
-```
-
-Metropolises add to barbarian strength but cannot be pillaged.
+The app does not compute barbarian or defender strength. Cities, city walls
+and knights live on the physical board, and mirroring them in the app produced
+numbers that could only ever drift out of sync with what the table could see.
 
 ### 9.2 Physical-board resolution
 
-The official comparison is:
+Players compare total active knight strength against the barbarian strength
+directly on the board, exactly as the rulebook describes. Defender points,
+tied progress-card rewards and pillaged cities are all settled there.
 
-```text
-defenderStrength >= barbarianStrength
-```
+The app asks for nothing and records no outcome.
 
-- Players apply the official rules directly on the board.
-- Defender points and tied progress-card rewards are handled manually.
-- No app form or score-ledger mutation is required.
-
-The tied-player progress-card reward is verified against page 11 of the current
-2025 rulebook. It is not derived from the event-die face, which is necessarily
-the barbarian face during an attack.
-
-### 9.3 Barbarians win on the physical board
-
-The official comparison is:
-
-```text
-barbarianStrength > defenderStrength
-```
-
-The physical rules select pillage candidates as follows:
-
-1. Group players by contributed active strength, ascending.
-2. Start with the lowest group.
-3. Within that group, select every player with at least one vulnerable city.
-4. If the group has no vulnerable city, continue to the next strength group.
-5. Every selected player must downgrade one ordinary city.
-6. A city wall attached to that city is handled physically; the app presents a
-   reminder but does not track walls in v1.
-
-The fall-through in step 4 is explicit in page 11 of the current 2025 rulebook:
-selection continues until a strength group contains a city that can be
-pillaged.
-
-The players selected by the physical rules downgrade their cities on the board.
-The app does not request or persist a duplicate selection.
-
-### 9.4 Return home
+### 9.3 Return home
 
 When the ship reaches the final space:
 
 - reset the barbarian ship to its start;
 - mark the robber active if this was the first attack;
-- append one board-authoritative attack summary to history;
-- leave player scores, city counts, and knight counters unchanged.
+- append the fact that an attack happened, with its timestamp;
+- leave player scores and every board-owned counter untouched.
 
-Old saves already paused in `resolving-barbarian-attack` are automatically
-confirmed with a board-authoritative outcome, preserving player state while
-returning the save to the normal roll flow.
+Saves paused in the removed attack-resolution phase are completed on load: the
+attack is logged, the ship resets, and the turn resumes in a phase that still
+exists.
 
 ## 10. Public player-state invariants
 

@@ -230,91 +230,13 @@ function validatePlayers(state: GameState): DomainError[] {
         ),
       );
     }
-    errors.push(...validatePlayerCounters(player, state));
+    errors.push(...validatePlayerCounters(player));
   }
   return errors;
 }
 
-function validatePlayerCounters(
-  player: PlayerState,
-  state: GameState,
-): DomainError[] {
+function validatePlayerCounters(player: PlayerState): DomainError[] {
   const errors: DomainError[] = [];
-  if (!nonNegativeInteger(player.ordinaryCities)) {
-    errors.push(
-      domainError(
-        "INVALID_PLAYER_STATE",
-        "Ordinary cities must be a non-negative integer.",
-        { playerId: player.id },
-      ),
-    );
-  }
-  for (const [level, count] of [
-    ["basic", player.activeKnights.basic],
-    ["strong", player.activeKnights.strong],
-    ["mighty", player.activeKnights.mighty],
-  ] as const) {
-    if (
-      !Number.isInteger(count) ||
-      count < 0 ||
-      count > state.barbarian.rules.knightComponentLimitPerLevel
-    ) {
-      errors.push(
-        domainError(
-          "INVALID_PLAYER_STATE",
-          "Active knight count exceeds the component limit.",
-          { playerId: player.id, level, count },
-        ),
-      );
-    }
-  }
-  // Active and inactive knights share the same physical components, so the
-  // per-level total is what the component limit applies to.
-  for (const level of ["basic", "strong", "mighty"] as const) {
-    const inactive = player.inactiveKnights[level];
-    if (!Number.isInteger(inactive) || inactive < 0) {
-      errors.push(
-        domainError(
-          "INVALID_PLAYER_STATE",
-          "Inactive knight count must be a non-negative integer.",
-          { playerId: player.id, level, count: inactive },
-        ),
-      );
-      continue;
-    }
-    const total = player.activeKnights[level] + inactive;
-    if (total > state.barbarian.rules.knightComponentLimitPerLevel) {
-      errors.push(
-        domainError(
-          "INVALID_PLAYER_STATE",
-          "Total knights exceed the component limit for this level.",
-          { playerId: player.id, level, count: total },
-        ),
-      );
-    }
-  }
-  if (!nonNegativeInteger(player.cityWalls)) {
-    errors.push(
-      domainError(
-        "INVALID_PLAYER_STATE",
-        "City walls must be a non-negative integer.",
-        { playerId: player.id },
-      ),
-    );
-  } else if (player.cityWalls > player.ordinaryCities) {
-    // A wall is built onto a city, so walls can never outnumber cities.
-    errors.push(
-      domainError(
-        "INVALID_PLAYER_STATE",
-        "City walls cannot exceed the number of cities.",
-        {
-          playerId: player.id,
-          cityWalls: player.cityWalls,
-          cities: player.ordinaryCities,
-        },
-      ),
-    );
-  }
   for (const [discipline, level] of [
     ["science", player.improvements.science],
     ["trade", player.improvements.trade],
@@ -381,10 +303,7 @@ function validateMetropolises(state: GameState): DomainError[] {
     }
   }
   for (const player of state.players) {
-    if (
-      player.ordinaryCities + metropolisCountForPlayer(state, player.id) <
-      0
-    ) {
+    if (metropolisCountForPlayer(state, player.id) < 0) {
       errors.push(
         domainError(
           "INVALID_METROPOLIS_STATE",
@@ -565,8 +484,6 @@ function validateBarbarianState(state: GameState): DomainError[] {
   if (
     !Number.isInteger(barbarian.rules.trackLength) ||
     barbarian.rules.trackLength < 1 ||
-    !Number.isInteger(barbarian.rules.knightComponentLimitPerLevel) ||
-    barbarian.rules.knightComponentLimitPerLevel < 1 ||
     !Number.isInteger(barbarian.shipPosition) ||
     barbarian.shipPosition < 0 ||
     barbarian.shipPosition > barbarian.rules.trackLength ||
@@ -576,17 +493,6 @@ function validateBarbarianState(state: GameState): DomainError[] {
       domainError(
         "INVALID_BARBARIAN_STATE",
         "Barbarian track metadata is invalid.",
-      ),
-    );
-  }
-  if (
-    barbarian.pendingAttack !== null &&
-    barbarian.shipPosition !== barbarian.rules.trackLength
-  ) {
-    errors.push(
-      domainError(
-        "INVALID_BARBARIAN_STATE",
-        "A pending attack requires the ship at the final space.",
       ),
     );
   }
@@ -613,17 +519,6 @@ function validateResolutionState(state: GameState): DomainError[] {
       domainError(
         "INVALID_RESOLUTION_STATE",
         "Official resolution phase requires a pending official step.",
-      ),
-    );
-  }
-  if (
-    state.turn.phase === "resolving-barbarian-attack" &&
-    state.barbarian.pendingAttack === null
-  ) {
-    errors.push(
-      domainError(
-        "INVALID_RESOLUTION_STATE",
-        "Barbarian phase requires a pending attack.",
       ),
     );
   }

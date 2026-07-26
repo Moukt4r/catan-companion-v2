@@ -22,7 +22,6 @@ export type GameMode = "standard" | "two-player-house-rule";
 export type GamePhase =
   | "awaiting-roll"
   | "resolving-official-result"
-  | "resolving-barbarian-attack"
   | "resolving-thematic-event"
   | "action-phase"
   | "turn-complete"
@@ -96,10 +95,6 @@ export interface PlayerSetup {
   id: PlayerId;
   name: string;
   color: PlayerColor;
-  ordinaryCities?: number;
-  activeKnights?: Partial<KnightCounts>;
-  inactiveKnights?: Partial<KnightCounts>;
-  cityWalls?: number;
   improvements?: Partial<ImprovementLevels>;
   initialScore?: number;
 }
@@ -151,33 +146,25 @@ export interface GameSetup {
   gameDocumentVersion: number;
 }
 
-export interface KnightCounts {
-  basic: number;
-  strong: number;
-  mighty: number;
-}
-
 export interface ImprovementLevels {
   science: ImprovementLevel;
   trade: ImprovementLevel;
   politics: ImprovementLevel;
 }
 
+/**
+ * Player bookkeeping the app owns.
+ *
+ * Cities, city walls and knights are deliberately absent: the physical board
+ * is authoritative for them, so mirroring them here was noise that could only
+ * ever drift out of sync. Improvement levels stay because they drive progress
+ * card eligibility, which is real rules assistance rather than bookkeeping.
+ */
 export interface PlayerState {
   id: PlayerId;
   name: string;
   color: PlayerColor;
   order: number;
-  ordinaryCities: number;
-  /** Knights that are currently activated and defend against barbarians. */
-  activeKnights: KnightCounts;
-  /**
-   * Knights that are built but not activated. They hold board positions and
-   * can be activated later, but contribute no defence.
-   */
-  inactiveKnights: KnightCounts;
-  /** Built city walls. Each wall raises the safe hand limit by two cards. */
-  cityWalls: number;
   improvements: ImprovementLevels;
 }
 
@@ -212,7 +199,6 @@ export type MetropolisControls = Record<
 
 export interface MetropolisChange {
   playerId: PlayerId;
-  ordinaryCityDelta: number;
   scoreDelta: number;
 }
 
@@ -308,42 +294,17 @@ export interface ThematicEventState {
 
 export interface BarbarianRules {
   trackLength: number;
-  knightComponentLimitPerLevel: number;
 }
 
-export interface BarbarianAttackStrengths {
-  barbarian: number;
-  defenders: number;
-  contributions: Array<{ playerId: PlayerId; strength: number }>;
-}
-
-export type BarbarianAttackOutcome =
-  | {
-      type: "defenders-win";
-      reward:
-        | { type: "defender-point"; playerId: PlayerId }
-        | { type: "progress-choice"; playerIds: PlayerId[] };
-    }
-  | { type: "barbarians-win"; pillagedPlayerIds: PlayerId[] }
-  | { type: "board-authoritative" };
-
-export interface BarbarianAttackProposal {
-  id: ProposalId;
-  strengths: BarbarianAttackStrengths;
-  outcome: BarbarianAttackOutcome;
-  firstAttack: boolean;
-  summary: string;
-}
-
+/**
+ * A barbarian attack that happened.
+ *
+ * The board decides who won, who lost a city and who gained a defender point,
+ * so the app only records that the attack occurred and when.
+ */
 export interface BarbarianAttackRecord {
   proposalId: ProposalId;
   completedAt: IsoTimestamp;
-  strengths: BarbarianAttackStrengths;
-  outcome: BarbarianAttackOutcome;
-  progressChoices: Array<{
-    playerId: PlayerId;
-    discipline: ProgressDiscipline;
-  }>;
 }
 
 export interface BarbarianState {
@@ -351,7 +312,6 @@ export interface BarbarianState {
   robberActivated: boolean;
   attacksCompleted: number;
   rules: BarbarianRules;
-  pendingAttack: BarbarianAttackProposal | null;
   history: BarbarianAttackRecord[];
 }
 
@@ -422,8 +382,7 @@ export interface GameStatistics {
   completedRounds: number;
   numberedTotals: Record<string, number>;
   eventFaces: Record<EventFace, number>;
-  barbarianAttacksWon: number;
-  barbarianAttacksLost: number;
+  barbarianAttacks: number;
   thematicEventsTriggered: number;
 }
 
@@ -474,10 +433,6 @@ export interface GameState {
 
 export interface PublicStatePatch {
   name?: string;
-  ordinaryCities?: number;
-  activeKnights?: Partial<KnightCounts>;
-  inactiveKnights?: Partial<KnightCounts>;
-  cityWalls?: number;
   improvements?: Partial<ImprovementLevels>;
   scoreAdjustment?: {
     delta: number;
@@ -514,13 +469,12 @@ export type GameCommand =
   | { type: "metropolis.proposalConfirmed"; proposalId: ProposalId }
   | { type: "metropolis.proposalCancelled"; proposalId: ProposalId }
   | {
+      /**
+       * Retained so historical revisions still parse. Barbarian attacks now
+       * resolve entirely on the board, so this is never dispatched again.
+       */
       type: "attack.confirmed";
       proposalId: ProposalId;
-      manualOutcome: BarbarianAttackOutcome;
-      progressChoices?: Array<{
-        playerId: PlayerId;
-        discipline: ProgressDiscipline;
-      }>;
     }
   | {
       type: "event.acknowledged";
@@ -600,7 +554,8 @@ export type PresentationSummary =
       type: "roll";
       roll: RollRecord;
       phase: GamePhase;
-      barbarianAttack: BarbarianAttackProposal | null;
+      /** True when this roll landed the ship and logged an attack. */
+      barbarianAttacked: boolean;
       thematicEventPending: boolean;
     }
   | {

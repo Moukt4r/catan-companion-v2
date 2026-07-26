@@ -11,11 +11,6 @@ const player: PlayerEditorValue = {
   name: "Ada",
   color: "#123456",
   victoryPoints: 6,
-  ordinaryCities: 1,
-  cityWalls: 0,
-  safeHandLimit: 7,
-  activeKnights: { basic: 1, strong: 0, mighty: 0 },
-  inactiveKnights: { basic: 0, strong: 0, mighty: 0 },
   improvements: { science: 3, trade: 2, politics: 1 },
   metropolisDisciplines: ["science"],
 };
@@ -32,26 +27,23 @@ describe("PlayerEditorDialog", () => {
     expect(
       screen.getByRole("dialog", { name: "Edit Ada" }),
     ).toHaveAccessibleDescription(
-      "Adjust points first. Cities and Knights details are available when needed, and every saved change appears in history.",
+      "Adjust points and improvement levels. Cities, walls and knights live on the physical board.",
     );
     const advanced = screen
-      .getByText("Advanced Cities & Knights state")
+      .getByText("City improvements", { selector: "summary" })
       .closest("details");
     expect(advanced).not.toHaveAttribute("open");
     expect(
       screen.getByRole("button", { name: "Increase Point change" }),
     ).toBeVisible();
 
-    await user.click(screen.getByText("Advanced Cities & Knights state"));
-    expect(
-      screen.getByText(/Metropolises are tracked by discipline/),
-    ).toHaveTextContent("Held: science.");
-    expect(screen.getByText("Strength 1")).toBeInTheDocument();
-
     await user.click(
-      screen.getByRole("button", { name: "Increase Ordinary cities" }),
+      screen.getByText("City improvements", { selector: "summary" }),
     );
-    await user.click(screen.getByRole("button", { name: "Increase Strong" }));
+    expect(
+      screen.getByText(/Improvement levels decide progress-card eligibility/),
+    ).toHaveTextContent("Held metropolises: science.");
+
     await user.click(screen.getByRole("button", { name: "Increase Science" }));
     await user.click(
       screen.getByRole("button", { name: "Increase Point change" }),
@@ -61,14 +53,9 @@ describe("PlayerEditorDialog", () => {
       "  Longest road  ",
     );
 
-    expect(screen.getByText("Strength 3")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     expect(onSave).toHaveBeenCalledWith({
-      ordinaryCities: 2,
-      cityWalls: 0,
-      activeKnights: { basic: 1, strong: 1, mighty: 0 },
-      inactiveKnights: { basic: 0, strong: 0, mighty: 0 },
       improvements: { science: 4, trade: 2, politics: 1 },
       scoreDelta: 1,
       scoreNote: "Longest road",
@@ -82,8 +69,7 @@ describe("PlayerEditorDialog", () => {
       <PlayerEditorDialog
         player={{
           ...player,
-          ordinaryCities: 4,
-          activeKnights: { basic: 0, strong: 0, mighty: 0 },
+          improvements: { science: 5, trade: 0, politics: 1 },
           metropolisDisciplines: [],
         }}
         onSave={vi.fn()}
@@ -91,16 +77,18 @@ describe("PlayerEditorDialog", () => {
       />,
     );
 
-    await user.click(screen.getByText("Advanced Cities & Knights state"));
+    await user.click(
+      screen.getByText("City improvements", { selector: "summary" }),
+    );
     expect(
-      screen.getByRole("button", { name: "Increase Ordinary cities" }),
+      screen.getByRole("button", { name: "Increase Science" }),
     ).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: "Decrease Basic" }),
+      screen.getByRole("button", { name: "Decrease Trade" }),
     ).toBeDisabled();
     expect(
-      screen.getByText(/Metropolises are tracked by discipline/),
-    ).toHaveTextContent("Held: none.");
+      screen.getByText(/Improvement levels decide progress-card eligibility/),
+    ).toHaveTextContent("Held metropolises: none.");
 
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onClose).toHaveBeenCalledOnce();

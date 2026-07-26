@@ -78,22 +78,6 @@ export interface GameTableView {
   barbarian: {
     position: number;
     trackLength: number;
-    strength: number;
-    defenderStrength: number;
-    attackPending: boolean;
-  };
-  forecast: {
-    advancesUntilAttack: number;
-    attackImminent: boolean;
-    defended: boolean;
-    relevant: boolean;
-    strength: number;
-    defenderStrength: number;
-    inactiveStrength: number;
-    summary: string;
-    verdict: string;
-    pillagedNames: string[];
-    rewardNames: string[];
   };
   players: GamePlayerView[];
   worldEventPending: boolean;
@@ -131,31 +115,6 @@ interface GameTableProps {
   onConfirmWinner: () => void;
 }
 
-function barbarianRisk(
-  strength: number,
-  defenderStrength: number,
-): {
-  label: string;
-  tone: "success" | "warning" | "danger";
-} {
-  if (defenderStrength > strength) {
-    return {
-      label: "Defended",
-      tone: "success",
-    };
-  }
-  if (defenderStrength === strength) {
-    return {
-      label: "Tied",
-      tone: "warning",
-    };
-  }
-  return {
-    label: "Exposed",
-    tone: "danger",
-  };
-}
-
 export function GameTable({
   busy = false,
   soundEnabled = false,
@@ -183,10 +142,6 @@ export function GameTable({
   const spacesLabel = `${spacesRemaining} ${
     spacesRemaining === 1 ? "space" : "spaces"
   }`;
-  const risk = barbarianRisk(
-    view.barbarian.strength,
-    view.barbarian.defenderStrength,
-  );
   const playerControlsDisabled =
     busy || !view.canEditPublicState || view.readOnly || view.paused;
   const [barbarianOpen, setBarbarianOpen] = useState(barbarianPanelStartsOpen);
@@ -600,9 +555,6 @@ export function GameTable({
                 <span className="eyebrow">Cities &amp; Knights</span>
                 <strong>{spacesLabel} until attack</strong>
               </span>
-              <span className={`risk-badge risk-badge--${risk.tone}`}>
-                {risk.label}
-              </span>
             </summary>
             <div className="barbarian-details__body">
               <div className="barbarian-card__visual" aria-hidden="true">
@@ -613,9 +565,6 @@ export function GameTable({
                   <p className="eyebrow">Cities &amp; Knights</p>
                   <h2>Barbarian track</h2>
                 </div>
-                <span className={`risk-badge risk-badge--${risk.tone}`}>
-                  {risk.label}
-                </span>
               </div>
               <div
                 className={`barbarian-track barbarian-track--threat-${Math.min(
@@ -644,26 +593,7 @@ export function GameTable({
                   },
                 )}
               </div>
-              <p
-                className={`barbarian-distance barbarian-forecast barbarian-forecast--${
-                  !view.forecast.relevant
-                    ? "quiet"
-                    : view.forecast.defended
-                      ? "held"
-                      : view.forecast.attackImminent
-                        ? "imminent"
-                        : "falls"
-                }`}
-              >
-                {spacesLabel} until attack · barbarians{" "}
-                {view.barbarian.strength} vs defense{" "}
-                {view.barbarian.defenderStrength}
-                {view.forecast.relevant ? (
-                  <span className="barbarian-forecast__verdict">
-                    {view.forecast.verdict}
-                  </span>
-                ) : null}
-              </p>
+              <p className="barbarian-distance">{spacesLabel} until attack</p>
             </div>
           </details>
         </aside>

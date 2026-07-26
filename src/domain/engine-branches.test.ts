@@ -210,8 +210,6 @@ describe("game creation branches", () => {
           ...(index === 0
             ? {
                 initialScore: 0,
-                ordinaryCities: 2,
-                activeKnights: { basic: 1 },
                 improvements: { science: 1 as const },
               }
             : {}),
@@ -230,13 +228,10 @@ describe("game creation branches", () => {
         setup: twoPlayers,
         random: () => 0,
         ids: idSource("two-player"),
-        barbarianRules: { knightComponentLimitPerLevel: 3 },
       }),
     );
     expect(result.nextState.scoreLedger).toHaveLength(1);
     expect(result.nextState.players[0]).toMatchObject({
-      ordinaryCities: 2,
-      activeKnights: { basic: 1, strong: 0, mighty: 0 },
       improvements: { science: 1, trade: 0, politics: 0 },
     });
     expect(result.presentation).toMatchObject({
@@ -336,7 +331,7 @@ describe("command gatekeeping and roll branches", () => {
     movement = run(movement, { type: "roll.draw" }, "move");
     expect(movement.barbarian).toMatchObject({
       shipPosition: 1,
-      pendingAttack: null,
+      attacksCompleted: 0,
     });
 
     let thematic = forceEventFace(newGame(), "science");
@@ -533,23 +528,9 @@ describe("public-state restrictions and score errors", () => {
     );
   });
 
-  it("rejects improvement without a city and lowering metropolis holders", () => {
-    const noCity = actionPhase(newGame());
-    noCity.players[0]!.ordinaryCities = 0;
-    expectError(
-      noCity,
-      {
-        type: "player.publicStateAdjusted",
-        playerId: PLAYER_IDS[0]!,
-        patch: { improvements: { science: 1 } },
-      },
-      "INVALID_PLAYER_STATE",
-      "no-city",
-    );
-
+  it("rejects lowering a metropolis holder below its required level", () => {
     for (const status of ["temporary", "permanent"] as const) {
       const holder = actionPhase(newGame());
-      holder.players[0]!.ordinaryCities = 0;
       holder.players[0]!.improvements.science = status === "temporary" ? 4 : 5;
       holder.metropolises.controls.science = {
         holderId: PLAYER_IDS[0]!,
@@ -604,7 +585,6 @@ describe("public-state restrictions and score errors", () => {
         playerId: PLAYER_IDS[0]!,
         patch: {
           name: "  Renamed  ",
-          activeKnights: { strong: 1 },
           improvements: { science: 1 },
           scoreAdjustment: {
             delta: 1,
@@ -617,7 +597,6 @@ describe("public-state restrictions and score errors", () => {
     );
     expect(state.players[0]).toMatchObject({
       name: "Renamed",
-      activeKnights: { basic: 0, strong: 1, mighty: 0 },
       improvements: { science: 1, trade: 0, politics: 0 },
     });
     expect(state.scoreLedger.at(-1)).toMatchObject({
@@ -627,7 +606,7 @@ describe("public-state restrictions and score errors", () => {
     expect(state.metropolises.pendingProposal).toBeNull();
   });
 
-  it("rejects edits that open multiple proposals or lack a city to convert", () => {
+  it("rejects edits that would open multiple metropolis proposals", () => {
     expectError(
       actionPhase(newGame()),
       {
@@ -638,74 +617,6 @@ describe("public-state restrictions and score errors", () => {
       "INVALID_METROPOLIS_STATE",
       "multi-proposal",
     );
-
-    const cityless = actionPhase(newGame());
-    cityless.players[0]!.ordinaryCities = 0;
-    cityless.players[0]!.improvements.science = 4;
-    cityless.metropolises.controls.science = {
-      holderId: PLAYER_IDS[0]!,
-      status: "temporary",
-    };
-    expectError(
-      cityless,
-      {
-        type: "player.publicStateAdjusted",
-        playerId: PLAYER_IDS[0]!,
-        patch: { improvements: { trade: 4 } },
-      },
-      "INVALID_METROPOLIS_STATE",
-      "no-convertible-city",
-    );
-  });
-
-  it("rejects a metropolis when every recorded city already carries a wall", () => {
-    // A wall is built onto an ordinary city, so converting the last unwalled
-    // city would leave more walls than cities. The proposal has to be refused
-    // up front, otherwise the table is stuck holding a pending proposal that
-    // can never be confirmed.
-    const walled = actionPhase(newGame());
-    walled.players[0]!.ordinaryCities = 1;
-    walled.players[0]!.cityWalls = 1;
-    walled.players[0]!.improvements.science = 5;
-
-    expectError(
-      walled,
-      {
-        type: "metropolis.assignmentProposed",
-        discipline: "science",
-        holderId: PLAYER_IDS[0]!,
-        status: "permanent",
-      },
-      "INVALID_METROPOLIS_STATE",
-      "fully-walled-city",
-    );
-
-    // Removing a wall frees an ordinary city, so the same assignment is
-    // accepted and can be confirmed.
-    const unwalled = actionPhase(newGame());
-    unwalled.players[0]!.ordinaryCities = 1;
-    unwalled.players[0]!.cityWalls = 0;
-    unwalled.players[0]!.improvements.science = 5;
-    const proposed = decide(
-      unwalled,
-      {
-        type: "metropolis.assignmentProposed",
-        discipline: "science",
-        holderId: PLAYER_IDS[0]!,
-        status: "permanent",
-      },
-      deps("walled-ok"),
-    );
-    expect(proposed.ok).toBe(true);
-    if (!proposed.ok) return;
-    const proposal = proposed.value.nextState.metropolises.pendingProposal;
-    expect(proposal).not.toBeNull();
-    const confirmed = decide(
-      proposed.value.nextState,
-      { type: "metropolis.proposalConfirmed", proposalId: proposal!.id },
-      deps("walled-confirm"),
-    );
-    expect(confirmed.ok).toBe(true);
   });
 });
 
@@ -796,7 +707,6 @@ describe("metropolis command variants, errors, and cancellation", () => {
       "metro-propose",
     );
     const proposalId = state.metropolises.pendingProposal!.id;
-    const cities = state.players[0]!.ordinaryCities;
     state = run(
       state,
       { type: "metropolis.proposalCancelled", proposalId },
@@ -804,12 +714,10 @@ describe("metropolis command variants, errors, and cancellation", () => {
     );
     expect(state.metropolises.pendingProposal).toBeNull();
     expect(state.metropolises.controls.science).toBeNull();
-    expect(state.players[0]!.ordinaryCities).toBe(cities);
   });
 
   it("confirms a no-piece-change permanence proposal", () => {
     let state = actionPhase(newGame());
-    state.players[0]!.ordinaryCities = 0;
     state.players[0]!.improvements.science = 5;
     state.metropolises.controls.science = {
       holderId: PLAYER_IDS[0]!,
@@ -834,425 +742,6 @@ describe("metropolis command variants, errors, and cancellation", () => {
       "metro-permanent-confirm",
     );
     expect(state.metropolises.controls.science?.status).toBe("permanent");
-  });
-});
-
-describe("attack confirmation edge cases", () => {
-  function tiedAttack(): GameState {
-    // Manually construct a legacy state in resolving-barbarian-attack phase
-    // since auto-resolve no longer produces this phase.
-    const base = newGame({ trackLength: 1 });
-    base.players[0]!.activeKnights.strong = 1;
-    base.players[1]!.activeKnights.strong = 1;
-    const proposalId = asProposalId("tied-proposal");
-    return {
-      ...base,
-      turn: { ...base.turn, phase: "resolving-barbarian-attack" },
-      barbarian: {
-        ...base.barbarian,
-        shipPosition: base.barbarian.rules.trackLength,
-        pendingAttack: {
-          id: proposalId,
-          strengths: {
-            barbarian: 3,
-            defenders: 2,
-            contributions: PLAYER_IDS.map((id) => ({
-              playerId: id,
-              strength: id === PLAYER_IDS[0] || id === PLAYER_IDS[1] ? 2 : 0,
-            })),
-          },
-          outcome: {
-            type: "defenders-win" as const,
-            reward: {
-              type: "progress-choice" as const,
-              playerIds: [PLAYER_IDS[0]!, PLAYER_IDS[1]!],
-            },
-          },
-          firstAttack: false,
-          summary: "Test tied attack",
-        },
-      },
-      resolution: { official: null },
-    };
-  }
-
-  it("auto-resolves barbarian attacks without entering resolving-barbarian-attack", () => {
-    const state = forceEventFace(newGame({ trackLength: 1 }), "barbarian");
-    const result = run(state, { type: "roll.draw" }, "auto-resolve-check");
-    expect(result.turn.phase).toBe("resolving-official-result");
-    expect(result.barbarian.pendingAttack).toBeNull();
-    expect(result.barbarian.shipPosition).toBe(0);
-    expect(result.barbarian.attacksCompleted).toBe(1);
-  });
-
-  it("recovers a legacy attack without changing physical-board state", () => {
-    const state = tiedAttack();
-    const playersBefore = structuredClone(state.players);
-    const next = run(
-      state,
-      {
-        type: "attack.confirmed",
-        proposalId: state.barbarian.pendingAttack!.id,
-        manualOutcome: { type: "board-authoritative" },
-        progressChoices: [],
-      },
-      "attack-board-recovery",
-    );
-
-    expect(next.turn.phase).toBe("action-phase");
-    expect(next.players).toEqual(playersBefore);
-    expect(next.barbarian.pendingAttack).toBeNull();
-    expect(next.barbarian.history.at(-1)?.outcome).toEqual({
-      type: "board-authoritative",
-    });
-  });
-
-  it("rejects wrong phases, stale proposals, incomplete, duplicate, and unexpected choices (legacy)", () => {
-    expectError(
-      newGame(),
-      {
-        type: "attack.confirmed",
-        proposalId: asProposalId("missing"),
-        manualOutcome: { type: "barbarians-win", pillagedPlayerIds: [] },
-      },
-      "INVALID_PHASE",
-      "attack-phase",
-    );
-
-    const tied = tiedAttack();
-    expectError(
-      tied,
-      {
-        type: "attack.confirmed",
-        proposalId: asProposalId("stale"),
-        manualOutcome: { type: "barbarians-win", pillagedPlayerIds: [] },
-      },
-      "ATTACK_CONFIRMATION_STALE",
-      "attack-stale",
-    );
-    expectError(
-      tied,
-      {
-        type: "attack.confirmed",
-        proposalId: tied.barbarian.pendingAttack!.id,
-        manualOutcome: {
-          type: "barbarians-win",
-          pillagedPlayerIds: [asPlayerId("missing-player")],
-        },
-      },
-      "INVALID_COMMAND",
-      "attack-missing-player",
-    );
-
-    const noCity = tiedAttack();
-    noCity.players[0]!.ordinaryCities = 0;
-    expectError(
-      noCity,
-      {
-        type: "attack.confirmed",
-        proposalId: noCity.barbarian.pendingAttack!.id,
-        manualOutcome: {
-          type: "barbarians-win",
-          pillagedPlayerIds: [PLAYER_IDS[0]!],
-        },
-      },
-      "INVALID_COMMAND",
-      "attack-no-city",
-    );
-    expectError(
-      tied,
-      {
-        type: "attack.confirmed",
-        proposalId: tied.barbarian.pendingAttack!.id,
-        manualOutcome: tied.barbarian.pendingAttack!.outcome,
-        progressChoices: [{ playerId: PLAYER_IDS[0]!, discipline: "science" }],
-      },
-      "INVALID_COMMAND",
-      "attack-incomplete",
-    );
-    expectError(
-      tied,
-      {
-        type: "attack.confirmed",
-        proposalId: tied.barbarian.pendingAttack!.id,
-        manualOutcome: tied.barbarian.pendingAttack!.outcome,
-        progressChoices: [
-          { playerId: PLAYER_IDS[0]!, discipline: "science" },
-          { playerId: PLAYER_IDS[0]!, discipline: "trade" },
-        ],
-      },
-      "INVALID_COMMAND",
-      "attack-duplicate",
-    );
-
-    const loss = tiedAttack();
-    // Override to a barbarians-win outcome for the loss test case.
-    loss.barbarian.pendingAttack = {
-      ...loss.barbarian.pendingAttack!,
-      outcome: {
-        type: "barbarians-win",
-        pillagedPlayerIds: [...PLAYER_IDS],
-      },
-    };
-    expectError(
-      loss,
-      {
-        type: "attack.confirmed",
-        proposalId: loss.barbarian.pendingAttack.id,
-        manualOutcome: loss.barbarian.pendingAttack.outcome,
-        progressChoices: [{ playerId: PLAYER_IDS[0]!, discipline: "science" }],
-      },
-      "INVALID_COMMAND",
-      "attack-unexpected",
-    );
-  });
-
-  it("returns directly to action or a thematic event when no official work remains", () => {
-    function manuallyResolvedAttack(withEvent: boolean): GameState {
-      const state = newGame({ trackLength: 1 });
-      const proposalId = asProposalId(`manual-${withEvent}`);
-      const event = withEvent ? pendingEvent(state) : null;
-      return {
-        ...state,
-        turn: { ...state.turn, phase: "resolving-barbarian-attack" },
-        barbarian: {
-          ...state.barbarian,
-          shipPosition: 1,
-          pendingAttack: {
-            id: proposalId,
-            strengths: {
-              barbarian: 3,
-              defenders: 3,
-              contributions: [
-                { playerId: PLAYER_IDS[0]!, strength: 3 },
-                { playerId: PLAYER_IDS[1]!, strength: 0 },
-                { playerId: PLAYER_IDS[2]!, strength: 0 },
-              ],
-            },
-            firstAttack: true,
-            outcome: {
-              type: "defenders-win",
-              reward: { type: "defender-point", playerId: PLAYER_IDS[0]! },
-            },
-            summary: "Manual win",
-          },
-        },
-        thematicEvents: { ...state.thematicEvents, pendingEvent: event },
-        history: {
-          ...state.history,
-          thematicEvents: event === null ? [] : [event],
-        },
-      };
-    }
-
-    let action = manuallyResolvedAttack(false);
-    const actionProposal = action.barbarian.pendingAttack!.id;
-    action = run(
-      action,
-      {
-        type: "attack.confirmed",
-        proposalId: actionProposal,
-        manualOutcome: action.barbarian.pendingAttack!.outcome,
-      },
-      "attack-action",
-    );
-    expect(action.turn.phase).toBe("action-phase");
-
-    let event = manuallyResolvedAttack(true);
-    const eventProposal = event.barbarian.pendingAttack!.id;
-    event = run(
-      event,
-      {
-        type: "attack.confirmed",
-        proposalId: eventProposal,
-        manualOutcome: event.barbarian.pendingAttack!.outcome,
-      },
-      "attack-event",
-    );
-    expect(event.turn.phase).toBe("resolving-thematic-event");
-  });
-
-  it("applies each manual outcome branch to players, scores, and statistics", () => {
-    // These outcome shapes are only reachable through the legacy manual
-    // confirmation path, so they need explicit coverage.
-    function manualAttack(
-      outcome: GameState["barbarian"]["pendingAttack"] extends null
-        ? never
-        : NonNullable<GameState["barbarian"]["pendingAttack"]>["outcome"],
-      label: string,
-    ): GameState {
-      const base = newGame({ trackLength: 1 });
-      base.players[0]!.activeKnights.strong = 1;
-      return {
-        ...base,
-        turn: { ...base.turn, phase: "resolving-barbarian-attack" },
-        barbarian: {
-          ...base.barbarian,
-          shipPosition: base.barbarian.rules.trackLength,
-          pendingAttack: {
-            id: asProposalId(label),
-            strengths: {
-              barbarian: 3,
-              defenders: 1,
-              contributions: PLAYER_IDS.map((id) => ({
-                playerId: id,
-                strength: id === PLAYER_IDS[0] ? 1 : 0,
-              })),
-            },
-            outcome,
-            firstAttack: false,
-            summary: `Manual ${label}`,
-          },
-        },
-        resolution: { official: null },
-      };
-    }
-
-    // Defenders win with a single top contributor: one Defender point is
-    // awarded and knights are cleared.
-    const pointState = manualAttack(
-      {
-        type: "defenders-win",
-        reward: { type: "defender-point", playerId: PLAYER_IDS[0]! },
-      },
-      "manual-defender-point",
-    );
-    const point = run(
-      pointState,
-      {
-        type: "attack.confirmed",
-        proposalId: pointState.barbarian.pendingAttack!.id,
-        manualOutcome: pointState.barbarian.pendingAttack!.outcome,
-      },
-      "manual-point",
-    );
-    expect(point.statistics.barbarianAttacksWon).toBe(1);
-    expect(point.statistics.barbarianAttacksLost).toBe(0);
-    expect(point.scoreLedger.at(-1)).toMatchObject({
-      playerId: PLAYER_IDS[0],
-      delta: 1,
-      reason: "defender",
-    });
-    expect(point.players[0]?.activeKnights).toEqual({
-      basic: 0,
-      strong: 0,
-      mighty: 0,
-    });
-    expect(point.barbarian.history.at(-1)?.outcome).toMatchObject({
-      type: "defenders-win",
-    });
-
-    // Barbarians win and pillage: each listed player loses one ordinary city.
-    const pillageState = manualAttack(
-      { type: "barbarians-win", pillagedPlayerIds: [PLAYER_IDS[0]!] },
-      "manual-pillage",
-    );
-    const citiesBefore = pillageState.players[0]!.ordinaryCities;
-    const pillage = run(
-      pillageState,
-      {
-        type: "attack.confirmed",
-        proposalId: pillageState.barbarian.pendingAttack!.id,
-        manualOutcome: pillageState.barbarian.pendingAttack!.outcome,
-      },
-      "manual-pillage-run",
-    );
-    expect(pillage.statistics.barbarianAttacksLost).toBe(1);
-    expect(pillage.statistics.barbarianAttacksWon).toBe(0);
-    expect(pillage.players[0]?.ordinaryCities).toBe(citiesBefore - 1);
-
-    // Barbarians win with nothing to pillage: no city is deducted.
-    const emptyState = manualAttack(
-      { type: "barbarians-win", pillagedPlayerIds: [] },
-      "manual-empty",
-    );
-    const empty = run(
-      emptyState,
-      {
-        type: "attack.confirmed",
-        proposalId: emptyState.barbarian.pendingAttack!.id,
-        manualOutcome: emptyState.barbarian.pendingAttack!.outcome,
-      },
-      "manual-empty-run",
-    );
-    expect(empty.statistics.barbarianAttacksLost).toBe(1);
-    expect(empty.players.map((player) => player.ordinaryCities)).toEqual(
-      emptyState.players.map((player) => player.ordinaryCities),
-    );
-  });
-
-  it("resolves a tied defence through explicit progress choices", () => {
-    const tied = tiedAttack();
-    const next = run(
-      tied,
-      {
-        type: "attack.confirmed",
-        proposalId: tied.barbarian.pendingAttack!.id,
-        manualOutcome: tied.barbarian.pendingAttack!.outcome,
-        progressChoices: [
-          { playerId: PLAYER_IDS[0]!, discipline: "science" },
-          { playerId: PLAYER_IDS[1]!, discipline: "trade" },
-        ],
-      },
-      "attack-tied-choices",
-    );
-
-    expect(next.barbarian.pendingAttack).toBeNull();
-    expect(next.barbarian.history.at(-1)?.progressChoices).toEqual([
-      { playerId: PLAYER_IDS[0], discipline: "science" },
-      { playerId: PLAYER_IDS[1], discipline: "trade" },
-    ]);
-    // A tied defence awards decks rather than a Defender point.
-    expect(next.scoreLedger).toEqual(tied.scoreLedger);
-    expect(next.statistics.barbarianAttacksWon).toBe(1);
-  });
-
-  it("stays in official resolution when production is still pending", () => {
-    const base = tiedAttack();
-    const rollId = asRollId("pending-roll");
-    const pending: GameState = {
-      ...base,
-      lastRoll: {
-        id: rollId,
-        playerId: PLAYER_IDS[0]!,
-        turnNumber: base.turn.turnNumber,
-        round: base.turn.round,
-        numbered: { red: 3, yellow: 4 },
-        total: 7,
-        eventFace: "barbarian",
-        alchemy: false,
-        numberedDeckCycle: base.numberedDeck.cycle,
-        numberedDeckIndex: 0,
-        eventDeckCycle: base.eventDeck.cycle,
-        eventDeckIndex: 0,
-        progress: null,
-        production: {
-          type: "seven",
-          robberActive: false,
-          reminder: "robber-not-yet-active",
-        },
-        thematicEventOccurrenceId: null,
-        createdAt: asIsoTimestamp("2026-07-12T12:00:00Z"),
-      },
-      resolution: {
-        official: {
-          rollId,
-          progressPending: false,
-          productionPending: true,
-        },
-      },
-    };
-    const next = run(
-      pending,
-      {
-        type: "attack.confirmed",
-        proposalId: pending.barbarian.pendingAttack!.id,
-        manualOutcome: { type: "board-authoritative" },
-        progressChoices: [],
-      },
-      "attack-official-pending",
-    );
-    expect(next.turn.phase).toBe("resolving-official-result");
   });
 });
 

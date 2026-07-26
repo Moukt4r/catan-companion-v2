@@ -1,13 +1,8 @@
 import {
   PROGRESS_ELIGIBILITY_2025,
-  barbarianStrength,
   currentPlayer,
   currentTurnActiveMilliseconds,
-  defenderStrength,
-  metropolisCountForPlayer,
   playerActiveMilliseconds,
-  safeHandLimit,
-  forecastBarbarianAttack,
   scoreForPlayer,
   totalActiveMilliseconds,
   winnerCandidates,
@@ -17,7 +12,6 @@ import {
   isSeasonTransition,
   SEASON_LABELS,
   SEASON_ICONS,
-  type BarbarianAttackProposal,
   type GamePhase,
   type GameState,
   type IsoTimestamp,
@@ -32,7 +26,6 @@ import type { GameCompleteView } from "./GameCompleteScreen";
 import type { GameTableView } from "./GameTable";
 import type { PlayerEditorValue } from "./PlayerEditorDialog";
 import type {
-  BarbarianAttackView,
   ProgressEligiblePlayer,
   RollResolutionView,
 } from "./RollResolutionDialog";
@@ -41,7 +34,6 @@ const phaseLabels: Record<GamePhase, string> = {
   "action-phase": "Action phase",
   "awaiting-roll": "Awaiting roll",
   completed: "Completed",
-  "resolving-barbarian-attack": "Resolving barbarian attack",
   "resolving-official-result": "Resolving official result",
   "resolving-thematic-event": "Resolving world event",
   "turn-complete": "Turn complete",
@@ -175,8 +167,7 @@ export function toGameTableView(
       state.turn.phase === "action-phase" &&
       state.metropolises.pendingProposal === null,
     canEditPublicState:
-      (state.turn.phase === "action-phase" ||
-        state.turn.phase === "resolving-barbarian-attack") &&
+      state.turn.phase === "action-phase" &&
       state.metropolises.pendingProposal === null,
     canPause: state.clock?.runningSince !== null && state.clock !== undefined,
     currentTurnMs: currentTurnActiveMilliseconds(state, clockAt),
@@ -226,11 +217,7 @@ export function toGameTableView(
     barbarian: {
       position: state.barbarian.shipPosition,
       trackLength: state.barbarian.rules.trackLength,
-      strength: barbarianStrength(state),
-      defenderStrength: defenderStrength(state),
-      attackPending: state.barbarian.pendingAttack !== null,
     },
-    forecast: toBarbarianForecastView(state),
     players: state.players.map((player) => ({
       id: player.id,
       name: player.name,
@@ -276,71 +263,6 @@ function toSeasonView(state: GameState): GameTableView["season"] {
   };
 }
 
-export interface BarbarianForecastView {
-  advancesUntilAttack: number;
-  attackImminent: boolean;
-  defended: boolean;
-  relevant: boolean;
-  strength: number;
-  defenderStrength: number;
-  inactiveStrength: number;
-  summary: string;
-  /** Ready-to-render one-line verdict, empty when the forecast is not useful. */
-  verdict: string;
-  pillagedNames: string[];
-  rewardNames: string[];
-}
-
-/** Join names the way a person would: "Ada, Grace and Linus". */
-function listNames(names: readonly string[]): string {
-  if (names.length <= 1) return names[0] ?? "";
-  return `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
-}
-
-function toBarbarianForecastView(state: GameState): BarbarianForecastView {
-  const forecast = forecastBarbarianAttack(state);
-  const nameOf = (playerId: PlayerId): string =>
-    state.players.find((player) => player.id === playerId)?.name ?? "Unknown";
-
-  const rewardNames =
-    forecast.outcome.type === "defenders-win"
-      ? forecast.outcome.reward.type === "defender-point"
-        ? [nameOf(forecast.outcome.reward.playerId)]
-        : forecast.outcome.reward.playerIds.map(nameOf)
-      : [];
-  const pillagedNames = forecast.pillagedPlayerIds.map(nameOf);
-  const defended = forecast.outcome.type === "defenders-win";
-
-  const held =
-    rewardNames.length === 1
-      ? `Held \u00b7 ${rewardNames[0]} takes the Defender point`
-      : `Held \u00b7 ${listNames(rewardNames)} each draw a progress card`;
-  const falls =
-    pillagedNames.length === 0
-      ? "Falls \u00b7 no recorded city is exposed"
-      : `Falls \u00b7 ${listNames(pillagedNames)} lose a city`;
-  const inactiveNote =
-    forecast.inactiveStrength > 0
-      ? ` (${forecast.inactiveStrength} defense inactive)`
-      : "";
-
-  return {
-    advancesUntilAttack: forecast.advancesUntilAttack,
-    attackImminent: forecast.attackImminent,
-    defended,
-    relevant: forecast.relevant,
-    verdict: forecast.relevant
-      ? `${defended ? held : falls}${inactiveNote}`
-      : "",
-    strength: forecast.strengths.barbarian,
-    defenderStrength: forecast.strengths.defenders,
-    inactiveStrength: forecast.inactiveStrength,
-    summary: forecast.summary,
-    pillagedNames: forecast.pillagedPlayerIds.map(nameOf),
-    rewardNames,
-  };
-}
-
 export function toPlayerEditorValue(
   state: GameState,
   playerId: PlayerId,
@@ -355,15 +277,6 @@ export function toPlayerEditorValue(
     name: player.name,
     color: player.color.hex,
     victoryPoints: scoreForPlayer(state, player.id),
-    ordinaryCities: player.ordinaryCities,
-    cityWalls: player.cityWalls,
-    safeHandLimit: safeHandLimit(player),
-    activeKnights: {
-      ...player.activeKnights,
-    },
-    inactiveKnights: {
-      ...player.inactiveKnights,
-    },
     improvements: {
       ...player.improvements,
     },
@@ -444,26 +357,6 @@ export function toRollResolutionView(
       position: state.barbarian.shipPosition,
       trackLength: state.barbarian.rules.trackLength,
     },
-    attack: state.barbarian.pendingAttack
-      ? toBarbarianAttackView(state, state.barbarian.pendingAttack)
-      : null,
-  };
-}
-
-export function toBarbarianAttackView(
-  state: GameState,
-  proposal: BarbarianAttackProposal,
-): BarbarianAttackView {
-  return {
-    proposalId: proposal.id,
-    players: state.players.map((player) => ({
-      id: player.id,
-      name: player.name,
-      color: player.color.hex,
-      ordinaryCities: player.ordinaryCities,
-      metropolises: metropolisCountForPlayer(state, player.id),
-    })),
-    firstAttack: proposal.firstAttack,
   };
 }
 

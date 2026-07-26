@@ -52,26 +52,11 @@ export function proposeMetropolisChange(
     const player = state.players.find(
       (candidate) => candidate.id === change.playerId,
     );
-    if (
-      player === undefined ||
-      player.ordinaryCities + change.ordinaryCityDelta < 0
-    ) {
+    if (player === undefined) {
       return failure(
         domainError(
           "INVALID_METROPOLIS_STATE",
-          "A metropolis assignment requires an ordinary city to convert.",
-          { playerId: change.playerId, discipline },
-        ),
-      );
-    }
-    // A wall is built onto an ordinary city, so converting the last unwalled
-    // city would leave more walls than cities. Rejecting it here keeps the
-    // table out of a pending proposal that could never be confirmed.
-    if (player.ordinaryCities + change.ordinaryCityDelta < player.cityWalls) {
-      return failure(
-        domainError(
-          "INVALID_METROPOLIS_STATE",
-          "A metropolis assignment requires an ordinary city without a wall.",
+          "A metropolis change references an unknown player.",
           { playerId: change.playerId, discipline },
         ),
       );
@@ -133,14 +118,12 @@ function buildChanges(
   if (from !== null) {
     changes.push({
       playerId: from.holderId,
-      ordinaryCityDelta: 1,
       scoreDelta: -2,
     });
   }
   if (to !== null) {
     changes.push({
       playerId: to.holderId,
-      ordinaryCityDelta: -1,
       scoreDelta: 2,
     });
   }

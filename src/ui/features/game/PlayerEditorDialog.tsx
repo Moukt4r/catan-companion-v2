@@ -14,19 +14,6 @@ export interface PlayerEditorValue {
   name: string;
   color: string;
   victoryPoints: number;
-  ordinaryCities: number;
-  cityWalls: number;
-  safeHandLimit: number;
-  activeKnights: {
-    basic: number;
-    strong: number;
-    mighty: number;
-  };
-  inactiveKnights: {
-    basic: number;
-    strong: number;
-    mighty: number;
-  };
   improvements: {
     science: ImprovementValue;
     trade: ImprovementValue;
@@ -36,10 +23,6 @@ export interface PlayerEditorValue {
 }
 
 export interface PlayerEditorPatch {
-  ordinaryCities: number;
-  cityWalls: number;
-  activeKnights: PlayerEditorValue["activeKnights"];
-  inactiveKnights: PlayerEditorValue["inactiveKnights"];
   improvements: PlayerEditorValue["improvements"];
   scoreDelta: number;
   scoreNote: string;
@@ -56,35 +39,9 @@ export function PlayerEditorDialog({
   onSave,
   player,
 }: PlayerEditorDialogProps) {
-  const [ordinaryCities, setOrdinaryCities] = useState(player.ordinaryCities);
-  const [cityWalls, setCityWalls] = useState(player.cityWalls);
-  const [activeKnights, setActiveKnights] = useState(player.activeKnights);
-  const [inactiveKnights, setInactiveKnights] = useState(
-    player.inactiveKnights,
-  );
   const [improvements, setImprovements] = useState(player.improvements);
   const [scoreDelta, setScoreDelta] = useState(0);
   const [scoreNote, setScoreNote] = useState("");
-
-  const updateKnight = (
-    kind: keyof PlayerEditorValue["activeKnights"],
-    value: number,
-  ) => {
-    setActiveKnights((current) => ({
-      ...current,
-      [kind]: value,
-    }));
-  };
-
-  const updateInactiveKnight = (
-    kind: keyof PlayerEditorValue["inactiveKnights"],
-    value: number,
-  ) => {
-    setInactiveKnights((current) => ({
-      ...current,
-      [kind]: value,
-    }));
-  };
 
   const updateImprovement = (
     discipline: keyof PlayerEditorValue["improvements"],
@@ -96,19 +53,11 @@ export function PlayerEditorDialog({
     }));
   };
 
-  const activeStrength =
-    activeKnights.basic + activeKnights.strong * 2 + activeKnights.mighty * 3;
-  const inactiveStrength =
-    inactiveKnights.basic +
-    inactiveKnights.strong * 2 +
-    inactiveKnights.mighty * 3;
-  const safeHandLimit = 7 + 2 * cityWalls;
-
   return (
     <Dialog
       open
       title={`Edit ${player.name}`}
-      description="Adjust points first. Cities and Knights details are available when needed, and every saved change appears in history."
+      description="Adjust points and improvement levels. Cities, walls and knights live on the physical board."
       onClose={onClose}
     >
       <div className="form-stack">
@@ -144,132 +93,18 @@ export function PlayerEditorDialog({
         </section>
 
         <details className="editor-advanced">
-          <summary>Advanced Cities &amp; Knights state</summary>
+          <summary>City improvements</summary>
           <div className="editor-advanced__content">
-            <section
-              className="editor-section"
-              aria-labelledby="cities-editor-heading"
-            >
-              <h3 id="cities-editor-heading">Cities</h3>
-              <NumberStepper
-                compact
-                label="Ordinary cities"
-                value={ordinaryCities}
-                min={0}
-                max={4}
-                onChange={setOrdinaryCities}
-              />
-              <p className="fine-print">
-                Metropolises are tracked by discipline and are not included in
-                this ordinary-city count. Held:{" "}
-                {player.metropolisDisciplines.join(", ") || "none"}.
-              </p>
-              <NumberStepper
-                compact
-                label="City walls"
-                value={cityWalls}
-                min={0}
-                max={ordinaryCities}
-                onChange={setCityWalls}
-              />
-              <StatusBanner tone={cityWalls > 0 ? "success" : "info"}>
-                Safe hand limit on a 7: <strong>{safeHandLimit}</strong> cards
-                {cityWalls > 0
-                  ? ` (7 + 2 × ${cityWalls} walls)`
-                  : " (no walls)"}
-                .
-              </StatusBanner>
-            </section>
-
-            <section
-              className="editor-section"
-              aria-labelledby="knights-editor-heading"
-            >
-              <div className="section-heading-row">
-                <h3 id="knights-editor-heading">Active knights</h3>
-                <strong>Strength {activeStrength}</strong>
-              </div>
-              <NumberStepper
-                compact
-                label="Basic"
-                value={activeKnights.basic}
-                min={0}
-                max={2}
-                onChange={(value) => {
-                  updateKnight("basic", value);
-                }}
-              />
-              <NumberStepper
-                compact
-                label="Strong"
-                value={activeKnights.strong}
-                min={0}
-                max={2}
-                onChange={(value) => {
-                  updateKnight("strong", value);
-                }}
-              />
-              <NumberStepper
-                compact
-                label="Mighty"
-                value={activeKnights.mighty}
-                min={0}
-                max={2}
-                onChange={(value) => {
-                  updateKnight("mighty", value);
-                }}
-              />
-            </section>
-
-            <section
-              className="editor-section"
-              aria-labelledby="inactive-knights-editor-heading"
-            >
-              <div className="section-heading-row">
-                <h3 id="inactive-knights-editor-heading">Inactive knights</h3>
-                <strong>Would add {inactiveStrength}</strong>
-              </div>
-              <p className="fine-print">
-                Inactive knights hold their board position but contribute no
-                defence. A barbarian attack deactivates every knight.
-              </p>
-              <NumberStepper
-                compact
-                label="Inactive basic"
-                value={inactiveKnights.basic}
-                min={0}
-                max={2}
-                onChange={(value) => {
-                  updateInactiveKnight("basic", value);
-                }}
-              />
-              <NumberStepper
-                compact
-                label="Inactive strong"
-                value={inactiveKnights.strong}
-                min={0}
-                max={2}
-                onChange={(value) => {
-                  updateInactiveKnight("strong", value);
-                }}
-              />
-              <NumberStepper
-                compact
-                label="Inactive mighty"
-                value={inactiveKnights.mighty}
-                min={0}
-                max={2}
-                onChange={(value) => {
-                  updateInactiveKnight("mighty", value);
-                }}
-              />
-            </section>
-
             <section
               className="editor-section"
               aria-labelledby="improvements-editor-heading"
             >
               <h3 id="improvements-editor-heading">City improvements</h3>
+              <p className="fine-print">
+                Improvement levels decide progress-card eligibility. Held
+                metropolises:{" "}
+                {player.metropolisDisciplines.join(", ") || "none"}.
+              </p>
               {(["science", "trade", "politics"] as const).map((discipline) => (
                 <NumberStepper
                   key={discipline}
@@ -298,10 +133,6 @@ export function PlayerEditorDialog({
           <Button
             onClick={() => {
               onSave({
-                ordinaryCities,
-                cityWalls,
-                activeKnights,
-                inactiveKnights,
                 improvements,
                 scoreDelta,
                 scoreNote: scoreNote.trim(),

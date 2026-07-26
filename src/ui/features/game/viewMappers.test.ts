@@ -10,12 +10,10 @@ import {
   asRollId,
   asScoreEntryId,
   createGame,
-  type BarbarianAttackProposal,
   type GameState,
   type IdSource,
 } from "../../../domain";
 import {
-  toBarbarianAttackView,
   toEligibleProgressPlayers,
   toGameCompleteView,
   toGameTableView,
@@ -55,8 +53,6 @@ function game(): GameState {
             hex: "#123456",
             distinguishabilityKey: "blue",
           },
-          ordinaryCities: 2,
-          activeKnights: { basic: 1, strong: 1, mighty: 0 },
           improvements: { science: 3, trade: 2, politics: 1 },
         },
         {
@@ -68,8 +64,6 @@ function game(): GameState {
             hex: "#654321",
             distinguishabilityKey: "red",
           },
-          ordinaryCities: 1,
-          activeKnights: { basic: 0, strong: 0, mighty: 1 },
           improvements: { science: 1, trade: 4, politics: 2 },
         },
         {
@@ -133,7 +127,7 @@ function lastRoll(): NonNullable<GameState["lastRoll"]> {
 }
 
 describe("toGameTableView", () => {
-  it("maps public table controls, scores, strength, and read-only state", () => {
+  it("maps public table controls, scores, and read-only state", () => {
     const state = game();
     const view = toGameTableView(
       state,
@@ -167,9 +161,6 @@ describe("toGameTableView", () => {
       barbarian: {
         position: 0,
         trackLength: 7,
-        strength: 4,
-        defenderStrength: 6,
-        attackPending: false,
       },
       worldEventPending: false,
       worldEvent: null,
@@ -275,8 +266,6 @@ describe("other view mappers", () => {
       id: ADA,
       name: "Ada",
       victoryPoints: 3,
-      ordinaryCities: 2,
-      activeKnights: { basic: 1, strong: 1, mighty: 0 },
       improvements: { science: 3, trade: 2, politics: 1 },
       metropolisDisciplines: ["science"],
     });
@@ -338,7 +327,6 @@ describe("other view mappers", () => {
         total: 7,
         robberActivated: false,
       },
-      attack: null,
     });
   });
 
@@ -350,44 +338,6 @@ describe("other view mappers", () => {
     expect(() => toRollResolutionView(state)).toThrow(
       "The rolling player does not exist.",
     );
-  });
-
-  it("maps defender rewards and barbarian pillaging", () => {
-    const state = game();
-    const defendersWin: BarbarianAttackProposal = {
-      id: asProposalId("defenders-win"),
-      strengths: {
-        barbarian: 3,
-        defenders: 6,
-        contributions: [
-          { playerId: ADA, strength: 3 },
-          { playerId: GRACE, strength: 3 },
-        ],
-      },
-      outcome: {
-        type: "defenders-win",
-        reward: { type: "progress-choice", playerIds: [ADA, GRACE] },
-      },
-      firstAttack: true,
-      summary: "Defenders win",
-    };
-    expect(toBarbarianAttackView(state, defendersWin)).toMatchObject({
-      proposalId: defendersWin.id,
-      firstAttack: true,
-    });
-    expect(toBarbarianAttackView(state, defendersWin).players[0]).toMatchObject(
-      {},
-    );
-
-    const barbariansWin: BarbarianAttackProposal = {
-      ...defendersWin,
-      id: asProposalId("barbarians-win"),
-      outcome: { type: "barbarians-win", pillagedPlayerIds: [GRACE] },
-      firstAttack: false,
-    };
-    expect(toBarbarianAttackView(state, barbariansWin)).toMatchObject({
-      firstAttack: false,
-    });
   });
 
   it("maps completed-game statistics and requires a winner", () => {

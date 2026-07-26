@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  activeKnightStrength,
   asCommandId,
   asEventId,
   asEventOccurrenceId,
@@ -11,12 +10,9 @@ import {
   asRevisionId,
   asRollId,
   asScoreEntryId,
-  barbarianStrength,
-  calculateBarbarianAttack,
   createThematicEventDeck,
   createThematicState,
   currentPlayer,
-  defenderStrength,
   domainError,
   drawDeck,
   failure,
@@ -41,7 +37,6 @@ import type {
   MetropolisDiscipline,
   PlayerId,
   PlayerState,
-  ProposalId,
   ThematicEventDefinition,
   ThematicEventState,
 } from "./types";
@@ -51,11 +46,7 @@ const PLAYER_A = asPlayerId("player-a");
 const PLAYER_B = asPlayerId("player-b");
 const UNKNOWN_PLAYER = asPlayerId("unknown");
 
-function player(
-  id: PlayerId,
-  ordinaryCities = 1,
-  science: 0 | 1 | 2 | 3 | 4 | 5 = 0,
-): PlayerState {
+function player(id: PlayerId, science: 0 | 1 | 2 | 3 | 4 | 5 = 0): PlayerState {
   return {
     id,
     name: id,
@@ -66,10 +57,6 @@ function player(
       distinguishabilityKey: `${id}-key`,
     },
     order: id === PLAYER_A ? 0 : 1,
-    ordinaryCities,
-    activeKnights: { basic: 0, strong: 0, mighty: 0 },
-    inactiveKnights: { basic: 0, strong: 0, mighty: 0 },
-    cityWalls: 0,
     improvements: { science, trade: 0, politics: 0 },
   };
 }
@@ -138,10 +125,6 @@ describe("result, ID, selector, and progress helpers", () => {
 
   it("calculates selector totals, current order, and winner candidates", () => {
     const players = [player(PLAYER_A), player(PLAYER_B)];
-    players[0] = {
-      ...players[0]!,
-      activeKnights: { basic: 1, strong: 1, mighty: 1 },
-    };
     const state = {
       players,
       metropolises: {
@@ -171,9 +154,6 @@ describe("result, ID, selector, and progress helpers", () => {
       turn: { currentPlayerIndex: 1 },
     } as GameState;
 
-    expect(activeKnightStrength(players[0])).toBe(6);
-    expect(defenderStrength(state)).toBe(6);
-    expect(barbarianStrength(state)).toBe(4);
     expect(metropolisCountForPlayer(state, PLAYER_A)).toBe(2);
     expect(scoreForPlayer(state, PLAYER_A)).toBe(5);
     expect(currentPlayer(state).id).toBe(PLAYER_B);
@@ -297,7 +277,7 @@ describe("metropolis proposal rules", () => {
     });
 
     const permanent = metropolisState(
-      [player(PLAYER_A, 0, 5), player(PLAYER_B, 1, 5)],
+      [player(PLAYER_A, 5), player(PLAYER_B, 5)],
       { holderId: PLAYER_A, status: "permanent" },
     );
     expect(
@@ -311,7 +291,7 @@ describe("metropolis proposal rules", () => {
     });
   });
 
-  it("rejects unknown, under-qualified, and cityless holders", () => {
+  it("rejects unknown and under-qualified holders", () => {
     expect(
       propose(metropolisState(), {
         holderId: UNKNOWN_PLAYER,
@@ -331,18 +311,9 @@ describe("metropolis proposal rules", () => {
       error: { code: "INVALID_METROPOLIS_STATE" },
     });
     expect(
-      propose(metropolisState([player(PLAYER_A, 1, 4)]), {
+      propose(metropolisState([player(PLAYER_A, 4)]), {
         holderId: PLAYER_A,
         status: "permanent",
-      }),
-    ).toMatchObject({
-      ok: false,
-      error: { code: "INVALID_METROPOLIS_STATE" },
-    });
-    expect(
-      propose(metropolisState([player(PLAYER_A, 0, 4)]), {
-        holderId: PLAYER_A,
-        status: "temporary",
       }),
     ).toMatchObject({
       ok: false,
@@ -351,7 +322,7 @@ describe("metropolis proposal rules", () => {
   });
 
   it("describes assignment, removal, permanence, and correction transfer", () => {
-    const assigned = propose(metropolisState([player(PLAYER_A, 1, 4)]), {
+    const assigned = propose(metropolisState([player(PLAYER_A, 4)]), {
       holderId: PLAYER_A,
       status: "temporary",
     });
@@ -359,12 +330,12 @@ describe("metropolis proposal rules", () => {
       ok: true,
       value: {
         summary: "Assign the science metropolis as temporary.",
-        changes: [{ playerId: PLAYER_A, ordinaryCityDelta: -1, scoreDelta: 2 }],
+        changes: [{ playerId: PLAYER_A, scoreDelta: 2 }],
       },
     });
 
     const temporary = metropolisState(
-      [player(PLAYER_A, 0, 4), player(PLAYER_B, 1, 4)],
+      [player(PLAYER_A, 4), player(PLAYER_B, 4)],
       { holderId: PLAYER_A, status: "temporary" },
     );
     expect(propose(temporary, null, "correction")).toMatchObject({
@@ -385,7 +356,7 @@ describe("metropolis proposal rules", () => {
     });
 
     const qualified = metropolisState(
-      [player(PLAYER_A, 0, 5), player(PLAYER_B, 1, 5)],
+      [player(PLAYER_A, 5), player(PLAYER_B, 5)],
       { holderId: PLAYER_A, status: "temporary" },
     );
     expect(
@@ -408,8 +379,8 @@ describe("metropolis proposal rules", () => {
       value: {
         summary: "Transfer the science metropolis and its two public points.",
         changes: [
-          { playerId: PLAYER_A, ordinaryCityDelta: 1, scoreDelta: -2 },
-          { playerId: PLAYER_B, ordinaryCityDelta: -1, scoreDelta: 2 },
+          { playerId: PLAYER_A, scoreDelta: -2 },
+          { playerId: PLAYER_B, scoreDelta: 2 },
         ],
       },
     });
@@ -553,54 +524,5 @@ describe("thematic scheduling edge cases", () => {
       duplicate.id,
     );
     expect(deck.order).toEqual([duplicate.id, duplicate.id]);
-  });
-});
-
-describe("barbarian calculation edge cases", () => {
-  it("reports a loss with no vulnerable ordinary city", () => {
-    const players = [player(PLAYER_A, 0), player(PLAYER_B, 0)].map(
-      (candidate, index) => ({
-        ...candidate,
-        improvements:
-          index === 0
-            ? { ...candidate.improvements, science: 4 as const }
-            : candidate.improvements,
-      }),
-    );
-    const proposal = calculateBarbarianAttack(
-      {
-        players,
-        metropolises: {
-          controls: {
-            science: { holderId: PLAYER_A, status: "temporary" },
-            trade: null,
-            politics: null,
-          },
-          pendingProposal: null,
-        },
-        barbarian: {
-          shipPosition: 1,
-          robberActivated: false,
-          attacksCompleted: 1,
-          rules: { trackLength: 1, knightComponentLimitPerLevel: 2 },
-          pendingAttack: null,
-          history: [],
-        },
-        turn: {
-          phase: "resolving-barbarian-attack",
-          currentPlayerIndex: 0,
-          round: 1,
-          turnNumber: 1,
-          completedTurns: 0,
-        },
-      },
-      "proposal" as ProposalId,
-    );
-    expect(proposal).toMatchObject({
-      firstAttack: false,
-      outcome: { type: "barbarians-win", pillagedPlayerIds: [] },
-      summary:
-        "The barbarians win, but no recorded ordinary city is vulnerable.",
-    });
   });
 });

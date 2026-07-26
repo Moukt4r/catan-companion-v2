@@ -154,7 +154,7 @@ The turn state machine is:
 4. `action-phase`
 5. `turn-complete`
 
-`resolving-barbarian-attack` is a legacy recovery phase only; new attacks do
+Barbarian attacks introduce no phase of their own; new attacks do
 not interrupt this flow.
 
 The app cannot roll twice in one turn unless the previous roll is undone.

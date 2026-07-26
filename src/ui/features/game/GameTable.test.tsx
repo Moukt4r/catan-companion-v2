@@ -33,23 +33,6 @@ function view(): GameTableView {
     barbarian: {
       position: 0,
       trackLength: 7,
-      strength: 3,
-      defenderStrength: 0,
-      attackPending: false,
-    },
-    forecast: {
-      advancesUntilAttack: 7,
-      attackImminent: false,
-      defended: false,
-      relevant: true,
-      strength: 3,
-      defenderStrength: 0,
-      inactiveStrength: 0,
-      summary:
-        "The barbarians win; the lowest vulnerable strength group loses one ordinary city each.",
-      verdict: "Falls · Ada loses a city",
-      pillagedNames: ["Ada"],
-      rewardNames: [],
     },
     players: [
       {
@@ -524,9 +507,6 @@ describe("GameTable", () => {
       barbarian: {
         position: 3,
         trackLength: 7,
-        strength: 3,
-        defenderStrength: 2,
-        attackPending: false,
       },
     });
 

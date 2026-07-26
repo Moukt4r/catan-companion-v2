@@ -8,7 +8,6 @@ import {
   asIsoTimestamp,
   asPlayerId,
   asRevisionId,
-  calculateBarbarianAttack,
   createGame,
   createThematicEventDeck,
   decide,
@@ -139,7 +138,6 @@ function actionPhase(state: GameState): GameState {
     ...state,
     turn: { ...state.turn, phase: "action-phase" },
     resolution: { official: null },
-    barbarian: { ...state.barbarian, pendingAttack: null },
     thematicEvents: { ...state.thematicEvents, pendingEvent: null },
   };
 }
@@ -290,94 +288,26 @@ describe("barbarian attacks", () => {
   it("auto-resolves the attack and resets only the app-owned cycle", () => {
     let state = newGame({ barbarianTrackLength: 1 });
     state = withNextEventFace(state, "barbarian");
-    state = {
-      ...state,
-      players: state.players.map((player, index) => ({
-        ...player,
-        activeKnights:
-          index === 0
-            ? { basic: 0, strong: 0, mighty: 1 }
-            : player.activeKnights,
-      })),
-    };
     state = run(state, { type: "roll.draw" }, "attack-auto-resolve");
 
-    // No pending attack — auto-resolved during the roll.
-    expect(state.barbarian.pendingAttack).toBeNull();
+    // The attack is logged and the cycle resets without any table input.
     expect(state.turn.phase).toBe("resolving-official-result");
     expect(state.barbarian).toMatchObject({
       shipPosition: 0,
       robberActivated: true,
       attacksCompleted: 1,
     });
-    // Physical-board state is untouched by the app.
-    expect(state.players[0]?.activeKnights).toEqual({
-      basic: 0,
-      strong: 0,
-      mighty: 1,
-    });
-    // A board-authoritative history record is created.
+    // Only the fact that an attack happened is recorded.
     expect(state.barbarian.history).toHaveLength(1);
-    expect(state.barbarian.history[0]?.outcome).toEqual({
-      type: "board-authoritative",
-    });
+    expect(state.barbarian.history[0]?.completedAt).toBeDefined();
+    expect(state.statistics.barbarianAttacks).toBe(1);
   });
 
-  it("does not modify player scores or cities (board is authoritative)", () => {
-    let state = withNextEventFace(
-      newGame({ barbarianTrackLength: 1 }),
-      "barbarian",
-    );
-    const citiesBefore = state.players.map((p) => p.ordinaryCities);
-    const scoresBefore = state.players.map((p) => scoreForPlayer(state, p.id));
-    state = run(state, { type: "roll.draw" }, "attack-no-side-effects");
-    expect(state.players.map((p) => p.ordinaryCities)).toEqual(citiesBefore);
-    expect(state.players.map((p) => scoreForPlayer(state, p.id))).toEqual(
-      scoresBefore,
-    );
-  });
-
-  it("does not enter resolving-barbarian-attack phase", () => {
+  it("continues straight to official resolution after an attack", () => {
     let state = newGame({ barbarianTrackLength: 1 });
     state = withNextEventFace(state, "barbarian");
     state = run(state, { type: "roll.draw" }, "attack-skip-phase");
-    expect(state.turn.phase).not.toBe("resolving-barbarian-attack");
     expect(state.turn.phase).toBe("resolving-official-result");
-  });
-
-  it("falls through protected lowest strength groups to vulnerable ordinary cities", () => {
-    let state = newGame({ barbarianTrackLength: 1 });
-    state = {
-      ...state,
-      players: state.players.map((player, index) => ({
-        ...player,
-        ordinaryCities: index === 0 ? 0 : 1,
-        activeKnights:
-          index === 0
-            ? { basic: 0, strong: 0, mighty: 0 }
-            : { basic: 1, strong: 0, mighty: 0 },
-        improvements:
-          index === 0
-            ? { ...player.improvements, science: 4 }
-            : player.improvements,
-      })),
-      metropolises: {
-        controls: {
-          science: { holderId: PLAYER_IDS[0] as PlayerId, status: "temporary" },
-          trade: null,
-          politics: null,
-        },
-        pendingProposal: null,
-      },
-    };
-    const proposal = calculateBarbarianAttack(
-      state,
-      "protected-proposal" as never,
-    );
-    expect(proposal.outcome).toEqual({
-      type: "barbarians-win",
-      pillagedPlayerIds: [PLAYER_IDS[1], PLAYER_IDS[2]],
-    });
   });
 });
 
@@ -406,7 +336,6 @@ describe("metropolis lifecycle", () => {
       },
       "metro-confirm4",
     );
-    expect(state.players[0]?.ordinaryCities).toBe(0);
     expect(scoreForPlayer(state, PLAYER_IDS[0] as PlayerId)).toBe(5);
 
     state = run(
@@ -493,7 +422,6 @@ describe("metropolis lifecycle", () => {
       "metro-correction-confirm",
     );
     expect(state.metropolises.controls.trade?.holderId).toBe(PLAYER_IDS[1]);
-    expect(state.players[1]?.ordinaryCities).toBe(0);
     expect(scoreForPlayer(state, PLAYER_IDS[1] as PlayerId)).toBe(5);
   });
 });
@@ -854,7 +782,7 @@ describe("turns, invariants, and completion", () => {
         {
           type: "player.publicStateAdjusted",
           playerId: PLAYER_IDS[0] as PlayerId,
-          patch: { ordinaryCities: -1 },
+          patch: { improvements: { science: -1 as never } },
         },
         deps("invalid-edit"),
       ),
@@ -862,7 +790,6 @@ describe("turns, invariants, and completion", () => {
       ok: false,
       error: { code: "INVALID_PLAYER_STATE" },
     });
-    expect(state.players[0]?.ordinaryCities).toBe(1);
   });
 
   it("confirms a winner only after the public ledger reaches the target", () => {

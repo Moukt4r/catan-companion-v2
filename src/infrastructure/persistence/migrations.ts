@@ -1,4 +1,4 @@
-import type { GameState, PlayerState } from "../../domain";
+import type { GameState } from "../../domain";
 import type {
   PersistedCommand,
   StoredRevision,
@@ -6,81 +6,294 @@ import type {
 import { sha256 } from "../../application/integrity";
 
 /**
- * Saves written before city walls and inactive knights existed omit those
- * player fields, and attacks recorded before manual outcomes existed omit
- * `manualOutcome`. Without migration the strict persistence schema rejects
- * those records and every pre-existing game is written back as `corrupt`.
+ * Removes board-owned bookkeeping from saves written before the app stopped
+ * tracking it.
  *
- * Migration is deliberately additive: it only fills in fields that are
- * missing, never rewrites values that a save already carries.
+ * Cities, city walls and knights used to be mirrored in the app. The physical
+ * board is authoritative for all of them, so they were dropped. The
+ * persistence schema is strict, which means it rejects *unknown* keys just as
+ * hard as it rejects missing ones: an old save still carrying `cityWalls`
+ * would fail to parse and be written back as `corrupt`. Stripping the removed
+ * fields here is what keeps existing games loadable.
+ *
+ * Migration never invents data. It only deletes fields the app no longer owns
+ * and folds the old attack bookkeeping into the single fact the app still
+ * records: that an attack happened.
  */
 
-const NO_KNIGHTS = { basic: 0, strong: 0, mighty: 0 } as const;
+const REMOVED_PLAYER_FIELDS = [
+  "ordinaryCities",
+  "activeKnights",
+  "inactiveKnights",
+  "cityWalls",
+] as const;
 
-type LegacyPlayerState = Omit<PlayerState, "inactiveKnights" | "cityWalls"> &
-  Partial<Pick<PlayerState, "inactiveKnights" | "cityWalls">>;
+function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
 
-function migratePlayer(player: PlayerState): {
-  player: PlayerState;
+function stripKeys(
+  source: Record<string, unknown>,
+  keys: readonly string[],
+): { value: Record<string, unknown>; changed: boolean } {
+  const present = keys.filter((key) => key in source);
+  if (present.length === 0) {
+    return { value: source, changed: false };
+  }
+  const value = { ...source };
+  for (const key of present) {
+    delete value[key];
+  }
+  return { value, changed: true };
+}
+
+function migratePlayers(players: unknown): {
+  players: unknown;
   changed: boolean;
 } {
-  const legacy = player as LegacyPlayerState;
-  const missingKnights = legacy.inactiveKnights === undefined;
-  const missingWalls = legacy.cityWalls === undefined;
-  if (!missingKnights && !missingWalls) {
-    return { player, changed: false };
+  if (!isUnknownArray(players)) {
+    return { players, changed: false };
   }
-  return {
-    player: {
-      ...player,
-      inactiveKnights: legacy.inactiveKnights ?? { ...NO_KNIGHTS },
-      cityWalls: legacy.cityWalls ?? 0,
-    },
-    changed: true,
-  };
+  let changed = false;
+  const migrated: unknown[] = players.map((player) => {
+    if (typeof player !== "object" || player === null) {
+      return player;
+    }
+    const result = stripKeys(
+      player as Record<string, unknown>,
+      REMOVED_PLAYER_FIELDS,
+    );
+    changed ||= result.changed;
+    return result.value;
+  });
+  return changed ? { players: migrated, changed: true } : { players, changed };
+}
+
+/**
+ * Folds a legacy barbarian block into the current shape.
+ *
+ * A save paused mid-attack still carries `pendingAttack`. Those attacks were
+ * always settled on the table, so the migration completes them exactly the way
+ * the app does now: log that it happened, reset the ship, arm the robber.
+ */
+function migrateBarbarian(barbarian: unknown): {
+  barbarian: unknown;
+  attackAbsorbed: boolean;
+  changed: boolean;
+} {
+  if (typeof barbarian !== "object" || barbarian === null) {
+    return { barbarian, attackAbsorbed: false, changed: false };
+  }
+  const source = barbarian as Record<string, unknown>;
+  const next = { ...source };
+  let changed = false;
+
+  const rules = source.rules;
+  if (typeof rules === "object" && rules !== null) {
+    const strippedRules = stripKeys(rules as Record<string, unknown>, [
+      "knightComponentLimitPerLevel",
+    ]);
+    if (strippedRules.changed) {
+      next.rules = strippedRules.value;
+      changed = true;
+    }
+  }
+
+  // Attack history keeps only the identity and the timestamp.
+  const rawHistory = source.history;
+  if (isUnknownArray(rawHistory)) {
+    let historyChanged = false;
+    const history: unknown[] = rawHistory.map((record) => {
+      if (typeof record !== "object" || record === null) {
+        return record;
+      }
+      const result = stripKeys(record as Record<string, unknown>, [
+        "strengths",
+        "outcome",
+        "progressChoices",
+      ]);
+      historyChanged ||= result.changed;
+      return result.value;
+    });
+    if (historyChanged) {
+      next.history = history;
+      changed = true;
+    }
+  }
+
+  let attackAbsorbed = false;
+  if ("pendingAttack" in source) {
+    const pending = source.pendingAttack;
+    delete next.pendingAttack;
+    changed = true;
+    if (typeof pending === "object" && pending !== null) {
+      const proposalId = (pending as Record<string, unknown>).id;
+      const history: unknown[] = isUnknownArray(next.history)
+        ? [...next.history]
+        : [];
+      history.push({
+        proposalId: typeof proposalId === "string" ? proposalId : "legacy",
+        completedAt:
+          typeof source.completedAt === "string"
+            ? source.completedAt
+            : new Date(0).toISOString(),
+      });
+      next.history = history;
+      next.shipPosition = 0;
+      next.robberActivated = true;
+      next.attacksCompleted =
+        (typeof source.attacksCompleted === "number"
+          ? source.attacksCompleted
+          : 0) + 1;
+      attackAbsorbed = true;
+    }
+  }
+
+  return changed
+    ? { barbarian: next, attackAbsorbed, changed: true }
+    : { barbarian, attackAbsorbed: false, changed: false };
+}
+
+function migrateStatistics(statistics: unknown): {
+  statistics: unknown;
+  changed: boolean;
+} {
+  if (typeof statistics !== "object" || statistics === null) {
+    return { statistics, changed: false };
+  }
+  const source = statistics as Record<string, unknown>;
+  const hasWon = "barbarianAttacksWon" in source;
+  const hasLost = "barbarianAttacksLost" in source;
+  if (!hasWon && !hasLost) {
+    return { statistics, changed: false };
+  }
+  const won =
+    typeof source.barbarianAttacksWon === "number"
+      ? source.barbarianAttacksWon
+      : 0;
+  const lost =
+    typeof source.barbarianAttacksLost === "number"
+      ? source.barbarianAttacksLost
+      : 0;
+  const next: Record<string, unknown> = { ...source };
+  delete next.barbarianAttacksWon;
+  delete next.barbarianAttacksLost;
+  next.barbarianAttacks = won + lost;
+  return { statistics: next, changed: true };
 }
 
 export function migrateGameState(state: GameState): {
   state: GameState;
   changed: boolean;
 } {
+  const source = state as unknown as Record<string, unknown>;
+  const next: Record<string, unknown> = { ...source };
   let changed = false;
-  const players = state.players.map((player) => {
-    const result = migratePlayer(player);
-    changed ||= result.changed;
-    return result.player;
-  });
-  if (!changed) {
-    return { state, changed: false };
+
+  const players = migratePlayers(source.players);
+  if (players.changed) {
+    next.players = players.players;
+    changed = true;
   }
-  return { state: { ...state, players }, changed: true };
+
+  // Setup carries its own player list with the same removed fields.
+  const setup = source.setup;
+  if (typeof setup === "object" && setup !== null) {
+    const setupSource = setup as Record<string, unknown>;
+    const setupPlayers = migratePlayers(setupSource.players);
+    if (setupPlayers.changed) {
+      next.setup = { ...setupSource, players: setupPlayers.players };
+      changed = true;
+    }
+  }
+
+  const barbarian = migrateBarbarian(source.barbarian);
+  if (barbarian.changed) {
+    next.barbarian = barbarian.barbarian;
+    changed = true;
+  }
+
+  const statistics = migrateStatistics(source.statistics);
+  if (statistics.changed) {
+    next.statistics = statistics.statistics;
+    changed = true;
+  }
+
+  // The attack-resolution phase no longer exists. Saves paused there resume
+  // wherever the turn would have continued once the attack was logged.
+  const turn = source.turn;
+  if (typeof turn === "object" && turn !== null) {
+    const turnSource = turn as Record<string, unknown>;
+    if (turnSource.phase === "resolving-barbarian-attack") {
+      const official = (
+        source.resolution as Record<string, unknown> | undefined
+      )?.official as Record<string, unknown> | null | undefined;
+      const officialPending =
+        official != null &&
+        (official.progressPending === true ||
+          official.productionPending === true);
+      const thematicPending =
+        (source.thematicEvents as Record<string, unknown> | undefined)
+          ?.pendingEvent != null;
+      next.turn = {
+        ...turnSource,
+        phase: officialPending
+          ? "resolving-official-result"
+          : thematicPending
+            ? "resolving-thematic-event"
+            : "action-phase",
+      };
+      changed = true;
+    }
+  }
+
+  return changed
+    ? { state: next as unknown as GameState, changed: true }
+    : { state, changed: false };
 }
 
 export function migrateCommand(command: PersistedCommand): {
   command: PersistedCommand;
   changed: boolean;
 } {
-  if (command.type !== "attack.confirmed") {
+  if (typeof command !== "object" || command === null) {
     return { command, changed: false };
   }
-  const legacy = command as typeof command & {
-    manualOutcome?: unknown;
-  };
-  if (legacy.manualOutcome !== undefined) {
-    return { command, changed: false };
+  const source = command as unknown as Record<string, unknown>;
+
+  if (source.type === "attack.confirmed") {
+    const result = stripKeys(source, ["manualOutcome", "progressChoices"]);
+    return result.changed
+      ? { command: result.value as unknown as PersistedCommand, changed: true }
+      : { command, changed: false };
   }
-  // Attacks recorded before manual outcomes existed were always resolved on
-  // the physical board, which is exactly what board-authoritative means.
-  return {
-    command: { ...command, manualOutcome: { type: "board-authoritative" } },
-    changed: true,
-  };
+
+  if (source.type === "player.publicStateAdjusted") {
+    const patch = source.patch;
+    if (typeof patch === "object" && patch !== null) {
+      const result = stripKeys(
+        patch as Record<string, unknown>,
+        REMOVED_PLAYER_FIELDS,
+      );
+      if (result.changed) {
+        return {
+          command: {
+            ...source,
+            patch: result.value,
+          } as unknown as PersistedCommand,
+          changed: true,
+        };
+      }
+    }
+  }
+
+  return { command, changed: false };
 }
 
 /**
- * Migrates a stored revision in place. The state hash is recomputed only when
- * the state actually changed, so untouched revisions keep their original hash
- * and remain byte-identical.
+ * Migrates a stored revision. The state hash is recomputed only when the state
+ * actually changed, so untouched revisions keep their original hash and remain
+ * byte-identical.
  */
 export async function migrateStoredRevision(
   revision: StoredRevision,

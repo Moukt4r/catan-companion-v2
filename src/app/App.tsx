@@ -103,7 +103,6 @@ export function App() {
   const previousScreen = useRef<Screen>("home");
   const clockStartRequests = useRef(new Set<string>());
   const soundedEventOccurrences = useRef(new Set<string>());
-  const legacyAttackRecoveryRequests = useRef(new Set<string>());
   const [screen, setScreen] = useState<Screen>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savedGamesOpen, setSavedGamesOpen] = useState(false);
@@ -271,35 +270,6 @@ export function App() {
     state?.status,
   ]);
 
-  useEffect(() => {
-    const attack = state?.barbarian.pendingAttack;
-    if (
-      screen !== "game" ||
-      state?.turn.phase !== "resolving-barbarian-attack" ||
-      !attack ||
-      snapshot.readOnly ||
-      snapshot.saving ||
-      legacyAttackRecoveryRequests.current.has(attack.id)
-    ) {
-      return;
-    }
-
-    legacyAttackRecoveryRequests.current.add(attack.id);
-    void gameController
-      .dispatch({
-        type: "attack.confirmed",
-        proposalId: attack.id,
-        manualOutcome: { type: "board-authoritative" },
-        progressChoices: [],
-      })
-      .catch((error: unknown) => {
-        legacyAttackRecoveryRequests.current.delete(attack.id);
-        setNotice(
-          `Could not recover the legacy attack: ${errorMessage(error)}`,
-        );
-      });
-  }, [screen, snapshot.readOnly, snapshot.saving, state]);
-
   async function runOperation(
     operation: () => Promise<void>,
   ): Promise<boolean> {
@@ -331,19 +301,8 @@ export function App() {
       return;
     }
 
-    const attack = current.barbarian.pendingAttack;
-    if (attack) {
-      playCue({
-        type: "barbarian-attack",
-        outcome:
-          attack.outcome.type === "board-authoritative"
-            ? "defenders-win"
-            : attack.outcome.type,
-      });
-      return;
-    }
-
-    // Auto-resolved attack: ship was reset to 0 after reaching the end.
+    // The board owns every attack detail, so the only cue left is that an
+    // attack happened. The ship resets to 0 when it lands.
     if (current.barbarian.shipPosition === 0) {
       playCue({
         type: "barbarian-attack",
@@ -672,10 +631,6 @@ export function App() {
       type: "player.publicStateAdjusted",
       playerId: selectedPlayerId,
       patch: {
-        ordinaryCities: patch.ordinaryCities,
-        cityWalls: patch.cityWalls,
-        activeKnights: patch.activeKnights,
-        inactiveKnights: patch.inactiveKnights,
         improvements: patch.improvements,
         ...scoreAdjustment,
       },

@@ -57,7 +57,7 @@ describe("persistence schemas", () => {
     expect(result.value.nextState.clock).toBeDefined();
   });
 
-  it("round-trips board-authoritative barbarian attack history", () => {
+  it("round-trips the recorded fact that an attack happened", () => {
     const result = createGame({
       gameId: asGameId("schema-board-attack-game"),
       revisionId: asRevisionId("schema-board-attack-revision"),
@@ -76,15 +76,13 @@ describe("persistence schemas", () => {
         {
           proposalId: "schema-board-attack" as never,
           completedAt: asIsoTimestamp("2026-07-25T05:16:00.000Z"),
-          strengths: { barbarian: 0, defenders: 0, contributions: [] },
-          outcome: { type: "board-authoritative" },
-          progressChoices: [],
         },
       ],
     };
 
-    expect(parseGameState(state).barbarian.history[0]?.outcome).toEqual({
-      type: "board-authoritative",
+    expect(parseGameState(state).barbarian.history[0]).toEqual({
+      proposalId: "schema-board-attack",
+      completedAt: "2026-07-25T05:16:00.000Z",
     });
   });
 

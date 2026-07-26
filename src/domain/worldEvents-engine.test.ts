@@ -136,21 +136,6 @@ function advanceTurn(state: GameState, turnPrefix: string): GameState {
     }
   }
 
-  // Handle barbarian attack if pending
-  if (s.barbarian.pendingAttack) {
-    const r = decide(
-      s,
-      {
-        type: "attack.confirmed",
-        proposalId: s.barbarian.pendingAttack.id,
-        manualOutcome: s.barbarian.pendingAttack.outcome,
-      },
-      deps(`${turnPrefix}-atk`),
-    );
-    if (!r.ok) throw new Error(`attack confirm failed: ${r.error.message}`);
-    s = r.value.nextState;
-  }
-
   // Acknowledge thematic event if pending
   if (
     s.thematicEvents.pendingEvent &&
@@ -348,18 +333,6 @@ describe("engine world-event lifecycle integration", () => {
         if (r.ok) state = r.value.nextState;
       }
     }
-    if (state.barbarian.pendingAttack) {
-      const r = decide(
-        state,
-        {
-          type: "attack.confirmed",
-          proposalId: state.barbarian.pendingAttack.id,
-          manualOutcome: state.barbarian.pendingAttack.outcome,
-        },
-        deps("resolve-atk"),
-      );
-      if (r.ok) state = r.value.nextState;
-    }
     if (
       state.thematicEvents.pendingEvent &&
       !state.thematicEvents.pendingEvent.acknowledged
@@ -445,18 +418,6 @@ describe("engine world-event lifecycle integration", () => {
         );
         if (r.ok) state = r.value.nextState;
       }
-    }
-    if (state.barbarian.pendingAttack) {
-      const r = decide(
-        state,
-        {
-          type: "attack.confirmed",
-          proposalId: state.barbarian.pendingAttack.id,
-          manualOutcome: state.barbarian.pendingAttack.outcome,
-        },
-        deps("nope-atk"),
-      );
-      if (r.ok) state = r.value.nextState;
     }
     if (
       state.thematicEvents.pendingEvent &&

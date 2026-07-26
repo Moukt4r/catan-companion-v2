@@ -1,4 +1,3 @@
-export * from "./barbarian";
 export * from "./boardDesigner";
 export * from "./decks";
 export * from "./engine";
