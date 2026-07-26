@@ -303,6 +303,9 @@ test("creates, edits, and restores a custom board design", async ({ page }) => {
     .first()
     .click();
   await page.getByRole("button", { name: "6, 1 left" }).click();
+  // Land tiles render face down by default, the way they sit on the table.
+  // Reveal them so the terrain-labelled hexes can be targeted.
+  await page.getByRole("button", { name: "Reveal terrain" }).click();
   await page
     .getByRole("button", {
       name: /Gold Field hex at q .* no number token/,
@@ -332,6 +335,8 @@ test("creates, edits, and restores a custom board design", async ({ page }) => {
       name: "E2E coast board layout with 3 placed hexes",
     }),
   ).toBeVisible();
+  // Reopening starts face down again, so reveal before checking terrain.
+  await page.getByRole("button", { name: "Reveal terrain" }).click();
   await expect(
     page.getByRole("button", {
       name: /Gold Field hex at q .* number 6/,
