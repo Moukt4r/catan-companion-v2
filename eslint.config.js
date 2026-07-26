@@ -182,6 +182,9 @@ export default tseslint.config(
     languageOptions: {
       globals: {
         ...globals.node,
+        // Some scripts drive a real browser and evaluate code inside the page,
+        // where browser globals are the ones in scope.
+        ...globals.browser,
       },
     },
   },
