@@ -114,6 +114,8 @@ interface GameTableProps {
   view: GameTableView;
   busy?: boolean;
   soundEnabled?: boolean;
+  /** Tumble the dice in 3D. Off when the table has chosen reduced motion. */
+  animatedDice?: boolean;
   onToggleSound?: () => void;
   onRoll: () => void;
   onAlchemy: () => void;
@@ -139,6 +141,7 @@ interface GameTableProps {
 export function GameTable({
   busy = false,
   soundEnabled = false,
+  animatedDice = false,
   onToggleSound,
   onAlchemy,
   onAlchemyNextTurn,
@@ -411,6 +414,7 @@ export function GameTable({
             label="White die"
             value={view.lastRoll?.yellow ?? null}
             rolling={view.rolling}
+            animated={animatedDice}
           />
           <span className="dice-operator" aria-hidden>
             +
@@ -422,12 +426,14 @@ export function GameTable({
               value={view.lastRoll?.red ?? null}
               eventFace={view.lastRoll?.event ?? null}
               rolling={view.rolling}
+              animated={animatedDice}
             />
             <DieFace
               kind="event"
               label="Event die"
               value={view.lastRoll?.event ?? null}
               rolling={view.rolling}
+              animated={animatedDice}
             />
           </div>
         </div>

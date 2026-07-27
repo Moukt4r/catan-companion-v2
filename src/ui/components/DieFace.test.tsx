@@ -52,4 +52,62 @@ describe("DieFace", () => {
     expect(die).toHaveClass("die--yellow");
     expect(die?.className).not.toContain("die--face-");
   });
+
+  it("keeps the flat die when animation is off", () => {
+    const { container } = render(
+      <DieFace kind="red" label="Red die" value={4} />,
+    );
+
+    expect(container.querySelector(".die3d__cube")).toBeNull();
+    expect(container.querySelector(".die__number")).toHaveTextContent("4");
+  });
+
+  it("builds a six-sided cube when animation is on", () => {
+    const { container } = render(
+      <DieFace kind="red" label="Red die" value={4} animated />,
+    );
+
+    expect(container.querySelector(".die3d__cube")).not.toBeNull();
+    expect(container.querySelectorAll(".die3d__face")).toHaveLength(6);
+    // The result stays readable to assistive tech regardless of the animation.
+    expect(screen.getByLabelText("Red die: 4")).toBeInTheDocument();
+  });
+
+  it("lands on the face the deck drew, whatever the spin", () => {
+    // The whole point of the animation: it decides how the die travels, never
+    // what it shows. Each value must come to rest at its own rotation, modulo
+    // the whole turns added while tumbling.
+    const resting: Record<number, { x: number; y: number }> = {
+      1: { x: 0, y: 0 },
+      2: { x: 0, y: 270 },
+      3: { x: 270, y: 0 },
+      4: { x: 90, y: 0 },
+      5: { x: 0, y: 90 },
+      6: { x: 0, y: 180 },
+    };
+
+    for (const [value, expected] of Object.entries(resting)) {
+      const { container, unmount } = render(
+        <DieFace
+          kind="yellow"
+          label="White die"
+          value={Number(value)}
+          animated
+          rolling
+        />,
+      );
+      const cube = container.querySelector<HTMLElement>(".die3d__cube");
+      const match = /rotateX\((-?\d+)deg\) rotateY\((-?\d+)deg\)/.exec(
+        cube?.style.transform ?? "",
+      );
+      expect(match, `value ${value} should set a cube rotation`).not.toBeNull();
+
+      const x = ((Number(match?.[1]) % 360) + 360) % 360;
+      const y = ((Number(match?.[2]) % 360) + 360) % 360;
+      expect({ x, y }, `value ${value} must rest on its own face`).toEqual(
+        expected,
+      );
+      unmount();
+    }
+  });
 });

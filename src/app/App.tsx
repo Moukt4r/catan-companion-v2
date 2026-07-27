@@ -84,6 +84,7 @@ import {
 import { gameController } from "./gameController";
 import { PwaUpdate } from "./PwaUpdate";
 import { useDevicePreferences } from "./useDevicePreferences";
+import { prefersReducedMotion } from "./devicePreferences";
 import { useClockNow } from "./useClockNow";
 import { useBoardDesignerController } from "./useBoardDesignerController";
 import { useGameController } from "./useGameController";
@@ -854,6 +855,7 @@ export function App() {
             )}
             busy={rolling || resolutionBusy || snapshot.saving}
             soundEnabled={preferences.soundEnabled}
+            animatedDice={!prefersReducedMotion(preferences)}
             onToggleSound={() => {
               setSoundEnabled(!preferences.soundEnabled);
             }}

@@ -41,9 +41,7 @@ export function saveDevicePreferences(preferences: DevicePreferences): void {
 export function applyDevicePreferences(preferences: DevicePreferences): void {
   const root = window.document.documentElement;
   const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  const prefersReduced = window.matchMedia(
-    "(prefers-reduced-motion: reduce)",
-  ).matches;
+  const reduced = prefersReducedMotion(preferences);
 
   const theme =
     preferences.theme === "system"
@@ -51,11 +49,18 @@ export function applyDevicePreferences(preferences: DevicePreferences): void {
         ? "dark"
         : "light"
       : preferences.theme;
-  const reduced =
-    preferences.motion === "system"
-      ? prefersReduced
-      : preferences.motion === "reduced";
 
   root.dataset.theme = theme;
   root.dataset.motion = reduced ? "reduced" : "full";
+}
+
+/**
+ * Whether the table has asked for reduced motion, honouring the OS setting
+ * when the preference is left on "system".
+ */
+export function prefersReducedMotion(preferences: DevicePreferences): boolean {
+  if (preferences.motion === "system") {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+  return preferences.motion === "reduced";
 }
