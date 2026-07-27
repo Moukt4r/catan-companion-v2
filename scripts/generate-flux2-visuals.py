@@ -203,10 +203,6 @@ WORLD_EVENT_SCENES = [
         "prompt": STYLE + "A once-busy frontier harbor made still by an embargo, warehouse shutters closed, merchant vessels tied motionless beyond a lowered timber chain, untouched cargo under gray morning mist, quiet economic tension, no people, no signs, no official seals or readable text.",
     },
     {
-        "key": "we-cooperation", "title": "Cooperation", "category": "diplomacy", "group": "world-event", "seed": 240810,
-        "prompt": STYLE + "Two neighboring coastal settlements connected by a newly completed timber bridge, baskets and building materials meeting at the center, distant anonymous figures working together in warm evening light, shared purpose and trust, no handshake close-up, no banners or symbols.",
-    },
-    {
         "key": "we-diplomacy", "title": "Diplomatic Summit", "category": "diplomacy", "group": "world-event", "seed": 241811,
         "prompt": STYLE + "A formal summit chamber overlooking the harbor, four distinct empty chairs around a circular oak table, four plain unmarked cloth banners in restrained colors, blank parchment and extinguished weapons locked outside the room, balanced cool daylight and candlelight, no people or text, clean empty image corners, no badge, monogram, signature or artist mark.",
     },
@@ -245,6 +241,74 @@ WORLD_EVENT_SCENES = [
     {
         "key": "we-celebration", "title": "Celebration", "category": "society", "group": "world-event", "seed": 240820,
         "prompt": STYLE + "A city-wide evening celebration seen from a hill above the harbor, hundreds of warm lanterns, flower-covered arches, small distant crowds and gentle fireworks reflected on dark water, civic pride and earned progress, elegant rather than carnival-like, no readable banners or logos.",
+    },
+    {
+        "key": "we-fair-shares", "title": "Fair Shares", "category": "diplomacy", "group": "world-event", "seed": 240821,
+        "prompt": STYLE + "A modest redistribution of goods on a frontier quay at overcast morning, one full crate of grain and cloth carried from a large well-stocked warehouse toward a small nearly empty storehouse, plain wooden handcart between them, distant anonymous silhouettes, quiet fairness without confrontation, no scales, no signs or readable text.",
+    },
+    {
+        "key": "we-patronage-trade", "title": "Merchant Patronage", "category": "society", "group": "world-event", "seed": 240822,
+        "prompt": STYLE + "A merchant patron's alcove above a harbor counting house, warm amber and gold palette, folded bolts of cloth, a plain unmarked sealed letter and a modest closed pouch resting on aged oak, generous afternoon light through small panes, quiet sponsorship, no faces, no visible coins, no readable text or emblems.",
+    },
+    {
+        "key": "we-patronage-politics", "title": "Noble Patronage", "category": "society", "group": "world-event", "seed": 240823,
+        "prompt": STYLE + "A noble hall antechamber overlooking the settlement, deep blue and pewter palette, a plain unmarked seal case and folded indigo cloth on a dark polished table, tall window with cool northern light, restrained aristocratic favour, no crest, crown, heraldry, faces or readable text.",
+    },
+    {
+        "key": "we-patronage-science", "title": "Scholarly Patronage", "category": "society", "group": "world-event", "seed": 240824,
+        "prompt": STYLE + "An endowed study in a cliffside academy, deep green and brass palette, blank parchment sheets, an unlit reading lamp, glass lenses and a plain closed chest of supplies set out for a student, calm green-tinted daylight from a sea-facing window, quiet sponsorship of learning, no writing, diagrams, faces or emblems.",
+    },
+    {
+        "key": "we-land-grant", "title": "Land Grant", "category": "diplomacy", "group": "world-event", "seed": 240825,
+        "prompt": STYLE + "A newly granted parcel of coastal land at golden hour, fresh timber boundary stakes and a coil of rope marking an open green plot beside established farms, a small cart of building materials just delivered, distant surveyor silhouettes, hopeful new beginning, no maps, documents, signs or readable text.",
+    },
+    {
+        "key": "we-favourable-winds", "title": "Favourable Winds", "category": "economy", "group": "world-event", "seed": 240826,
+        "prompt": STYLE + "A single modest fishing boat with a patched cream sail running fast before a strong following wind toward a busy harbor, spray and low golden light, larger vessels becalmed in the distance behind it, the small craft clearly favoured, buoyant momentum, no flags, emblems or readable text.",
+    },
+    {
+        "key": "we-call-to-arms", "title": "Call to Arms", "category": "military", "group": "world-event", "seed": 240827,
+        "prompt": STYLE + "A modest settlement answering a call to arms at dawn, a plain iron helm and spear taken down from a timber wall rack beside an untouched sack of grain, open door toward a misty valley, one distant anonymous figure setting out, resolve without battle, no uniforms, heraldry, faces or readable text.",
+    },
+    {
+        "key": "we-discontent", "title": "Discontent", "category": "diplomacy", "group": "world-event", "seed": 240828,
+        "prompt": STYLE + "Murmurs of discontent outside a prosperous frontier estate at grey dusk, a well-stocked storehouse with one sack set out on the step toward the road, small distant silhouettes gathered at a respectful distance, cold blue light against warm interior glow, civic pressure without violence, no crowd close-up, no signs, banners or readable text.",
+    },
+    {
+        "key": "we-great-library", "title": "The Great Library", "category": "society", "group": "world-event", "seed": 240829,
+        "prompt": STYLE + "A grand cliffside library reading hall at golden hour, tall shelves of plain unlabelled bound volumes, stacks of blank paper and an open empty ledger on a broad oak table, dust motes in shafts of warm light through arched windows above the sea, accumulated knowledge, no writing, letters, diagrams, people or emblems.",
+    },
+    {
+        "key": "we-open-schools", "title": "Open Schools", "category": "society", "group": "world-event", "seed": 240830,
+        "prompt": STYLE + "A humble village schoolroom newly opened in a converted timber barn, simple benches, a stack of fresh blank paper and plain slates set out on a rough table, bright clear morning light through an open door toward fields, modest beginnings and opportunity, no writing, chalk marks, children, faces or readable text.",
+    },
+    {
+        "key": "we-guild-charter", "title": "Guild Charter", "category": "economy", "group": "world-event", "seed": 240831,
+        "prompt": STYLE + "An established weavers' workshop at the height of its craft, several looms with finished bolts of fine cloth stacked neatly, spools of dyed thread in ochre and teal, warm workshop light through high windows, mastery and standing, no people close-up, no signs, charters, seals or readable text.",
+    },
+    {
+        "key": "we-open-markets", "title": "Open Markets", "category": "economy", "group": "world-event", "seed": 240832,
+        "prompt": STYLE + "A small newly permitted market stall at the edge of a frontier square, one simple trestle table with a modest roll of plain cloth and a few woven goods, larger established awnings further off, fresh morning light and open cobblestones, a first foothold in trade, no crowds, signs, prices or readable text.",
+    },
+    {
+        "key": "we-royal-audience", "title": "Royal Audience", "category": "diplomacy", "group": "world-event", "seed": 240833,
+        "prompt": STYLE + "A formal audience chamber prepared for established envoys, polished stone floor, a single empty high-backed chair on a low dais, plain unmarked drapery in deep blue and pewter, cool light from tall windows over the harbor, institutional standing, no crown, throne ornament, heraldry, faces or readable text.",
+    },
+    {
+        "key": "we-common-council", "title": "Common Council", "category": "diplomacy", "group": "world-event", "seed": 240834,
+        "prompt": STYLE + "A plain common council room in a timber town hall, a circle of simple mismatched wooden chairs around a worn round table, one shuttered window open to the harbor, honest afternoon light on scrubbed floorboards, ordinary citizens' governance, no people, banners, seals or readable text.",
+    },
+    {
+        "key": "we-flood", "title": "Flood", "category": "nature", "group": "world-event", "seed": 240835,
+        "prompt": STYLE + "A flooded clay riverbank below a coastal settlement, brown water covering the brick pits and low fields, submerged fences and a stranded handcart, heavy grey rain clouds breaking over distant hills, muted ochre and slate palette, sober disruption without drowning victims, people or readable text.",
+    },
+    {
+        "key": "we-caravan", "title": "Caravan", "category": "economy", "group": "world-event", "seed": 240836,
+        "prompt": STYLE + "A small overland caravan pausing at a frontier crossroads in late afternoon, two laden pack animals and a covered cart, bundles of wool, timber and pottery ready to be exchanged, dust and long golden shadows toward distant coastal hills, everyday exchange, no faces, signs or readable text.",
+    },
+    {
+        "key": "we-muster", "title": "Muster", "category": "military", "group": "world-event", "seed": 240837,
+        "prompt": STYLE + "A settlement muster ground at first light, rows of plain spears and simple iron helms set out on timber racks awaiting untrained hands, empty practice field with morning mist, stone watchtower behind, readiness and civic duty before any conflict, no soldiers, faces, uniforms, heraldry or readable text.",
     },
 ]
 
