@@ -105,6 +105,16 @@ test("the inline roll result has no detectable accessibility violations", async 
   await page.getByRole("button", { name: "Roll", exact: true }).click();
 
   await expect(page.locator(".roll-result-summary")).toBeVisible();
+  // A rolled 7 now holds the resolution open so the table can discard and move
+  // the robber, so the turn cannot advance until it is dismissed. The dice are
+  // balanced but unseeded, so this roll may or may not be a 7.
+  const acknowledgeSeven = page.getByRole("button", {
+    name: "Acknowledge the 7",
+  });
+  if ((await acknowledgeSeven.count()) > 0) {
+    await acknowledgeSeven.click();
+    await expect(acknowledgeSeven).toHaveCount(0);
+  }
   await expect(page.getByRole("button", { name: /^Next: / })).toBeEnabled();
   await expect(page.getByRole("dialog", { name: /Roll result:/ })).toHaveCount(
     0,

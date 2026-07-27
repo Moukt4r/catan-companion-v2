@@ -62,6 +62,7 @@ async function openHeaderMenu(page: Page) {
 
 async function resolveRoll(page: Page) {
   await expect(page.locator(".roll-result-summary")).toBeVisible();
+  await acknowledgeSevenIfPresent(page);
   const worldEvent = page.getByRole("button", {
     name: "Acknowledge world event",
   });
@@ -83,8 +84,37 @@ async function resolveRoll(page: Page) {
   ).toBe(true);
 }
 
+/**
+ * A rolled 7 holds the resolution open so the table can discard and move the
+ * robber. Nothing else advances until someone dismisses it.
+ */
+async function acknowledgeSevenIfPresent(page: Page) {
+  const seven = page.getByRole("button", { name: "Acknowledge the 7" });
+  const nextRoll = page.getByRole("button", { name: /^Next: / });
+  const worldEvent = page.getByRole("button", {
+    name: "Acknowledge world event",
+  });
+  // The roll animation runs for ~650ms, so the summary can be on screen before
+  // the 7 panel renders. Wait until the roll settles into one of its outcomes
+  // rather than sampling once and skipping a 7 that has not appeared yet.
+  await expect
+    .poll(
+      async () =>
+        (await seven.count()) > 0 ||
+        (await worldEvent.count()) > 0 ||
+        ((await nextRoll.count()) > 0 && (await nextRoll.isEnabled())),
+    )
+    .toBe(true);
+  if ((await seven.count()) > 0) {
+    await seven.scrollIntoViewIfNeeded();
+    await seven.click();
+    await expect(seven).toHaveCount(0);
+  }
+}
+
 async function resolveSeasonRoll(page: Page) {
   await expect(page.locator(".roll-result-summary")).toBeVisible();
+  await acknowledgeSevenIfPresent(page);
   const worldEvent = page.getByRole("button", {
     name: "Acknowledge world event",
   });
