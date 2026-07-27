@@ -1179,7 +1179,6 @@ function endTurn(state: GameState, deps: DomainDeps): DomainResult<Decision> {
   activeEvents = pruneActiveEvents(
     activeEvents,
     completedTurns,
-    newRound,
     playerCount,
     false,
   );

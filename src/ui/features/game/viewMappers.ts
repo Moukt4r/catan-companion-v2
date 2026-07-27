@@ -67,11 +67,7 @@ export interface PendingWorldEventView {
   timingCopy: string;
 }
 
-function timingCopyForDuration(
-  duration: WorldEventDuration,
-  activated: boolean,
-): string {
-  void activated;
+function timingCopyForDuration(duration: WorldEventDuration): string {
   switch (duration) {
     case "immediate":
       return "Resolve now, then it is done";
@@ -106,7 +102,7 @@ function toActiveEventViews(
       impact: event.impact,
       category: event.category,
       duration: event.duration,
-      timingCopy: timingCopyForDuration(event.duration, event.activated),
+      timingCopy: timingCopyForDuration(event.duration),
       turnsRemaining: worldEventTurnsRemaining(
         event,
         completedTurns,
@@ -135,7 +131,7 @@ function toPendingWorldEventView(
     impact: pendingEvent.impact ?? worldDef?.impact ?? 1,
     category: pendingEvent.category ?? worldDef?.category ?? "society",
     duration,
-    timingCopy: timingCopyForDuration(duration, duration !== "full-round"),
+    timingCopy: timingCopyForDuration(duration),
   };
 }
 

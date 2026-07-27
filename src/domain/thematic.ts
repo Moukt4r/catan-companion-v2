@@ -385,7 +385,6 @@ export function scheduleThematicEvent(
   const prunedEvents = pruneActiveEvents(
     currentActiveEvents,
     completedTurns,
-    estimatedRound,
     playerCount,
     true,
   );

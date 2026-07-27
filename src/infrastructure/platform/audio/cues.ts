@@ -79,8 +79,10 @@ export function diceRoll(engine: AudioEngine, start: number): void {
     send: 0.1,
   });
 
-  const first = tumble(engine, start + 0.12, -0.32, 1);
-  const second = tumble(engine, start + 0.17, 0.34, 0.92);
+  // Two dice tumble across the table, panned apart. `tumble` returns the time
+  // it ends on, which nothing downstream needs here.
+  tumble(engine, start + 0.12, -0.32, 1);
+  tumble(engine, start + 0.17, 0.34, 0.92);
 
   // The table itself responds to the whole event with a low body resonance.
   engine.tone({
@@ -92,8 +94,6 @@ export function diceRoll(engine: AudioEngine, start: number): void {
     attack: 0.006,
     send: 0.3,
   });
-  void first;
-  void second;
 }
 
 /**

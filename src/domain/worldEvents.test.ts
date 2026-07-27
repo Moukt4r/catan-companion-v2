@@ -119,7 +119,7 @@ describe("isWorldEventExpired", () => {
       triggeredAtCompletedTurn: 5,
       activated: true,
     };
-    expect(isWorldEventExpired(event, 5, 2, 3)).toBe(true);
+    expect(isWorldEventExpired(event, 5, 3)).toBe(true);
   });
 
   it("rest-of-turn events expire after the triggering turn", () => {
@@ -139,8 +139,8 @@ describe("isWorldEventExpired", () => {
       triggeredAtCompletedTurn: 5,
       activated: true,
     };
-    expect(isWorldEventExpired(event, 5, 2, 3)).toBe(false);
-    expect(isWorldEventExpired(event, 6, 3, 3)).toBe(true);
+    expect(isWorldEventExpired(event, 5, 3)).toBe(false);
+    expect(isWorldEventExpired(event, 6, 3)).toBe(true);
   });
 
   it("full-round events last one turn per player, not until the round counter ticks", () => {
@@ -163,9 +163,9 @@ describe("isWorldEventExpired", () => {
     // Drawn with 5 turns complete in a 3-player game, so turns 6, 7 and 8 are
     // played under it. It survives partway through and expires once the third
     // turn completes, regardless of where the round boundary falls.
-    expect(isWorldEventExpired(event, 6, 3, 3)).toBe(false);
-    expect(isWorldEventExpired(event, 7, 4, 3)).toBe(false);
-    expect(isWorldEventExpired(event, 8, 4, 3)).toBe(true);
+    expect(isWorldEventExpired(event, 6, 3)).toBe(false);
+    expect(isWorldEventExpired(event, 7, 3)).toBe(false);
+    expect(isWorldEventExpired(event, 8, 3)).toBe(true);
   });
 
   it("deferred full-round events are not expired", () => {
@@ -185,7 +185,7 @@ describe("isWorldEventExpired", () => {
       triggeredAtCompletedTurn: 5,
       activated: false,
     };
-    expect(isWorldEventExpired(event, 10, 4, 3)).toBe(false);
+    expect(isWorldEventExpired(event, 10, 3)).toBe(false);
   });
 
   it("until-next-occurrence and until-resolved events do not expire by time", () => {
@@ -205,12 +205,11 @@ describe("isWorldEventExpired", () => {
       triggeredAtCompletedTurn: 0,
       activated: true,
     };
-    expect(isWorldEventExpired(event, 100, 50, 3)).toBe(false);
+    expect(isWorldEventExpired(event, 100, 3)).toBe(false);
     expect(
       isWorldEventExpired(
         { ...event, duration: "until-next-occurrence" },
         100,
-        50,
         3,
       ),
     ).toBe(false);
@@ -241,8 +240,8 @@ describe("full-round activation", () => {
     const active = createActiveWorldEvent("occ-2", definition, 5, 3);
     if (!active) return;
 
-    expect(isWorldEventExpired(active, 7, 3, 3)).toBe(false);
-    expect(isWorldEventExpired(active, 8, 4, 3)).toBe(true);
+    expect(isWorldEventExpired(active, 7, 3)).toBe(false);
+    expect(isWorldEventExpired(active, 8, 3)).toBe(true);
   });
 
   it("counts down the turns remaining on a full-round event", () => {
@@ -297,7 +296,7 @@ describe("pruneActiveEvents", () => {
         activated: true,
       },
     ];
-    const result = pruneActiveEvents(events, 5, 3, 3, true);
+    const result = pruneActiveEvents(events, 5, 3, true);
     // Both should be removed: first expired, second because new event fires
     expect(result.length).toBe(0);
   });

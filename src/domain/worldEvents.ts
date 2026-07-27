@@ -575,10 +575,8 @@ export type ActiveWorldEvent = ActiveWorldEventRecord;
 export function isWorldEventExpired(
   event: ActiveWorldEvent,
   currentCompletedTurns: number,
-  currentRound: number,
   playerCount: number,
 ): boolean {
-  void currentRound;
   switch (event.duration) {
     case "immediate":
       return true;
@@ -629,19 +627,11 @@ export function worldEventTurnsRemaining(
 export function pruneActiveEvents(
   activeEvents: readonly ActiveWorldEvent[],
   currentCompletedTurns: number,
-  currentRound: number,
   playerCount: number,
   newEventFiring: boolean,
 ): ActiveWorldEvent[] {
   return activeEvents.filter((event) => {
-    if (
-      isWorldEventExpired(
-        event,
-        currentCompletedTurns,
-        currentRound,
-        playerCount,
-      )
-    ) {
+    if (isWorldEventExpired(event, currentCompletedTurns, playerCount)) {
       return false;
     }
     if (newEventFiring && event.duration === "until-next-occurrence") {
