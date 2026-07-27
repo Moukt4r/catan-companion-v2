@@ -3,6 +3,7 @@ import {
   WORLD_EVENTS_CATALOG,
   createBalancedWorldEventOrder,
   isWorldEventExpired,
+  worldEventTurnsRemaining,
   pruneActiveEvents,
   createActiveWorldEvent,
   createActiveWorldEventFromDefinition,
@@ -142,7 +143,7 @@ describe("isWorldEventExpired", () => {
     expect(isWorldEventExpired(event, 6, 3, 3)).toBe(true);
   });
 
-  it("full-round events expire after their active round", () => {
+  it("full-round events last one turn per player, not until the round counter ticks", () => {
     const event: ActiveWorldEvent = {
       occurrenceId: "occ-1",
       contentVersion: 1,
@@ -159,8 +160,12 @@ describe("isWorldEventExpired", () => {
       triggeredAtCompletedTurn: 5,
       activated: true,
     };
-    expect(isWorldEventExpired(event, 8, 3, 3)).toBe(false);
-    expect(isWorldEventExpired(event, 11, 4, 3)).toBe(true);
+    // Drawn with 5 turns complete in a 3-player game, so turns 6, 7 and 8 are
+    // played under it. It survives partway through and expires once the third
+    // turn completes, regardless of where the round boundary falls.
+    expect(isWorldEventExpired(event, 6, 3, 3)).toBe(false);
+    expect(isWorldEventExpired(event, 7, 4, 3)).toBe(false);
+    expect(isWorldEventExpired(event, 8, 4, 3)).toBe(true);
   });
 
   it("deferred full-round events are not expired", () => {
@@ -228,7 +233,7 @@ describe("full-round activation", () => {
     expect(active?.activeRound).toBe(3);
   });
 
-  it("expires a full-round event once its round has passed", () => {
+  it("expires a full-round event once every player has had a turn", () => {
     const definition = WORLD_EVENTS_CATALOG.find(
       (event) => event.duration === "full-round",
     );
@@ -236,8 +241,23 @@ describe("full-round activation", () => {
     const active = createActiveWorldEvent("occ-2", definition, 5, 3);
     if (!active) return;
 
-    expect(isWorldEventExpired(active, 9, 3, 3)).toBe(false);
-    expect(isWorldEventExpired(active, 12, 4, 3)).toBe(true);
+    expect(isWorldEventExpired(active, 7, 3, 3)).toBe(false);
+    expect(isWorldEventExpired(active, 8, 4, 3)).toBe(true);
+  });
+
+  it("counts down the turns remaining on a full-round event", () => {
+    const definition = WORLD_EVENTS_CATALOG.find(
+      (event) => event.duration === "full-round",
+    );
+    if (!definition) return;
+    const active = createActiveWorldEvent("occ-3", definition, 5, 3);
+    if (!active) return;
+
+    // Four players means four turns under the event, ticking down each turn.
+    expect(worldEventTurnsRemaining(active, 5, 4)).toBe(4);
+    expect(worldEventTurnsRemaining(active, 6, 4)).toBe(3);
+    expect(worldEventTurnsRemaining(active, 8, 4)).toBe(1);
+    expect(worldEventTurnsRemaining(active, 9, 4)).toBe(0);
   });
 });
 

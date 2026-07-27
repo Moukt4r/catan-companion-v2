@@ -644,6 +644,7 @@ describe("GameTable", () => {
             category: "nature",
             duration: "until-resolved",
             timingCopy: "Active until resolved",
+            turnsRemaining: null,
             canResolve: true,
           },
           {
@@ -656,6 +657,7 @@ describe("GameTable", () => {
             category: "nature",
             duration: "full-round",
             timingCopy: "Active this round",
+            turnsRemaining: 3,
             canResolve: false,
           },
         ],
@@ -697,6 +699,7 @@ describe("GameTable", () => {
             category: "nature",
             duration: "until-resolved",
             timingCopy: "Active until resolved",
+            turnsRemaining: null,
             canResolve: true,
           },
         ],

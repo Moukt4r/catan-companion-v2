@@ -8,6 +8,7 @@ import {
   winnerCandidates,
   WORLD_EVENTS_CATALOG,
   lookupWorldEvent,
+  worldEventTurnsRemaining,
   deriveSeason,
   isSeasonTransition,
   SEASON_LABELS,
@@ -49,6 +50,8 @@ export interface ActiveEventView {
   category: WorldEventCategory;
   duration: WorldEventDuration;
   timingCopy: string;
+  /** Turns still to play under a full-round event; null when not counted. */
+  turnsRemaining: number | null;
   canResolve: boolean;
 }
 
@@ -87,6 +90,8 @@ function toActiveEventViews(
   activeEvents: readonly ActiveWorldEventRecord[] | undefined,
   pendingOccurrenceId: string | null,
   phase: GamePhase,
+  completedTurns: number,
+  playerCount: number,
 ): ActiveEventView[] {
   if (!activeEvents || activeEvents.length === 0) return [];
   return [...activeEvents]
@@ -102,6 +107,11 @@ function toActiveEventViews(
       category: event.category,
       duration: event.duration,
       timingCopy: timingCopyForDuration(event.duration, event.activated),
+      turnsRemaining: worldEventTurnsRemaining(
+        event,
+        completedTurns,
+        playerCount,
+      ),
       // The domain only accepts `event.resolved` during the action phase, so
       // offering the control outside it would surface an avoidable error.
       canResolve:
@@ -236,6 +246,8 @@ export function toGameTableView(
       state.thematicEvents.activeEvents,
       state.thematicEvents.pendingEvent?.occurrenceId ?? null,
       state.turn.phase,
+      state.turn.completedTurns,
+      state.players.length,
     ),
     season: toSeasonView(state),
     winnerCandidateName: candidate?.name ?? null,

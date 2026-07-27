@@ -235,17 +235,6 @@ export const WORLD_EVENTS_CATALOG: readonly WorldEventDefinition[] = [
     { twoPlayer: false },
   ),
   worldEvent(
-    "we-cooperation",
-    "Cooperation",
-    "During its active round, each player may once receive one resource from another player without giving a resource back. The other player must agree.",
-    "boon",
-    2,
-    "diplomacy",
-    "all",
-    "full-round",
-    { twoPlayer: false },
-  ),
-  worldEvent(
     "we-diplomacy",
     "Diplomatic Summit",
     "During its active round, no progress cards may be played that target another player.",
@@ -589,7 +578,7 @@ export function isWorldEventExpired(
   currentRound: number,
   playerCount: number,
 ): boolean {
-  void playerCount;
+  void currentRound;
   switch (event.duration) {
     case "immediate":
       return true;
@@ -601,7 +590,13 @@ export function isWorldEventExpired(
       if (event.activeRound === null) {
         return false;
       }
-      return currentRound > event.activeRound;
+      // A full round means every player gets one turn under the event, so it
+      // must be measured in completed turns rather than the round counter.
+      // The round counter increments when play wraps back to the first player,
+      // which cut an event drawn on the third player short after two turns.
+      return (
+        currentCompletedTurns >= event.triggeredAtCompletedTurn + playerCount
+      );
 
     case "until-next-occurrence":
       return false;
@@ -609,6 +604,23 @@ export function isWorldEventExpired(
     case "until-resolved":
       return false;
   }
+}
+
+/**
+ * Turns still to be played under a full-round event, including the turn in
+ * progress. Returns null for durations that are not counted in turns, so the
+ * caller can fall back to descriptive timing copy.
+ */
+export function worldEventTurnsRemaining(
+  event: ActiveWorldEvent,
+  currentCompletedTurns: number,
+  playerCount: number,
+): number | null {
+  if (event.duration !== "full-round" || event.activeRound === null) {
+    return null;
+  }
+  const endsAtCompletedTurn = event.triggeredAtCompletedTurn + playerCount;
+  return Math.max(0, endsAtCompletedTurn - currentCompletedTurns);
 }
 
 /**

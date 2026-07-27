@@ -660,7 +660,11 @@ export function GameTable({
                       World Event (house rule)
                     </span>
                     <span className="active-event-card__timing">
-                      {event.timingCopy}
+                      {event.turnsRemaining === null
+                        ? event.timingCopy
+                        : event.turnsRemaining === 1
+                          ? "1 turn left"
+                          : `${event.turnsRemaining} turns left`}
                     </span>
                   </div>
                   <strong>{event.title}</strong>

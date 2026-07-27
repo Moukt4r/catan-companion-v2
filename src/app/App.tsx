@@ -442,6 +442,16 @@ export function App() {
       return false;
     }
 
+    // A rolled 7 asks the table to do something physical: discard down to the
+    // hand limit, then move the robber. Acknowledging it here left the
+    // resolution phase in the same tick, so those instructions appeared and
+    // vanished before anyone could read them. Hold the resolution open and let
+    // the table dismiss it once the robber has actually moved.
+    const rolled = gameController.getSnapshot().activeState;
+    if (rolled?.lastRoll?.total === 7) {
+      return true;
+    }
+
     setResolutionBusy(true);
     try {
       const acknowledged = await acknowledgeOfficialRollSteps();
@@ -496,7 +506,12 @@ export function App() {
   async function continueOfficialRoll(): Promise<void> {
     setResolutionBusy(true);
     try {
-      await acknowledgeOfficialRollSteps();
+      // A 7 skips the automatic acknowledgement in `roll`, so this is where its
+      // world event cue lands instead.
+      const acknowledged = await acknowledgeOfficialRollSteps();
+      if (acknowledged) {
+        playPendingWorldEventCue(gameController.getSnapshot().activeState);
+      }
     } finally {
       setResolutionBusy(false);
     }
