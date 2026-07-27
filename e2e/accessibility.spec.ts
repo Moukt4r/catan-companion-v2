@@ -106,16 +106,26 @@ test("the inline roll result has no detectable accessibility violations", async 
 
   await expect(page.locator(".roll-result-summary")).toBeVisible();
   // A rolled 7 now holds the resolution open so the table can discard and move
-  // the robber, so the turn cannot advance until it is dismissed. The dice are
-  // balanced but unseeded, so this roll may or may not be a 7.
+  // the robber. The dice are balanced but unseeded, so this roll may or may not
+  // be a 7 — and the ~650ms roll animation means the summary can be on screen
+  // before the 7 panel renders. Poll until the roll settles into one of its
+  // outcomes rather than sampling once and racing the animation.
   const acknowledgeSeven = page.getByRole("button", {
     name: "Acknowledge the 7",
   });
+  const nextRoll = page.getByRole("button", { name: /^Next: / });
+  await expect
+    .poll(
+      async () =>
+        (await acknowledgeSeven.count()) > 0 ||
+        ((await nextRoll.count()) > 0 && (await nextRoll.isEnabled())),
+    )
+    .toBe(true);
   if ((await acknowledgeSeven.count()) > 0) {
     await acknowledgeSeven.click();
     await expect(acknowledgeSeven).toHaveCount(0);
   }
-  await expect(page.getByRole("button", { name: /^Next: / })).toBeEnabled();
+  await expect(nextRoll).toBeEnabled();
   await expect(page.getByRole("dialog", { name: /Roll result:/ })).toHaveCount(
     0,
   );

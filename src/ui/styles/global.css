@@ -1575,7 +1575,17 @@ h3 {
   color: white;
 }
 
-.die--yellow,
+/*
+ * The white die carries no colour meaning, so it uses fixed values rather than
+ * theme tokens: on the dark and high-contrast themes `--color-navy-950` flips to
+ * white, which would leave white text on a white face.
+ */
+.die--yellow {
+  background: #fbfaf7;
+  color: #16222c;
+  border-color: rgb(12 31 49 / 28%);
+}
+
 .die--event {
   background: var(--color-gold-300);
   color: var(--color-navy-950);
@@ -1583,7 +1593,9 @@ h3 {
 
 /*
  * The physical event die is colour-coded per face. Match it so the result is
- * readable across the table without deciphering the artwork.
+ * readable across the table without deciphering the artwork. The numbered red
+ * die takes the same tint once an event is drawn, so the pair reads as one
+ * result; these rules must follow `.die--red` above to win the cascade.
  */
 .die--face-science {
   background: #2f7551;

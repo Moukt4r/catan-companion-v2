@@ -97,12 +97,19 @@ async function acknowledgeSevenIfPresent(page: Page) {
   // The roll animation runs for ~650ms, so the summary can be on screen before
   // the 7 panel renders. Wait until the roll settles into one of its outcomes
   // rather than sampling once and skipping a 7 that has not appeared yet.
+  // Mobile WebKit renders this noticeably slower than the 5s poll default, and
+  // `isEnabled` can throw if the node is swapped mid-check, so guard both.
   await expect
     .poll(
-      async () =>
-        (await seven.count()) > 0 ||
-        (await worldEvent.count()) > 0 ||
-        ((await nextRoll.count()) > 0 && (await nextRoll.isEnabled())),
+      async () => {
+        if ((await seven.count()) > 0) return true;
+        if ((await worldEvent.count()) > 0) return true;
+        return (
+          (await nextRoll.count()) > 0 &&
+          (await nextRoll.isEnabled().catch(() => false))
+        );
+      },
+      { timeout: 15_000, intervals: [100, 200, 500] },
     )
     .toBe(true);
   if ((await seven.count()) > 0) {
@@ -121,9 +128,14 @@ async function resolveSeasonRoll(page: Page) {
   const nextRoll = page.getByRole("button", { name: /^Next: / });
   await expect
     .poll(
-      async () =>
-        (await worldEvent.count()) > 0 ||
-        ((await nextRoll.count()) > 0 && (await nextRoll.isEnabled())),
+      async () => {
+        if ((await worldEvent.count()) > 0) return true;
+        return (
+          (await nextRoll.count()) > 0 &&
+          (await nextRoll.isEnabled().catch(() => false))
+        );
+      },
+      { timeout: 15_000, intervals: [100, 200, 500] },
     )
     .toBe(true);
   if ((await worldEvent.count()) > 0) {
@@ -764,7 +776,7 @@ test("persists Alchemy, public state, turns, undo, and redo", async ({
   await page.getByRole("button", { name: "Use Alchemy" }).click();
   const alchemy = page.locator("dialog[open]");
   await alchemy.getByRole("spinbutton", { name: "Red die" }).fill("6");
-  await alchemy.getByRole("spinbutton", { name: "Yellow die" }).fill("1");
+  await alchemy.getByRole("spinbutton", { name: "White die" }).fill("1");
   await alchemy.getByRole("button", { name: "Roll event die" }).click();
   await resolveRoll(page);
   await expect(page.locator("main.game-layout .cycle-progress")).toHaveText(
@@ -864,7 +876,7 @@ test("opens Alchemy directly for the next player", async ({ page }) => {
     page.getByRole("heading", { name: "Roll for Grace" }),
   ).toBeVisible();
   await alchemy.getByRole("spinbutton", { name: "Red die" }).fill("5");
-  await alchemy.getByRole("spinbutton", { name: "Yellow die" }).fill("4");
+  await alchemy.getByRole("spinbutton", { name: "White die" }).fill("4");
   await alchemy.getByRole("button", { name: "Roll event die" }).click();
   await resolveRoll(page);
 

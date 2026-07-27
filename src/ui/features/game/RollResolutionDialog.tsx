@@ -101,14 +101,15 @@ export function RollResolutionDialog({
             </span>
           </div>
           <div className="resolution-dice">
-            <DieFace
-              kind="yellow"
-              label="Yellow die"
-              value={view.roll.yellow}
-            />
+            <DieFace kind="yellow" label="White die" value={view.roll.yellow} />
             <span aria-hidden>+</span>
             <div className="event-dice-pair">
-              <DieFace kind="red" label="Red die" value={view.roll.red} />
+              <DieFace
+                kind="red"
+                label="Red die"
+                value={view.roll.red}
+                eventFace={view.roll.event}
+              />
               <DieFace kind="event" label="Event die" value={view.roll.event} />
             </div>
           </div>

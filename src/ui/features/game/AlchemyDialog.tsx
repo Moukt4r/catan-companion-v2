@@ -36,7 +36,7 @@ export function AlchemyDialog({
             onChange={setRed}
           />
           <NumberStepper
-            label="Yellow die"
+            label="White die"
             value={yellow}
             min={1}
             max={6}

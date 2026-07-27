@@ -375,7 +375,7 @@ export function GameTable({
         <div className="dice-row">
           <DieFace
             kind="yellow"
-            label="Yellow die"
+            label="White die"
             value={view.lastRoll?.yellow ?? null}
             rolling={view.rolling}
           />
@@ -387,6 +387,7 @@ export function GameTable({
               kind="red"
               label="Red die"
               value={view.lastRoll?.red ?? null}
+              eventFace={view.lastRoll?.event ?? null}
               rolling={view.rolling}
             />
             <DieFace

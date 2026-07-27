@@ -54,11 +54,11 @@ describe("AlchemyDialog", () => {
 
     await user.click(screen.getByRole("button", { name: "Increase Red die" }));
     await user.click(
-      screen.getByRole("button", { name: "Decrease Yellow die" }),
+      screen.getByRole("button", { name: "Decrease White die" }),
     );
 
     expect(screen.getByRole("spinbutton", { name: "Red die" })).toHaveValue(4);
-    expect(screen.getByRole("spinbutton", { name: "Yellow die" })).toHaveValue(
+    expect(screen.getByRole("spinbutton", { name: "White die" })).toHaveValue(
       3,
     );
     expect(screen.getByText("Production total:")).toHaveTextContent(
@@ -96,7 +96,7 @@ describe("RollResolutionDialog", () => {
       Array.from(container.querySelectorAll(".resolution-dice .die")).map(
         (die) => die.getAttribute("aria-label"),
       ),
-    ).toEqual(["Yellow die: 3", "Red die: 4", "Event die: Science"]);
+    ).toEqual(["White die: 3", "Red die: 4", "Event die: Science"]);
     expect(
       Array.from(
         container.querySelectorAll(".resolution-dice .event-dice-pair .die"),

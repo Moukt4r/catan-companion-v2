@@ -1154,15 +1154,25 @@ h1 {
   background: #9b342f;
 }
 
-.die--yellow,
+/*
+ * The white die carries no colour meaning. It uses fixed values rather than
+ * theme tokens so it cannot end up white-on-white when the palette inverts.
+ */
+.die--yellow {
+  background: #f6f1e6;
+  color: #1e3032;
+  border-color: rgb(27 42 42 / 30%);
+}
+
 .die--event {
   background: #e7b956;
   color: #1e3032;
 }
 
 /*
- * Face colours must come after the generic .die--event rule above, which would
- * otherwise repaint every face gold.
+ * Face colours must come after the generic .die--red and .die--event rules
+ * above, which would otherwise repaint every face. Both the event die and the
+ * numbered red die take these tints, so a roll reads as one paired result.
  */
 .die--face-science {
   background: #2f7551;

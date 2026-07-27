@@ -1,10 +1,17 @@
 import { EVENT_DIE_ART } from "../illustrationCatalog";
 
+type DieEventFace = "barbarian" | "science" | "trade" | "politics";
+
 interface DieFaceProps {
-  value: number | "barbarian" | "science" | "trade" | "politics" | null;
+  value: number | DieEventFace | null;
   kind: "red" | "yellow" | "event";
   label: string;
   rolling?: boolean;
+  /**
+   * Face rolled on the event die. The numbered red die is tinted to match it so
+   * both halves of a roll read as a single result from across the table.
+   */
+  eventFace?: DieEventFace | null;
 }
 
 const eventSymbols = {
@@ -14,7 +21,13 @@ const eventSymbols = {
   trade: "Trade",
 };
 
-export function DieFace({ kind, label, rolling = false, value }: DieFaceProps) {
+export function DieFace({
+  eventFace = null,
+  kind,
+  label,
+  rolling = false,
+  value,
+}: DieFaceProps) {
   const display =
     typeof value === "number"
       ? String(value)
@@ -24,9 +37,16 @@ export function DieFace({ kind, label, rolling = false, value }: DieFaceProps) {
 
   // The physical event die is colour-coded: green science, yellow trade, blue
   // politics and a black barbarian ship. Match it so the die reads at a glance
-  // from across the table instead of relying on the artwork alone.
-  const faceClass =
-    kind === "event" && typeof value === "string" ? ` die--face-${value}` : "";
+  // from across the table instead of relying on the artwork alone. The numbered
+  // red die borrows the same tint once an event has been drawn, which pairs the
+  // two dice visually; before the first roll it stays neutral.
+  const face =
+    kind === "event" && typeof value === "string"
+      ? value
+      : kind === "red"
+        ? eventFace
+        : null;
+  const faceClass = face ? ` die--face-${face}` : "";
 
   return (
     <div

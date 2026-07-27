@@ -156,7 +156,7 @@ describe("GameTable", () => {
       Array.from(container.querySelectorAll(".dice-row .die")).map((die) =>
         die.getAttribute("aria-label"),
       ),
-    ).toEqual(["Yellow die: -", "Red die: -", "Event die: -"]);
+    ).toEqual(["White die: -", "Red die: -", "Event die: -"]);
     expect(
       Array.from(container.querySelectorAll(".event-dice-pair .die")).map(
         (die) => die.getAttribute("aria-label"),
