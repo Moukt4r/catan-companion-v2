@@ -18,6 +18,7 @@ import {
   toGameCompleteView,
   toGameTableView,
   toRollResolutionView,
+  toWorldEventGuideView,
 } from "./viewMappers";
 
 const ADA = asPlayerId("ada");
@@ -271,6 +272,42 @@ describe("other view mappers", () => {
       victoryPoints: 3,
       improvements: { science: 3, trade: 2, politics: 1 },
     });
+  });
+
+  it("lists every event still to come and marks the ones already drawn", () => {
+    const base = game();
+    const deck = base.thematicEvents.eventDeck;
+    // Two events drawn this cycle: the guide should mark exactly those.
+    const state: GameState = {
+      ...base,
+      thematicEvents: {
+        ...base.thematicEvents,
+        eventDeck: { ...deck, cursor: 2 },
+      },
+    };
+
+    const view = toWorldEventGuideView(state);
+    expect(view.enabled).toBe(true);
+    expect(view.totalCount).toBe(base.thematicEvents.enabledEvents.length);
+    expect(view.drawnCount).toBe(2);
+
+    const drawnIds = new Set<string>(deck.order.slice(0, 2));
+    for (const entry of view.entries) {
+      expect(entry.drawn).toBe(drawnIds.has(entry.id));
+      // Every entry needs enough detail to read at the table.
+      expect(entry.title.length).toBeGreaterThan(0);
+      expect(entry.instruction.length).toBeGreaterThan(0);
+      expect(entry.timingCopy.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("reports World Events as off when the game disabled them", () => {
+    const base = game();
+    const state: GameState = {
+      ...base,
+      thematicEvents: { ...base.thematicEvents, enabled: false },
+    };
+    expect(toWorldEventGuideView(state).enabled).toBe(false);
   });
 
   it("maps eligible progress players and skips stale ids", () => {

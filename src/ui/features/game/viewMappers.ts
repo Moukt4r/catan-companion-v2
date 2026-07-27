@@ -28,6 +28,10 @@ import type {
   ProgressEligiblePlayer,
   RollResolutionView,
 } from "./RollResolutionDialog";
+import type {
+  WorldEventGuideEntry,
+  WorldEventGuideView,
+} from "./WorldEventsDialog";
 
 const phaseLabels: Record<GamePhase, string> = {
   "action-phase": "Action phase",
@@ -78,6 +82,53 @@ function timingCopyForDuration(duration: WorldEventDuration): string {
     case "until-resolved":
       return "In force until someone marks it resolved";
   }
+}
+
+function toneLabel(tone: WorldEventTone): string {
+  return tone.charAt(0).toUpperCase() + tone.slice(1);
+}
+
+/**
+ * Every event that can still come up in this game.
+ *
+ * The catalog is filtered by category pack at setup, so this reads the game's
+ * own `enabledEvents` rather than the full built-in list. The deck draws each
+ * event once per cycle, so anything before the cursor has already been seen
+ * this year and anything after it is still to come.
+ */
+export function toWorldEventGuideView(state: GameState): WorldEventGuideView {
+  const thematic = state.thematicEvents;
+  const deck = thematic.eventDeck;
+  const drawnIds = new Set(deck.order.slice(0, deck.cursor));
+
+  const entries: WorldEventGuideEntry[] = thematic.enabledEvents.map(
+    (event) => {
+      const definition = lookupWorldEvent(WORLD_EVENTS_CATALOG, event.id);
+      const tone = event.tone ?? definition?.tone ?? "mixed";
+      const duration = event.duration ?? definition?.duration ?? "immediate";
+      return {
+        id: event.id,
+        title: event.title,
+        instruction: event.instruction,
+        tone,
+        toneLabel: toneLabel(tone),
+        impact: event.impact ?? definition?.impact ?? 1,
+        category: event.category ?? definition?.category ?? "society",
+        duration,
+        timingCopy: timingCopyForDuration(duration),
+        drawn: drawnIds.has(event.id),
+      };
+    },
+  );
+
+  return {
+    enabled: thematic.enabled,
+    percent: thematic.percent,
+    cycle: deck.cycle,
+    drawnCount: entries.filter((entry) => entry.drawn).length,
+    totalCount: entries.length,
+    entries,
+  };
 }
 
 function toActiveEventViews(

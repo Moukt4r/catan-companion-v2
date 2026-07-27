@@ -62,8 +62,10 @@ import { SaveRecoveryDialog } from "../ui/features/game/SaveRecoveryDialog";
 import {
   toGameCompleteView,
   toGameTableView,
+  toWorldEventGuideView,
 } from "../ui/features/game/viewMappers";
 import { WinnerDialog } from "../ui/features/game/WinnerDialog";
+import { WorldEventsDialog } from "../ui/features/game/WorldEventsDialog";
 import { SettingsDialog } from "../ui/features/settings/SettingsDialog";
 import { BoardDesignLibraryScreen } from "../ui/features/board-designer/BoardDesignLibraryScreen";
 import { BoardDesignerScreen } from "../ui/features/board-designer/BoardDesignerScreen";
@@ -102,6 +104,7 @@ export function App() {
   const [savedGamesOpen, setSavedGamesOpen] = useState(false);
   const [alchemyOpen, setAlchemyOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [worldEventsOpen, setWorldEventsOpen] = useState(false);
   const [winnerOpen, setWinnerOpen] = useState(false);
   const [metropolisCorrectionOpen, setMetropolisCorrectionOpen] =
     useState(false);
@@ -894,6 +897,9 @@ export function App() {
             onSettings={() => {
               setSettingsOpen(true);
             }}
+            onWorldEvents={() => {
+              setWorldEventsOpen(true);
+            }}
             onExport={() => {
               const record = snapshot.games.find(
                 (game) => game.id === state.id,
@@ -1277,6 +1283,14 @@ export function App() {
             }}
             onClose={() => {
               setHistoryOpen(false);
+            }}
+          />
+
+          <WorldEventsDialog
+            open={worldEventsOpen && !clockPaused}
+            view={toWorldEventGuideView(state)}
+            onClose={() => {
+              setWorldEventsOpen(false);
             }}
           />
 

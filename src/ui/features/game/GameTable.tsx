@@ -132,6 +132,7 @@ interface GameTableProps {
   onHistory: () => void;
   onSettings: () => void;
   onExport: () => void;
+  onWorldEvents: () => void;
   onConfirmWinner: () => void;
 }
 
@@ -153,6 +154,7 @@ export function GameTable({
   onHistory,
   onRoll,
   onSettings,
+  onWorldEvents,
   view,
 }: GameTableProps) {
   const spacesRemaining = Math.max(
@@ -305,6 +307,17 @@ export function GameTable({
                   }}
                 >
                   History
+                </Button>
+                <Button
+                  variant="quiet"
+                  size="small"
+                  disabled={view.paused}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onWorldEvents();
+                  }}
+                >
+                  World Events
                 </Button>
                 <Button
                   variant="quiet"

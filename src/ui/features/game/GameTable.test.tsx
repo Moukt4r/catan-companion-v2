@@ -77,6 +77,7 @@ function renderTable(
     onPause: callbacks.onPause ?? vi.fn(),
     onHistory: callbacks.onHistory ?? vi.fn(),
     onSettings: callbacks.onSettings ?? vi.fn(),
+    onWorldEvents: callbacks.onWorldEvents ?? vi.fn(),
     onExport: callbacks.onExport ?? vi.fn(),
     onConfirmWinner: callbacks.onConfirmWinner ?? vi.fn(),
   };
@@ -121,6 +122,7 @@ describe("GameTable", () => {
         onPause={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
+        onWorldEvents={vi.fn()}
         onExport={vi.fn()}
         onConfirmWinner={vi.fn()}
       />,
@@ -189,6 +191,7 @@ describe("GameTable", () => {
         onPause={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
+        onWorldEvents={vi.fn()}
         onExport={vi.fn()}
         onConfirmWinner={vi.fn()}
       />,
@@ -241,6 +244,7 @@ describe("GameTable", () => {
         onPause={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
+        onWorldEvents={vi.fn()}
         onExport={vi.fn()}
         onConfirmWinner={vi.fn()}
       />,
@@ -291,6 +295,7 @@ describe("GameTable", () => {
         onPause={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
+        onWorldEvents={vi.fn()}
         onExport={vi.fn()}
         onConfirmWinner={vi.fn()}
       />,
@@ -327,6 +332,7 @@ describe("GameTable", () => {
         onPause={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
+        onWorldEvents={vi.fn()}
         onExport={vi.fn()}
         onConfirmWinner={vi.fn()}
       />,
@@ -388,6 +394,7 @@ describe("GameTable", () => {
         onPause={vi.fn()}
         onHistory={vi.fn()}
         onSettings={vi.fn()}
+        onWorldEvents={vi.fn()}
         onExport={vi.fn()}
         onConfirmWinner={vi.fn()}
       />,
