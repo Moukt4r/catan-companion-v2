@@ -10,7 +10,12 @@ import {
 import type { StoredGame } from "../application";
 import { defaultDevicePreferences } from "../application/devicePreferences";
 import type { SetupDraft } from "../ui/features/setup/SetupWizard";
-import { asGameId, asPlayerId, type IsoTimestamp } from "../domain";
+import {
+  asGameId,
+  asPlayerId,
+  BUILT_IN_THEMATIC_EVENTS,
+  type IsoTimestamp,
+} from "../domain";
 
 function fakeStoredGame(overrides?: Partial<StoredGame>): StoredGame {
   return {
@@ -165,8 +170,15 @@ describe("setupFromDraft World Events", () => {
       worldEventDraft({ worldEventPacks: ["nature"] }),
     );
 
+    // Derived from the catalog rather than hard-coded: this test is about pack
+    // filtering, and a literal count fails whenever the catalog grows.
+    const natureCount = BUILT_IN_THEMATIC_EVENTS.filter(
+      (event) => event.category === "nature",
+    ).length;
+    expect(natureCount).toBeGreaterThan(0);
+
     expect(setup.thematicEventsEnabled).toBe(true);
-    expect(setup.thematicEventCatalog).toHaveLength(4);
+    expect(setup.thematicEventCatalog).toHaveLength(natureCount);
     expect(
       setup.thematicEventCatalog.every(
         (event) =>

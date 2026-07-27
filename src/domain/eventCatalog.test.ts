@@ -3,9 +3,9 @@ import { BUILT_IN_THEMATIC_EVENTS } from "./rules";
 import { WORLD_EVENTS_CATALOG, type WorldEventTone } from "./worldEvents";
 
 describe("world events catalog", () => {
-  it("has between 18 and 24 events", () => {
+  it("has between 18 and 40 events", () => {
     expect(WORLD_EVENTS_CATALOG.length).toBeGreaterThanOrEqual(18);
-    expect(WORLD_EVENTS_CATALOG.length).toBeLessThanOrEqual(24);
+    expect(WORLD_EVENTS_CATALOG.length).toBeLessThanOrEqual(40);
   });
 
   it("has unique IDs", () => {
@@ -58,10 +58,13 @@ describe("world events catalog", () => {
     for (const event of WORLD_EVENTS_CATALOG) {
       counts[event.tone]++;
     }
-    // Each tone should have at least 4 and no more than 10
+    // Proportional rather than absolute: the catalog grows over time, and a
+    // fixed ceiling would fail on size alone while the mix stayed balanced.
+    // No tone may fall below 15% or take more than half the deck.
+    const total = WORLD_EVENTS_CATALOG.length;
     for (const tone of ["boon", "mixed", "setback"] as const) {
-      expect(counts[tone]).toBeGreaterThanOrEqual(4);
-      expect(counts[tone]).toBeLessThanOrEqual(10);
+      expect(counts[tone] / total).toBeGreaterThanOrEqual(0.15);
+      expect(counts[tone] / total).toBeLessThanOrEqual(0.5);
     }
   });
 
@@ -76,6 +79,40 @@ describe("world events catalog", () => {
   it("all IDs start with we- prefix", () => {
     for (const event of WORLD_EVENTS_CATALOG) {
       expect(event.id).toMatch(/^we-/);
+    }
+  });
+
+  it("phrases catch-up events against public victory points", () => {
+    // Progress cards can hide victory points, so "fewest" is only unambiguous
+    // at the table if it refers to the public total the app already shows.
+    const catchUp = WORLD_EVENTS_CATALOG.filter((event) =>
+      /fewest|the most/.test(event.instruction),
+    );
+    expect(catchUp.length).toBeGreaterThan(0);
+    for (const event of catchUp) {
+      expect(event.instruction).toMatch(/public victory points/);
+    }
+  });
+
+  it("pairs every improvement track with both a leader and a laggard event", () => {
+    // Investing in a track and neglecting it should both stay live: each
+    // discipline needs an event for players at level 2+ and one for the rest.
+    for (const track of ["science", "trade", "politics"] as const) {
+      const matching = WORLD_EVENTS_CATALOG.filter((event) =>
+        event.instruction.includes(track),
+      );
+      expect(
+        matching.some((event) =>
+          event.instruction.includes(`${track} at level 2 or higher`),
+        ),
+        `${track} needs an event rewarding investment`,
+      ).toBe(true);
+      expect(
+        matching.some((event) =>
+          event.instruction.includes(`${track} below level 2`),
+        ),
+        `${track} needs an event helping players who have not invested`,
+      ).toBe(true);
     }
   });
 });
