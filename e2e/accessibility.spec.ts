@@ -163,7 +163,13 @@ test("the active four-player table remains accessible across visual themes", asy
     .evaluateAll((cards) =>
       cards.map((card) => card.getBoundingClientRect().height),
     );
-  expect(Math.max(...playerCardHeights)).toBeLessThanOrEqual(200);
+  // The card carries three improvement steppers inline now that the per-player
+  // dialog is gone. Six 44px touch targets cannot fit across 180px of card
+  // width, so the disciplines stack and the card is necessarily taller than the
+  // 200px this allowed when the card only held a score and one action row.
+  // The cap still exists to stop the card growing without bound; the touch
+  // target guard below is the one protecting users and stays at 44px.
+  expect(Math.max(...playerCardHeights)).toBeLessThanOrEqual(260);
 
   for (const theme of ["light", "dark", "high-contrast"] as const) {
     await page.evaluate((value) => {

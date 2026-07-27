@@ -21,6 +21,21 @@ function barbarianPanelStartsOpen(): boolean {
   );
 }
 
+export type ImprovementDiscipline = "science" | "trade" | "politics";
+
+/** Improvement levels run 0-5; level 4 or 5 can open a metropolis claim. */
+export const MAX_IMPROVEMENT_LEVEL = 5;
+
+const IMPROVEMENT_TRACKS: {
+  key: ImprovementDiscipline;
+  short: string;
+  label: string;
+}[] = [
+  { key: "science", short: "S", label: "science" },
+  { key: "trade", short: "T", label: "trade" },
+  { key: "politics", short: "P", label: "politics" },
+];
+
 export interface GamePlayerView {
   id: string;
   name: string;
@@ -28,6 +43,7 @@ export interface GamePlayerView {
   victoryPoints: number;
   activeTimeMs: number;
   current: boolean;
+  improvements: Record<ImprovementDiscipline, number>;
 }
 
 export interface GameTableView {
@@ -102,7 +118,11 @@ interface GameTableProps {
   onRoll: () => void;
   onAlchemy: () => void;
   onAdjustScore: (playerId: string, delta: -1 | 1) => void;
-  onEditPlayer: (playerId: string) => void;
+  onAdjustImprovement: (
+    playerId: string,
+    discipline: ImprovementDiscipline,
+    delta: -1 | 1,
+  ) => void;
   onNextRoll: () => void;
   onAlchemyNextTurn: () => void;
   onContinueRoll: () => void;
@@ -122,11 +142,11 @@ export function GameTable({
   onAlchemy,
   onAlchemyNextTurn,
   onAdjustScore,
+  onAdjustImprovement,
   onAcknowledgeEvent,
   onResolveEvent,
   onContinueRoll,
   onConfirmWinner,
-  onEditPlayer,
   onNextRoll,
   onPause,
   onExport,
@@ -712,6 +732,35 @@ export function GameTable({
                 <strong>{player.victoryPoints}</strong>
                 <span>points</span>
               </div>
+              {/*
+                The point steppers sit next to the number they change, which
+                mirrors the improvement rows below and saves a whole row of
+                card height on a phone.
+              */}
+              <div className="player-score__controls">
+                <Button
+                  variant="secondary"
+                  size="small"
+                  aria-label={`Decrease ${player.name} points`}
+                  disabled={playerControlsDisabled || player.victoryPoints <= 0}
+                  onClick={() => {
+                    onAdjustScore(player.id, -1);
+                  }}
+                >
+                  -
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="small"
+                  aria-label={`Increase ${player.name} points`}
+                  disabled={playerControlsDisabled}
+                  onClick={() => {
+                    onAdjustScore(player.id, 1);
+                  }}
+                >
+                  +
+                </Button>
+              </div>
               <div
                 className="player-time"
                 aria-label={`${player.name} active time ${formatDuration(player.activeTimeMs)}`}
@@ -720,40 +769,55 @@ export function GameTable({
                 <strong>{formatDuration(player.activeTimeMs)}</strong>
               </div>
             </div>
-            <div className="player-card__actions">
-              <Button
-                variant="secondary"
-                size="small"
-                aria-label={`Decrease ${player.name} points`}
-                disabled={playerControlsDisabled || player.victoryPoints <= 0}
-                onClick={() => {
-                  onAdjustScore(player.id, -1);
-                }}
-              >
-                -
-              </Button>
-              <Button
-                variant="quiet"
-                size="small"
-                aria-label={`Edit ${player.name} details`}
-                disabled={playerControlsDisabled}
-                onClick={() => {
-                  onEditPlayer(player.id);
-                }}
-              >
-                Details
-              </Button>
-              <Button
-                variant="secondary"
-                size="small"
-                aria-label={`Increase ${player.name} points`}
-                disabled={playerControlsDisabled}
-                onClick={() => {
-                  onAdjustScore(player.id, 1);
-                }}
-              >
-                +
-              </Button>
+            {/*
+              City improvements used to live behind a dialog, which made the
+              most frequent bookkeeping of the game a four-step detour. They are
+              tracked inline here instead, one row per discipline.
+            */}
+            <div
+              className="player-improvements"
+              aria-label={`${player.name} city improvements`}
+            >
+              {IMPROVEMENT_TRACKS.map((track) => {
+                const level = player.improvements[track.key];
+                return (
+                  <div className="improvement-track" key={track.key}>
+                    <span className="improvement-track__label" aria-hidden>
+                      {track.short}
+                    </span>
+                    <Button
+                      variant="quiet"
+                      size="small"
+                      aria-label={`Decrease ${player.name} ${track.label}`}
+                      disabled={playerControlsDisabled || level <= 0}
+                      onClick={() => {
+                        onAdjustImprovement(player.id, track.key, -1);
+                      }}
+                    >
+                      -
+                    </Button>
+                    <span
+                      className="improvement-track__value"
+                      aria-label={`${player.name} ${track.label} level ${level}`}
+                    >
+                      {level}
+                    </span>
+                    <Button
+                      variant="quiet"
+                      size="small"
+                      aria-label={`Increase ${player.name} ${track.label}`}
+                      disabled={
+                        playerControlsDisabled || level >= MAX_IMPROVEMENT_LEVEL
+                      }
+                      onClick={() => {
+                        onAdjustImprovement(player.id, track.key, 1);
+                      }}
+                    >
+                      +
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           </article>
         ))}

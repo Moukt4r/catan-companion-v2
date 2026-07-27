@@ -18,7 +18,6 @@ import {
   type BoardDesignId,
   type GameCommand,
   type GameState,
-  type PlayerId,
 } from "../domain";
 import {
   downloadJson,
@@ -58,16 +57,11 @@ import { GameTable } from "../ui/features/game/GameTable";
 import { HistoryDialog } from "../ui/features/game/HistoryDialog";
 import { MetropolisCorrectionDialog } from "../ui/features/game/MetropolisCorrectionDialog";
 import { MetropolisDialog } from "../ui/features/game/MetropolisDialog";
-import {
-  PlayerEditorDialog,
-  type PlayerEditorPatch,
-} from "../ui/features/game/PlayerEditorDialog";
 import { PauseGameDialog } from "../ui/features/game/PauseGameDialog";
 import { SaveRecoveryDialog } from "../ui/features/game/SaveRecoveryDialog";
 import {
   toGameCompleteView,
   toGameTableView,
-  toPlayerEditorValue,
 } from "../ui/features/game/viewMappers";
 import { WinnerDialog } from "../ui/features/game/WinnerDialog";
 import { SettingsDialog } from "../ui/features/settings/SettingsDialog";
@@ -109,9 +103,6 @@ export function App() {
   const [alchemyOpen, setAlchemyOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [winnerOpen, setWinnerOpen] = useState(false);
-  const [selectedPlayerId, setSelectedPlayerId] = useState<PlayerId | null>(
-    null,
-  );
   const [metropolisCorrectionOpen, setMetropolisCorrectionOpen] =
     useState(false);
   const [resolutionBusy, setResolutionBusy] = useState(false);
@@ -228,10 +219,6 @@ export function App() {
         winnerCandidates(state).includes(player.id),
       ) ?? null)
     : null;
-  const selectedPlayer =
-    state && selectedPlayerId
-      ? (state.players.find((player) => player.id === selectedPlayerId) ?? null)
-      : null;
   const safeToUpdate =
     !snapshot.saving &&
     snapshot.pendingSave === null &&
@@ -628,31 +615,34 @@ export function App() {
     printBoardDesign(design);
   }
 
-  async function handlePlayerSave(patch: PlayerEditorPatch): Promise<void> {
-    if (!selectedPlayerId) {
+  async function adjustImprovement(
+    playerId: string,
+    discipline: "science" | "trade" | "politics",
+    delta: -1 | 1,
+  ): Promise<void> {
+    const current = gameController.getSnapshot().activeState;
+    const player = current?.players.find(
+      (candidate) => candidate.id === asPlayerId(playerId),
+    );
+    if (!player) {
       return;
     }
-    const scoreAdjustment =
-      patch.scoreDelta === 0
-        ? {}
-        : {
-            scoreAdjustment: {
-              delta: patch.scoreDelta,
-              reason: "manual" as const,
-              ...(patch.scoreNote ? { note: patch.scoreNote } : {}),
-            },
-          };
-    const saved = await dispatch({
+    const next = player.improvements[discipline] + delta;
+    if (next < 0 || next > 5) {
+      return;
+    }
+    // Crossing level 4 or 5 can open a metropolis claim, which the domain
+    // raises as a pending proposal off the back of this same command.
+    await dispatch({
       type: "player.publicStateAdjusted",
-      playerId: selectedPlayerId,
+      playerId: asPlayerId(playerId),
       patch: {
-        improvements: patch.improvements,
-        ...scoreAdjustment,
+        improvements: {
+          ...player.improvements,
+          [discipline]: next,
+        },
       },
     });
-    if (saved) {
-      setSelectedPlayerId(null);
-    }
   }
 
   const page = renderPage();
@@ -865,8 +855,8 @@ export function App() {
                 { type: "confirm" },
               );
             }}
-            onEditPlayer={(id) => {
-              setSelectedPlayerId(asPlayerId(id));
+            onAdjustImprovement={(id, discipline, delta) => {
+              void adjustImprovement(id, discipline, delta);
             }}
             onNextRoll={() => {
               void rollNextTurn();
@@ -1204,23 +1194,12 @@ export function App() {
           {/* Barbarian attacks are now auto-resolved; the physical board
               is authoritative. The resolution dialog is no longer shown. */}
 
-          {!snapshot.readOnly && !clockPaused && selectedPlayer ? (
-            <PlayerEditorDialog
-              key={`${selectedPlayer.id}-${state.revisionId}`}
-              player={toPlayerEditorValue(state, selectedPlayer.id)}
-              onSave={(patch) => {
-                void handlePlayerSave(patch);
-              }}
-              onClose={() => {
-                setSelectedPlayerId(null);
-              }}
-            />
-          ) : null}
+          {/* City improvements are tracked inline on each player card, so the
+              per-player editor dialog is gone entirely. */}
 
           {!snapshot.readOnly &&
           !clockPaused &&
-          state.metropolises.pendingProposal &&
-          selectedPlayer === null ? (
+          state.metropolises.pendingProposal ? (
             <MetropolisDialog
               proposal={toMetropolisProposalView(
                 state,

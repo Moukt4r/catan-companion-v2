@@ -17,7 +17,6 @@ import {
   toEligibleProgressPlayers,
   toGameCompleteView,
   toGameTableView,
-  toPlayerEditorValue,
   toRollResolutionView,
 } from "./viewMappers";
 
@@ -249,7 +248,7 @@ describe("toGameTableView", () => {
 });
 
 describe("other view mappers", () => {
-  it("maps player editing and rejects an unknown player", () => {
+  it("exposes improvement levels on each player card", () => {
     const base = game();
     const state: GameState = {
       ...base,
@@ -262,16 +261,16 @@ describe("other view mappers", () => {
       },
     };
 
-    expect(toPlayerEditorValue(state, ADA)).toMatchObject({
-      id: ADA,
+    const view = toGameTableView(state, {
+      savedLabel: "Saved",
+      saveTone: "success",
+    });
+    const ada = view.players.find((player) => player.id === ADA);
+    expect(ada).toMatchObject({
       name: "Ada",
       victoryPoints: 3,
       improvements: { science: 3, trade: 2, politics: 1 },
-      metropolisDisciplines: ["science"],
     });
-    expect(() => toPlayerEditorValue(state, asPlayerId("unknown"))).toThrow(
-      "Player does not exist.",
-    );
   });
 
   it("maps eligible progress players and skips stale ids", () => {

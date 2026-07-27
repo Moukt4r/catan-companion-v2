@@ -42,6 +42,7 @@ function view(): GameTableView {
         victoryPoints: 3,
         activeTimeMs: 65_000,
         current: true,
+        improvements: { science: 0, trade: 0, politics: 0 },
       },
     ],
     worldEventPending: false,
@@ -70,7 +71,7 @@ function renderTable(
       ? { onResolveEvent: callbacks.onResolveEvent }
       : {}),
     onContinueRoll: callbacks.onContinueRoll ?? vi.fn(),
-    onEditPlayer: callbacks.onEditPlayer ?? vi.fn(),
+    onAdjustImprovement: callbacks.onAdjustImprovement ?? vi.fn(),
     onNextRoll: callbacks.onNextRoll ?? vi.fn(),
     onAlchemyNextTurn: callbacks.onAlchemyNextTurn ?? vi.fn(),
     onPause: callbacks.onPause ?? vi.fn(),
@@ -114,7 +115,7 @@ describe("GameTable", () => {
         onAdjustScore={vi.fn()}
         onAcknowledgeEvent={vi.fn()}
         onContinueRoll={vi.fn()}
-        onEditPlayer={vi.fn()}
+        onAdjustImprovement={vi.fn()}
         onNextRoll={vi.fn()}
         onAlchemyNextTurn={vi.fn()}
         onPause={vi.fn()}
@@ -164,10 +165,10 @@ describe("GameTable", () => {
     ).toEqual(["Red die: -", "Event die: -"]);
   });
 
-  it("offers one-tap score changes and detailed editing in the action phase", async () => {
+  it("offers one-tap score and improvement changes in the action phase", async () => {
     const user = userEvent.setup();
     const onAdjustScore = vi.fn();
-    const onEditPlayer = vi.fn();
+    const onAdjustImprovement = vi.fn();
 
     render(
       <GameTable
@@ -182,7 +183,7 @@ describe("GameTable", () => {
         onAdjustScore={onAdjustScore}
         onAcknowledgeEvent={vi.fn()}
         onContinueRoll={vi.fn()}
-        onEditPlayer={onEditPlayer}
+        onAdjustImprovement={onAdjustImprovement}
         onNextRoll={vi.fn()}
         onAlchemyNextTurn={vi.fn()}
         onPause={vi.fn()}
@@ -199,11 +200,23 @@ describe("GameTable", () => {
     await user.click(
       screen.getByRole("button", { name: "Decrease Ada points" }),
     );
-    await user.click(screen.getByRole("button", { name: "Edit Ada details" }));
+    // City improvements are tracked inline now rather than behind a dialog.
+    await user.click(
+      screen.getByRole("button", { name: "Increase Ada science" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Increase Ada politics" }),
+    );
 
     expect(onAdjustScore).toHaveBeenNthCalledWith(1, "ada", 1);
     expect(onAdjustScore).toHaveBeenNthCalledWith(2, "ada", -1);
-    expect(onEditPlayer).toHaveBeenCalledWith("ada");
+    expect(onAdjustImprovement).toHaveBeenNthCalledWith(1, "ada", "science", 1);
+    expect(onAdjustImprovement).toHaveBeenNthCalledWith(
+      2,
+      "ada",
+      "politics",
+      1,
+    );
   });
 
   it("disables every state-changing table control in read-only mode", async () => {
@@ -222,7 +235,7 @@ describe("GameTable", () => {
         onAdjustScore={vi.fn()}
         onAcknowledgeEvent={vi.fn()}
         onContinueRoll={vi.fn()}
-        onEditPlayer={vi.fn()}
+        onAdjustImprovement={vi.fn()}
         onNextRoll={vi.fn()}
         onAlchemyNextTurn={vi.fn()}
         onPause={vi.fn()}
@@ -241,7 +254,7 @@ describe("GameTable", () => {
       screen.getByRole("button", { name: "Increase Ada points" }),
     ).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: "Edit Ada details" }),
+      screen.getByRole("button", { name: "Increase Ada science" }),
     ).toBeDisabled();
     expect(screen.getByRole("button", { name: "Next: Grace" })).toBeDisabled();
     expect(
@@ -272,7 +285,7 @@ describe("GameTable", () => {
         onAdjustScore={vi.fn()}
         onAcknowledgeEvent={vi.fn()}
         onContinueRoll={vi.fn()}
-        onEditPlayer={vi.fn()}
+        onAdjustImprovement={vi.fn()}
         onNextRoll={onNextRoll}
         onAlchemyNextTurn={onAlchemyNextTurn}
         onPause={vi.fn()}
@@ -308,7 +321,7 @@ describe("GameTable", () => {
         onAdjustScore={vi.fn()}
         onAcknowledgeEvent={vi.fn()}
         onContinueRoll={vi.fn()}
-        onEditPlayer={vi.fn()}
+        onAdjustImprovement={vi.fn()}
         onNextRoll={vi.fn()}
         onAlchemyNextTurn={vi.fn()}
         onPause={vi.fn()}
@@ -369,7 +382,7 @@ describe("GameTable", () => {
         onAdjustScore={vi.fn()}
         onAcknowledgeEvent={onAcknowledgeEvent}
         onContinueRoll={vi.fn()}
-        onEditPlayer={vi.fn()}
+        onAdjustImprovement={vi.fn()}
         onNextRoll={vi.fn()}
         onAlchemyNextTurn={vi.fn()}
         onPause={vi.fn()}
@@ -405,6 +418,7 @@ describe("GameTable", () => {
           victoryPoints: 3,
           activeTimeMs: 65_000,
           current: true,
+          improvements: { science: 2, trade: 0, politics: 0 },
         },
         {
           id: "grace",
@@ -413,6 +427,7 @@ describe("GameTable", () => {
           victoryPoints: 5,
           activeTimeMs: 120_000,
           current: false,
+          improvements: { science: 0, trade: 1, politics: 0 },
         },
       ],
     });

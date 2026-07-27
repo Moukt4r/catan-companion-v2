@@ -16,7 +16,6 @@ import {
   type GamePhase,
   type GameState,
   type IsoTimestamp,
-  type PlayerId,
   type ProgressDiscipline,
   type ActiveWorldEventRecord,
   type WorldEventCategory,
@@ -25,7 +24,6 @@ import {
 } from "../../../domain";
 import type { GameCompleteView } from "./GameCompleteScreen";
 import type { GameTableView } from "./GameTable";
-import type { PlayerEditorValue } from "./PlayerEditorDialog";
 import type {
   ProgressEligiblePlayer,
   RollResolutionView,
@@ -231,6 +229,7 @@ export function toGameTableView(
       victoryPoints: scoreForPlayer(state, player.id),
       activeTimeMs: playerActiveMilliseconds(state, player.id, clockAt),
       current: player.id === active.id,
+      improvements: { ...player.improvements },
     })),
     worldEventPending: state.thematicEvents.pendingEvent !== null,
     worldEvent:
@@ -268,29 +267,6 @@ function toSeasonView(state: GameState): GameTableView["season"] {
     roundInSeason: info.roundInSeason,
     roundsPerSeason: config.roundsPerSeason,
     transitioned,
-  };
-}
-
-export function toPlayerEditorValue(
-  state: GameState,
-  playerId: PlayerId,
-): PlayerEditorValue {
-  const player = state.players.find((candidate) => candidate.id === playerId);
-  if (!player) {
-    throw new Error("Player does not exist.");
-  }
-
-  return {
-    id: player.id,
-    name: player.name,
-    color: player.color.hex,
-    victoryPoints: scoreForPlayer(state, player.id),
-    improvements: {
-      ...player.improvements,
-    },
-    metropolisDisciplines: Object.entries(state.metropolises.controls)
-      .filter(([, control]) => control?.holderId === player.id)
-      .map(([discipline]) => discipline),
   };
 }
 

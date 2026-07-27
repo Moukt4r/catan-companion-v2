@@ -1300,9 +1300,18 @@ h1 {
   color: var(--ink);
 }
 
-.player-card__actions .button--quiet {
+/*
+ * City improvements are tracked inline on the player card now. The quiet
+ * stepper buttons need a visible edge on the tabletop theme, where the card
+ * surface is close to the button fill.
+ */
+.improvement-track .button--quiet {
   border-color: var(--line);
   background: var(--surface-raised);
+}
+
+.improvement-track__value {
+  color: var(--ink);
 }
 
 .turn-action-dock {
