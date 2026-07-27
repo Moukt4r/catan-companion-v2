@@ -49,6 +49,7 @@ import { ScreenWakeLock } from "../infrastructure/platform/wakeLock";
 import { Button, ConfirmDialog } from "../ui/components";
 import { CompletedGamesDialog } from "../ui/features/home/CompletedGamesDialog";
 import { HomeScreen } from "../ui/features/home/HomeScreen";
+import { WorldEventsScreen } from "../ui/features/home/WorldEventsScreen";
 import { ImportPreviewDialog } from "../ui/features/home/ImportPreviewDialog";
 import { SetupWizard, type SetupDraft } from "../ui/features/setup/SetupWizard";
 import { AlchemyDialog } from "../ui/features/game/AlchemyDialog";
@@ -62,6 +63,7 @@ import { SaveRecoveryDialog } from "../ui/features/game/SaveRecoveryDialog";
 import {
   toGameCompleteView,
   toGameTableView,
+  toWorldEventCatalogView,
   toWorldEventGuideView,
 } from "../ui/features/game/viewMappers";
 import { WinnerDialog } from "../ui/features/game/WinnerDialog";
@@ -88,7 +90,13 @@ import { useGameController } from "./useGameController";
 import { useOnlineStatus } from "./useOnlineStatus";
 
 type Screen =
-  "home" | "setup" | "game" | "complete" | "boards" | "board-designer";
+  | "home"
+  | "setup"
+  | "game"
+  | "complete"
+  | "boards"
+  | "board-designer"
+  | "world-events";
 
 export function App() {
   const snapshot = useGameController();
@@ -651,6 +659,18 @@ export function App() {
   const page = renderPage();
 
   function renderPage(): ReactNode {
+    if (screen === "world-events") {
+      return (
+        <WorldEventsScreen
+          view={toWorldEventCatalogView()}
+          onBack={() => {
+            setNotice(null);
+            setScreen("home");
+          }}
+        />
+      );
+    }
+
     if (
       screen === "boards" ||
       (screen === "board-designer" && boardSnapshot.activeDesign === null)
@@ -939,6 +959,10 @@ export function App() {
         onBoardDesigner={() => {
           setNotice(null);
           setScreen("boards");
+        }}
+        onWorldEvents={() => {
+          setNotice(null);
+          setScreen("world-events");
         }}
         onImport={(file) => {
           void runOperation(async () => {

@@ -289,7 +289,7 @@ describe("other view mappers", () => {
     const view = toWorldEventGuideView(state);
     expect(view.enabled).toBe(true);
     expect(view.totalCount).toBe(base.thematicEvents.enabledEvents.length);
-    expect(view.drawnCount).toBe(2);
+    expect(view.deck?.drawnCount).toBe(2);
 
     const drawnIds = new Set<string>(deck.order.slice(0, 2));
     for (const entry of view.entries) {

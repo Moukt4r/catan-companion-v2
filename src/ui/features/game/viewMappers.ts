@@ -31,7 +31,7 @@ import type {
 import type {
   WorldEventGuideEntry,
   WorldEventGuideView,
-} from "./WorldEventsDialog";
+} from "./worldEventGuide";
 
 const phaseLabels: Record<GamePhase, string> = {
   "action-phase": "Action phase",
@@ -123,11 +123,42 @@ export function toWorldEventGuideView(state: GameState): WorldEventGuideView {
 
   return {
     enabled: thematic.enabled,
-    percent: thematic.percent,
-    cycle: deck.cycle,
-    drawnCount: entries.filter((entry) => entry.drawn).length,
     totalCount: entries.length,
     entries,
+    deck: {
+      percent: thematic.percent,
+      cycle: deck.cycle,
+      drawnCount: entries.filter((entry) => entry.drawn).length,
+    },
+  };
+}
+
+/**
+ * The full built-in catalog, for browsing outside a game.
+ *
+ * No deck exists yet, so nothing is marked as drawn and there is no trigger
+ * chance to report. This is the reference list rather than a report on any
+ * particular table.
+ */
+export function toWorldEventCatalogView(): WorldEventGuideView {
+  const entries: WorldEventGuideEntry[] = WORLD_EVENTS_CATALOG.map((event) => ({
+    id: event.id,
+    title: event.title,
+    instruction: event.instruction,
+    tone: event.tone,
+    toneLabel: toneLabel(event.tone),
+    impact: event.impact,
+    category: event.category,
+    duration: event.duration,
+    timingCopy: timingCopyForDuration(event.duration),
+    drawn: false,
+  }));
+
+  return {
+    enabled: true,
+    totalCount: entries.length,
+    entries,
+    deck: null,
   };
 }
 

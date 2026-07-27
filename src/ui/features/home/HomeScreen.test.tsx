@@ -24,6 +24,7 @@ function renderHome(overrides: Partial<Parameters<typeof HomeScreen>[0]> = {}) {
     onResume: vi.fn(),
     onNewGame: vi.fn(),
     onBoardDesigner: vi.fn(),
+    onWorldEvents: vi.fn(),
     onImport: vi.fn(),
     onSettings: vi.fn(),
     onViewArchive: vi.fn(),
@@ -131,6 +132,7 @@ describe("HomeScreen", () => {
         onResume={vi.fn()}
         onNewGame={vi.fn()}
         onBoardDesigner={onBoardDesigner}
+        onWorldEvents={vi.fn()}
         onImport={vi.fn()}
         onSettings={vi.fn()}
         onViewArchive={vi.fn()}

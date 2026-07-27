@@ -20,6 +20,7 @@ interface HomeScreenProps {
   onResume: () => void;
   onNewGame: () => void;
   onBoardDesigner: () => void;
+  onWorldEvents: () => void;
   onImport: (file: File) => void;
   onSettings: () => void;
   onViewArchive: () => void;
@@ -36,6 +37,7 @@ export function HomeScreen({
   onResume,
   onSettings,
   onViewArchive,
+  onWorldEvents,
 }: HomeScreenProps) {
   const importRef = useRef<HTMLInputElement>(null);
 
@@ -170,9 +172,16 @@ export function HomeScreen({
             }
           }}
         />
-        <button type="button" className="home-action" onClick={onViewArchive}>
+        <button type="button" className="home-action" onClick={onWorldEvents}>
           <span className="home-action__index" aria-hidden="true">
             03
+          </span>
+          <strong>World Events</strong>
+          <span>Browse the full house-rule event catalog.</span>
+        </button>
+        <button type="button" className="home-action" onClick={onViewArchive}>
+          <span className="home-action__index" aria-hidden="true">
+            04
           </span>
           <strong>Saved games</strong>
           <span>
