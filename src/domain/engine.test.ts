@@ -551,6 +551,73 @@ describe("metropolis lifecycle", () => {
     expect(validateGameState(state)).toEqual([]);
   });
 
+  it("takes nothing back from a holder who has no public points left", () => {
+    // The clamp has a lower edge: a holder sitting at zero gives back nothing
+    // at all, so the transfer records no entry for them rather than a zero one.
+    let state = actionPhase(newGame());
+    state = {
+      ...state,
+      players: state.players.map((player, index) =>
+        index === 0
+          ? { ...player, improvements: { ...player.improvements, science: 4 } }
+          : index === 1
+            ? {
+                ...player,
+                improvements: { ...player.improvements, science: 5 },
+              }
+            : player,
+      ),
+      metropolises: {
+        controls: {
+          ...state.metropolises.controls,
+          science: {
+            holderId: PLAYER_IDS[0] as PlayerId,
+            status: "temporary",
+            source: "improvement",
+          },
+        },
+        pendingProposal: null,
+      },
+    };
+    state = run(
+      state,
+      {
+        type: "player.publicStateAdjusted",
+        playerId: PLAYER_IDS[0] as PlayerId,
+        patch: { scoreAdjustment: { delta: -3, reason: "correction" } },
+      },
+      "metro-zero-score",
+    );
+    expect(scoreForPlayer(state, PLAYER_IDS[0] as PlayerId)).toBe(0);
+
+    state = run(
+      state,
+      {
+        type: "metropolis.correctionProposed",
+        discipline: "science",
+        holderId: PLAYER_IDS[1] as PlayerId,
+        status: "permanent",
+      },
+      "metro-zero-propose",
+    );
+    const proposal = state.metropolises.pendingProposal;
+    // Only the incoming holder gains; nothing is subtracted from zero.
+    expect(proposal?.changes).toEqual([
+      { playerId: PLAYER_IDS[1], scoreDelta: 2 },
+    ]);
+
+    state = run(
+      state,
+      {
+        type: "metropolis.proposalConfirmed",
+        proposalId: proposal?.id as never,
+      },
+      "metro-zero-confirm",
+    );
+    expect(scoreForPlayer(state, PLAYER_IDS[0] as PlayerId)).toBe(0);
+    expect(validateGameState(state)).toEqual([]);
+  });
+
   it("lets a correction install a holder the app never tracked", () => {
     // The operator is telling the app the physical board disagrees with it, so
     // the app's own improvement level is known to be wrong. Checking it would
