@@ -40,9 +40,17 @@ export function MetropolisCorrectionDialog({
   const level = holder?.improvements[discipline] ?? 0;
   const [status, setStatus] = useState<"temporary" | "permanent">("temporary");
   const effectiveStatus = holderId === "" ? null : status;
-  const valid =
-    holderId === "" ||
-    (effectiveStatus === "temporary" ? level >= 4 : level >= 5);
+  const requiredLevel = effectiveStatus === "permanent" ? 5 : 4;
+  /**
+   * Whether the app's own tracked level agrees with the control being recorded.
+   *
+   * This does not gate the correction. A correction is the operator telling the
+   * app that the physical board disagrees with it, so the app's tracked level is
+   * precisely the thing known to be wrong — refusing on that basis would block
+   * the only command that can repair the disagreement. It is surfaced as a
+   * caution instead, so the operator can see what they are overriding.
+   */
+  const matchesTrackedLevel = holderId === "" || level >= requiredLevel;
 
   return (
     <Dialog
@@ -98,15 +106,16 @@ export function MetropolisCorrectionDialog({
             </select>
           </label>
         ) : null}
-        {!valid ? (
-          <StatusBanner tone="danger" role="alert">
-            {holder?.name} does not have the recorded improvement level required
-            for this status.
+        {!matchesTrackedLevel ? (
+          <StatusBanner tone="warning" role="alert">
+            {holder?.name} is recorded at level {level}, below the{" "}
+            {requiredLevel} this status normally needs. The physical board
+            decides, so the correction is still allowed.
           </StatusBanner>
         ) : (
           <StatusBanner tone="warning">
-            The correction changes ordinary-city counts and the two public
-            metropolis points in one undoable revision.
+            The correction moves the two public metropolis points in one
+            undoable revision.
           </StatusBanner>
         )}
         <div className="button-row dialog-actions">
@@ -114,7 +123,6 @@ export function MetropolisCorrectionDialog({
             Cancel
           </Button>
           <Button
-            disabled={!valid}
             onClick={() => {
               onPropose(discipline, holderId || null, effectiveStatus);
             }}

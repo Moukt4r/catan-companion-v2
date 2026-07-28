@@ -148,7 +148,11 @@ describe("MetropolisCorrectionDialog", () => {
     },
   ];
 
-  it("blocks an impossible holder and submits a valid permanent correction", async () => {
+  it("cautions about a holder below the tracked level but still allows it", async () => {
+    // A correction is the operator saying the physical board disagrees with the
+    // app, so the app's own tracked level is exactly the thing known to be
+    // wrong. Blocking on it would refuse the only command that can repair the
+    // disagreement, so it is surfaced as a caution instead.
     const user = userEvent.setup();
     const onPropose = vi.fn();
     render(
@@ -165,12 +169,31 @@ describe("MetropolisCorrectionDialog", () => {
       "ada",
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Ada does not have the recorded improvement level required",
+      "Ada is recorded at level 3, below the 4 this status normally needs",
     );
-    expect(
-      screen.getByRole("button", { name: "Review correction" }),
-    ).toBeDisabled();
+    const review = screen.getByRole("button", { name: "Review correction" });
+    expect(review).toBeEnabled();
 
+    await user.click(review);
+    expect(onPropose).toHaveBeenCalledWith("science", "ada", "temporary");
+  });
+
+  it("submits a correction that matches the tracked level without cautioning", async () => {
+    const user = userEvent.setup();
+    const onPropose = vi.fn();
+    render(
+      <MetropolisCorrectionDialog
+        open
+        players={players}
+        onPropose={onPropose}
+        onClose={vi.fn()}
+      />,
+    );
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Recorded holder" }),
+      "ada",
+    );
     await user.selectOptions(
       screen.getByRole("combobox", { name: "Discipline" }),
       "trade",
@@ -179,6 +202,9 @@ describe("MetropolisCorrectionDialog", () => {
       screen.getByRole("combobox", { name: "Control status" }),
       "permanent",
     );
+    // Ada is tracked at trade 5, so there is nothing to override here.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
     await user.click(screen.getByRole("button", { name: "Review correction" }));
 
     expect(onPropose).toHaveBeenCalledWith("trade", "ada", "permanent");
