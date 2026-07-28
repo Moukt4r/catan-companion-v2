@@ -1194,6 +1194,25 @@ h1 {
   color: #fff;
 }
 
+/*
+ * The 3D dice paint themselves face by face, so the wrapper must stay clear.
+ * This file loads after global.css, so without these resets the flat colour
+ * rules above repaint the wrapper and it shows as a static square behind the
+ * tumbling cube.
+ */
+.die--3d,
+.die--3d.die--red,
+.die--3d.die--yellow,
+.die--3d.die--event,
+.die--3d.die--face-science,
+.die--3d.die--face-trade,
+.die--3d.die--face-politics,
+.die--3d.die--face-barbarian {
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 .die__event {
   position: absolute;
   inset: 0;

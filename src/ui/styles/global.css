@@ -1852,10 +1852,25 @@ h3 {
   inset: 0;
   display: grid;
   place-items: center;
-  overflow: hidden;
   border: 1px solid rgb(12 31 49 / 16%);
-  border-radius: 14%;
+  /*
+   * No border-radius here, deliberately.
+   *
+   * Rounding a face makes Chromium clip it, and a clipped layer loses its
+   * backface culling: the far side of the cube then shows through mid-tumble
+   * as mirrored numbers. The rounded silhouette comes from the die wrapper
+   * instead, which is not part of the 3D context.
+   *
+   * Both spellings of the property: Safari still wants the prefix.
+   */
+  -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+}
+
+.die3d__face .die__event-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /*
@@ -1897,6 +1912,19 @@ h3 {
 .die--3d .die3d__face {
   background-color: var(--die3d-bg, #fbfaf7);
   color: var(--die3d-fg, #16222c);
+  /*
+   * Rounded corners clip the layer, and a clipped layer loses backface culling
+   * in Chromium, which lets the far side of the cube show through as mirrored
+   * numbers. So the corners are square while the die is in the air and snap
+   * back once it has landed, after the rotation has finished.
+   */
+  border-radius: 14%;
+  transition: border-radius 0s linear 1250ms;
+}
+
+.die--3d .die3d__face .die__event-art {
+  /* Rounded with the face, so the face itself never needs overflow clipping. */
+  border-radius: inherit;
 }
 
 /*
@@ -1964,7 +1992,8 @@ h3 {
 .die--3d.die--red .die3d__face {
   transition:
     background-color 700ms ease-out,
-    color 700ms ease-out;
+    color 700ms ease-out,
+    border-radius 0s linear 1250ms;
 }
 
 .die--3d.die--tumbling.die--red {
@@ -1972,7 +2001,9 @@ h3 {
   --die3d-fg: #16222c;
 }
 
-.die--3d.die--tumbling.die--red .die3d__face {
+/* Must follow the rules above to win on source order. */
+.die--3d.die--tumbling .die3d__face {
+  border-radius: 0;
   transition: none;
 }
 

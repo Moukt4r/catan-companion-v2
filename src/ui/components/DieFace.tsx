@@ -64,6 +64,16 @@ const EVENT_ORDER: DieEventFace[] = [
 /** Whole extra spins added while tumbling, so the die visibly rotates. */
 const SPIN_TURNS = 3;
 
+/**
+ * Shrink while airborne. A rotating cube sweeps its own diagonal, roughly 1.7x
+ * its width, which otherwise pushes the dice out over the edge of the roll
+ * stage. Applied to the cube rather than the die: the die carries `perspective`,
+ * and a transform on that same element flattens the child's 3D context in
+ * Chromium, which silently disables backface-visibility and lets the rear faces
+ * show through as mirrored numbers.
+ */
+const TUMBLE_SCALE = 0.62;
+
 export function DieFace({
   animated = false,
   eventFace = null,
@@ -160,6 +170,7 @@ function Die3D({
   // than unwinding back to a smaller angle.
   const spins = useRef(0);
   const [angle, setAngle] = useState(rest);
+  const scale = rolling ? TUMBLE_SCALE : 1;
 
   useEffect(() => {
     if (rolling) {
@@ -179,7 +190,9 @@ function Die3D({
     >
       <div
         className="die3d__cube"
-        style={{ transform: `rotateX(${angle.x}deg) rotateY(${angle.y}deg)` }}
+        style={{
+          transform: `rotateX(${angle.x}deg) rotateY(${angle.y}deg) scale3d(${scale}, ${scale}, ${scale})`,
+        }}
         aria-hidden
       >
         {kind === "event"
