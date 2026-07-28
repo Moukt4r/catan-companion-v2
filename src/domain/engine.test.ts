@@ -309,6 +309,56 @@ describe("barbarian attacks", () => {
     state = run(state, { type: "roll.draw" }, "attack-skip-phase");
     expect(state.turn.phase).toBe("resolving-official-result");
   });
+
+  it("records the robber as active when the attack lands on the same roll as a seven", () => {
+    // The ship reaching the end is what activates the robber, and it can happen
+    // on the very roll that also totals seven. Describing the roll before
+    // moving the ship recorded "the robber is not active yet" on exactly the
+    // roll that activated it, and that wrong value was persisted into the
+    // revision, the history and any export.
+    let state = newGame({ barbarianTrackLength: 1 });
+    state = withNextEventFace(state, "barbarian");
+    const sevenIndex = state.numberedDeck.order.findIndex(
+      (outcome) => outcome.red + outcome.yellow === 7,
+    );
+    expect(sevenIndex).toBeGreaterThanOrEqual(0);
+    state = {
+      ...state,
+      numberedDeck: { ...state.numberedDeck, cursor: sevenIndex },
+    };
+    expect(state.barbarian.robberActivated).toBe(false);
+
+    state = run(state, { type: "roll.draw" }, "attack-with-seven");
+
+    expect(state.barbarian.robberActivated).toBe(true);
+    expect(state.lastRoll?.production).toEqual({
+      type: "seven",
+      robberActive: true,
+      reminder: "discard-and-move-robber",
+    });
+  });
+
+  it("still resolves a ship already sitting on the last space", () => {
+    // Not reachable through normal play, but an imported or migrated save can
+    // carry it. The invariants accept it, so the roll must too: landing only on
+    // a strict equality left such a save rejecting every barbarian roll for the
+    // rest of the game with no way back.
+    let state = newGame({ barbarianTrackLength: 7 });
+    state = {
+      ...state,
+      barbarian: { ...state.barbarian, shipPosition: 7 },
+    };
+    expect(validateGameState(state)).toEqual([]);
+
+    state = withNextEventFace(state, "barbarian");
+    state = run(state, { type: "roll.draw" }, "attack-parked-ship");
+
+    expect(state.barbarian).toMatchObject({
+      shipPosition: 0,
+      robberActivated: true,
+      attacksCompleted: 1,
+    });
+  });
 });
 
 describe("metropolis lifecycle", () => {

@@ -453,12 +453,41 @@ function roll(
           ),
           red: numbered.red,
         };
+
+  const rollId = nextRollId(deps.ids);
+
+  // The barbarian ship moves before the roll is described, because an attack
+  // landing on this very roll is what activates the robber. Describing
+  // production first would record "the robber is not active yet" on the exact
+  // roll that activates it, and that wrong value would be persisted into the
+  // revision, the history and any export.
+  let barbarian = state.barbarian;
+  if (eventDraw.value.value === "barbarian") {
+    const shipPosition = barbarian.shipPosition + 1;
+    barbarian = { ...barbarian, shipPosition };
+    if (shipPosition >= barbarian.rules.trackLength) {
+      // The physical board is authoritative for every attack detail. The app
+      // only logs that the attack happened and resets its own ship cycle.
+      const attackRecord: BarbarianAttackRecord = {
+        proposalId: nextProposalId(deps.ids),
+        completedAt: deps.at,
+      };
+      barbarian = {
+        ...barbarian,
+        shipPosition: 0,
+        robberActivated: true,
+        attacksCompleted: barbarian.attacksCompleted + 1,
+        history: [...barbarian.history, attackRecord],
+      };
+    }
+  }
+
   const production =
     total === 7
       ? ({
           type: "seven",
-          robberActive: state.barbarian.robberActivated,
-          reminder: state.barbarian.robberActivated
+          robberActive: barbarian.robberActivated,
+          reminder: barbarian.robberActivated
             ? "discard-and-move-robber"
             : "robber-not-yet-active",
         } as const)
@@ -476,28 +505,6 @@ function roll(
   );
   if (!thematic.ok) {
     return failure(thematic.error);
-  }
-
-  const rollId = nextRollId(deps.ids);
-  let barbarian = state.barbarian;
-  if (eventDraw.value.value === "barbarian") {
-    const shipPosition = barbarian.shipPosition + 1;
-    barbarian = { ...barbarian, shipPosition };
-    if (shipPosition === barbarian.rules.trackLength) {
-      // The physical board is authoritative for every attack detail. The app
-      // only logs that the attack happened and resets its own ship cycle.
-      const attackRecord: BarbarianAttackRecord = {
-        proposalId: nextProposalId(deps.ids),
-        completedAt: deps.at,
-      };
-      barbarian = {
-        ...barbarian,
-        shipPosition: 0,
-        robberActivated: true,
-        attacksCompleted: barbarian.attacksCompleted + 1,
-        history: [...barbarian.history, attackRecord],
-      };
-    }
   }
 
   const record: RollRecord = {
