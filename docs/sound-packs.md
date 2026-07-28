@@ -103,11 +103,60 @@ Every sampled pack must be traceable, because this app is published.
 Hearth was produced entirely by a text-to-audio model whose licence
 (Apache-2.0) permits redistribution of its output, so no third-party recordings
 are involved. Each clip's generating prompt and seed live in the staging
-manifest kept out of the repo. Two cues (`barbarian-advance-far`,
-`season-autumn`) needed a third generation round: the first selection optimised
-for spectral body and pushed them below what a laptop or tablet speaker can
-reproduce. The audibility check that caught this is a weighted sub-500 Hz
-rolloff, not raw energy.
+manifest kept out of the repo.
+
+### The mid-presence gate, and why it exists
+
+The first Hearth build shipped two cues Roger immediately called "bare skurr"
+(just static): `barbarian-advance-far` and `season-autumn`. Everything I had
+measured said they were fine. What the measurements missed:
+
+| Metric | What it answers                   |
+| ------ | --------------------------------- |
+| `mid`  | share of energy in 300 Hz - 3 kHz |
+| `hiss` | share of energy above 6 kHz       |
+
+Both rejected cues scored `mid < 0.15`. **Every** cue he did not complain about
+scored `mid > 0.20`. That band is roughly what a laptop, tablet or phone speaker
+actually reproduces, so a clip can be perfectly clean, correctly timed and
+normalised, and still arrive as static because all its content sits where the
+speaker cannot go. A cue is now rejected if `mid < 0.15` or `hiss > 0.55`.
+
+Applying the gate to the whole pack found four more cues heading the same way,
+before anyone had to listen to them again.
+
+### Continuous textures are noise
+
+The deeper lesson is about briefs, not seeds. `season-autumn` asked for "dry
+leaves rustling", `season-spring` for "light rain", `season-summer` for "warm
+wind". Rustling, rain and wind **are** broadband noise. The model was right; the
+brief was wrong, and no amount of reseeding fixes a cue whose target sound is
+hiss.
+
+The fix is to ask for _discrete events with transients_ that still read as the
+same idea:
+
+| Cue                      | Was                      | Now                                |
+| ------------------------ | ------------------------ | ---------------------------------- |
+| `season-autumn`          | leaves rustling          | footsteps crunching through leaves |
+| `season-spring`          | light rain               | birdsong (tonal whistles)          |
+| `season-summer`          | warm wind, then crickets | bees (tonal ~200-600 Hz wingbeat)  |
+| `event-nature-setback`   | wind gust with rain      | a thunder crack                    |
+| `barbarian-attack-board` | sub-bass impact          | heavy wooden gate slam             |
+
+`season-summer` is worth singling out: the cricket rewrite scored `hiss 1.00`,
+measurably **worse** than what it replaced, and was thrown away rather than
+shipped. Cricket stridulation is high-frequency noise, so it failed the same way
+wind did, just at the other end of the spectrum.
+
+### One cue was not a generation problem at all
+
+`barbarian-advance-far` was fixed without the GPU. Distance is a _filter_, not a
+different performance, so the far drum is now derived from the near drum Roger
+liked: low-pass for air absorption, high-pass to clear the sub-bass a small
+speaker rattles on, plus a few decaying reflections. `mid` went from 0.14 to
+0.65. Deriving a variant from a cue that already works is usually better than
+asking a model for a second one.
 
 Known model limitation: the DAC VAE is mono, so the shipped stereo files are
 dual-mono. That is fine here — the cues are centred anyway and the engine adds

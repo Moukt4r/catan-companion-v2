@@ -1,7 +1,7 @@
 {
   "pack": "hearth",
-  "generatedAt": "2026-07-28T06:27:34.217Z",
-  "totalBytes": 159481,
+  "generatedAt": "2026-07-28T07:14:50.376Z",
+  "totalBytes": 146230,
   "assets": [
     {
       "name": "dice-roll",
@@ -25,8 +25,8 @@
     },
     {
       "name": "barbarian-advance-far",
-      "bytes": 11935,
-      "seconds": 3.943
+      "bytes": 6941,
+      "seconds": 1.842
     },
     {
       "name": "barbarian-advance-near",
@@ -35,8 +35,8 @@
     },
     {
       "name": "barbarian-attack-board",
-      "bytes": 10405,
-      "seconds": 1.126
+      "bytes": 9938,
+      "seconds": 0.96
     },
     {
       "name": "barbarian-attack-defended",
@@ -65,8 +65,8 @@
     },
     {
       "name": "event-nature-setback",
-      "bytes": 4247,
-      "seconds": 1.958
+      "bytes": 7005,
+      "seconds": 1.846
     },
     {
       "name": "event-society-mixed",
@@ -75,18 +75,18 @@
     },
     {
       "name": "season-spring",
-      "bytes": 12016,
-      "seconds": 1.847
-    },
-    {
-      "name": "season-summer",
-      "bytes": 9316,
+      "bytes": 4996,
       "seconds": 1.846
     },
     {
+      "name": "season-summer",
+      "bytes": 3861,
+      "seconds": 1.842
+    },
+    {
       "name": "season-autumn",
-      "bytes": 3295,
-      "seconds": 3.901
+      "bytes": 5222,
+      "seconds": 1.385
     },
     {
       "name": "season-winter",
