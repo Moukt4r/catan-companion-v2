@@ -1,0 +1,102 @@
+{
+  "pack": "hearth",
+  "generatedAt": "2026-07-28T06:27:34.217Z",
+  "totalBytes": 159481,
+  "assets": [
+    {
+      "name": "dice-roll",
+      "bytes": 9945,
+      "seconds": 1.116
+    },
+    {
+      "name": "progress-trade",
+      "bytes": 6399,
+      "seconds": 1.037
+    },
+    {
+      "name": "progress-science",
+      "bytes": 10430,
+      "seconds": 1.271
+    },
+    {
+      "name": "progress-politics",
+      "bytes": 6623,
+      "seconds": 0.707
+    },
+    {
+      "name": "barbarian-advance-far",
+      "bytes": 11935,
+      "seconds": 3.943
+    },
+    {
+      "name": "barbarian-advance-near",
+      "bytes": 9585,
+      "seconds": 1.843
+    },
+    {
+      "name": "barbarian-attack-board",
+      "bytes": 10405,
+      "seconds": 1.126
+    },
+    {
+      "name": "barbarian-attack-defended",
+      "bytes": 8567,
+      "seconds": 1.336
+    },
+    {
+      "name": "barbarian-attack-pillaged",
+      "bytes": 8355,
+      "seconds": 2.19
+    },
+    {
+      "name": "event-economy-boon",
+      "bytes": 8229,
+      "seconds": 1.501
+    },
+    {
+      "name": "event-diplomacy-boon",
+      "bytes": 5726,
+      "seconds": 1.727
+    },
+    {
+      "name": "event-military-setback",
+      "bytes": 6563,
+      "seconds": 1.731
+    },
+    {
+      "name": "event-nature-setback",
+      "bytes": 4247,
+      "seconds": 1.958
+    },
+    {
+      "name": "event-society-mixed",
+      "bytes": 7805,
+      "seconds": 1.731
+    },
+    {
+      "name": "season-spring",
+      "bytes": 12016,
+      "seconds": 1.847
+    },
+    {
+      "name": "season-summer",
+      "bytes": 9316,
+      "seconds": 1.846
+    },
+    {
+      "name": "season-autumn",
+      "bytes": 3295,
+      "seconds": 3.901
+    },
+    {
+      "name": "season-winter",
+      "bytes": 12510,
+      "seconds": 1.962
+    },
+    {
+      "name": "confirm",
+      "bytes": 7530,
+      "seconds": 0.39
+    }
+  ]
+}
