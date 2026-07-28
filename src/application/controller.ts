@@ -229,12 +229,71 @@ export class GameController {
     });
   }
 
+  /**
+   * Steps back past the current roll, not just one revision.
+   *
+   * A roll spans several revisions: the draw, acknowledging the result, and any
+   * event it triggered. Undoing one of those leaves the table mid-action — dice
+   * on screen waiting to be confirmed — which reads as "undo did nothing" and
+   * hides the option the player actually wanted, like using Alchemy instead.
+   *
+   * Only the roll and what it triggered are grouped. Bookkeeping entered by
+   * hand afterwards — correcting a score, fixing a metropolis holder — stays
+   * individually undoable, because those are separate mistakes with separate
+   * corrections, and folding them into a roll-sized undo would take back work
+   * the table never asked to lose.
+   *
+   * Redo remains single-step: replaying a whole roll blind would be worse than
+   * stepping forward deliberately.
+   */
   async undo(): Promise<void> {
-    await this.moveHead("undo");
+    const steps = this.revisionsToUndo();
+    for (let step = 0; step < steps; step += 1) {
+      await this.moveHead("undo");
+    }
   }
 
   async redo(): Promise<void> {
     await this.moveHead("redo");
+  }
+
+  /**
+   * How many revisions a single undo should unwind.
+   *
+   * Returns the size of the roll group when the head sits on a roll or on
+   * something that roll put on screen, and 1 for anything else. Never returns
+   * 0, so undo always moves.
+   */
+  private revisionsToUndo(): number {
+    const history = this.snapshot.revisionHistory;
+    const head = this.snapshot.activeState?.revisionId;
+    if (head === undefined || history.length === 0) {
+      return 1;
+    }
+    const headIndex = history.findIndex((revision) => revision.id === head);
+    if (headIndex <= 0) {
+      return 1;
+    }
+
+    // What a roll can put on screen before the table can act again.
+    const rollFollowUp = new Set([
+      "resolution-acknowledged",
+      "thematic-event-acknowledged",
+      "thematic-event-resolved",
+    ]);
+
+    let steps = 0;
+    for (let index = headIndex; index > 0; index -= 1) {
+      const kind = history[index]?.summary.kind ?? "";
+      if (kind === "roll-drawn") {
+        return steps + 1;
+      }
+      if (!rollFollowUp.has(kind)) {
+        break;
+      }
+      steps += 1;
+    }
+    return 1;
   }
 
   async archiveActive(): Promise<void> {

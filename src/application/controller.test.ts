@@ -556,6 +556,111 @@ describe("GameController", () => {
     expect(channel.posts.at(-1)).toMatchObject({ type: "revision" });
   });
 
+  it("undoes every revision recorded since the turn began", async () => {
+    // A roll spans several revisions: the draw, then acknowledging the result.
+    // Undoing one of them leaves the table mid-action with the dice still
+    // waiting to be confirmed, which reads as "undo did nothing" and hides the
+    // option the player wanted, like using Alchemy instead.
+    const repository = new MemoryRepository();
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("undo-turn"),
+    );
+    await controller.initialize();
+    await controller.startGame(setup());
+
+    const beforeTurn = controller.getSnapshot().activeState?.revisionId;
+    const turnPhaseBefore = controller.getSnapshot().activeState?.turn.phase;
+
+    await controller.dispatch({ type: "roll.draw" });
+    const rollId = controller.getSnapshot().activeState?.lastRoll?.id;
+    await controller.dispatch({
+      type: "resolution.productionAcknowledged",
+      rollId: rollId as never,
+    });
+    // Two actions recorded, so a single-step undo would not be enough.
+    expect(controller.getSnapshot().activeState?.revisionId).not.toBe(
+      beforeTurn,
+    );
+
+    await controller.undo();
+
+    // One undo lands back before the roll, not between its two revisions.
+    expect(controller.getSnapshot().activeState?.revisionId).toBe(beforeTurn);
+    expect(controller.getSnapshot().activeState?.turn.phase).toBe(
+      turnPhaseBefore,
+    );
+    expect(controller.getSnapshot().activeState?.lastRoll).toBeNull();
+  });
+
+  it("undoes hand-entered bookkeeping on its own", async () => {
+    // Grouping is for a roll and what it triggered. A score correction typed in
+    // afterwards is a separate mistake with a separate fix, so folding it into
+    // the roll would take back work the table never asked to lose.
+    const repository = new MemoryRepository();
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("undo-manual"),
+    );
+    await controller.initialize();
+    await controller.startGame(setup());
+
+    await controller.dispatch({ type: "roll.draw" });
+    const rollId = controller.getSnapshot().activeState?.lastRoll?.id;
+    await controller.dispatch({
+      type: "resolution.productionAcknowledged",
+      rollId: rollId as never,
+    });
+    const afterRoll = controller.getSnapshot().activeState?.revisionId;
+
+    const [firstPlayer] = controller.getSnapshot().activeState?.players ?? [];
+    await controller.dispatch({
+      type: "player.publicStateAdjusted",
+      playerId: firstPlayer?.id as never,
+      patch: { scoreAdjustment: { delta: 1, reason: "correction" } },
+    });
+
+    await controller.undo();
+
+    // The correction is gone; the roll it followed is untouched.
+    expect(controller.getSnapshot().activeState?.revisionId).toBe(afterRoll);
+    expect(controller.getSnapshot().activeState?.lastRoll?.id).toBe(rollId);
+  });
+
+  it("stops at the previous turn boundary rather than unwinding the game", async () => {
+    const repository = new MemoryRepository();
+    const controller = new GameController(
+      repository,
+      { nextUint32: () => 0 },
+      runtime("undo-boundary"),
+    );
+    await controller.initialize();
+    await controller.startGame(setup());
+
+    // Play a full turn and end it, so a boundary exists to stop at.
+    await controller.dispatch({ type: "roll.draw" });
+    const firstRoll = controller.getSnapshot().activeState?.lastRoll?.id;
+    await controller.dispatch({
+      type: "resolution.productionAcknowledged",
+      rollId: firstRoll as never,
+    });
+    await controller.dispatch({ type: "turn.ended" });
+    const afterFirstTurn = controller.getSnapshot().activeState?.revisionId;
+
+    // Start a second turn.
+    await controller.dispatch({ type: "roll.draw" });
+
+    await controller.undo();
+
+    // Back to the end of the first turn, with that turn's work intact.
+    expect(controller.getSnapshot().activeState?.revisionId).toBe(
+      afterFirstTurn,
+    );
+    expect(controller.getSnapshot().activeState?.turn.completedTurns).toBe(1);
+  });
+
   it("exposes recovery state, rejects unavailable recovery, and recovers an ancestor", async () => {
     const repository = new MemoryRepository();
     const root = await fixture("recovery");
