@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   defaultDevicePreferences,
+  defaultDiceRollMs,
   type DevicePreferences,
 } from "../application/devicePreferences";
 
@@ -22,6 +23,12 @@ export const devicePreferencesSchema: z.ZodType<DevicePreferences> = z.object({
     .catch("workshop")
     .default("workshop"),
   motion: z.enum(["system", "full", "reduced"]).default("system"),
+  // Older stored preferences predate the setting, and a value we no longer
+  // offer must not discard the whole record.
+  diceRollMs: z
+    .union([z.literal(350), z.literal(650), z.literal(1100), z.literal(1800)])
+    .catch(defaultDiceRollMs)
+    .default(defaultDiceRollMs),
   keepAwake: z.boolean().default(false),
 });
 
@@ -58,6 +65,13 @@ export function applyDevicePreferences(preferences: DevicePreferences): void {
 
   root.dataset.theme = theme;
   root.dataset.motion = reduced ? "reduced" : "full";
+  // Drives the die pop and the 3D tumble. The cube travels a longer path than
+  // the flat face pops, so it gets proportionally more time.
+  root.style.setProperty("--dice-roll-duration", `${preferences.diceRollMs}ms`);
+  root.style.setProperty(
+    "--dice-tumble-duration",
+    `${Math.round(preferences.diceRollMs * 1.77)}ms`,
+  );
 }
 
 /**

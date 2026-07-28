@@ -272,6 +272,28 @@ Rules that hold for every pack:
 - an unknown pack in stored preferences falls back to Workshop instead of
   discarding the whole preference record.
 
+### 5.2.3 Roll pacing
+
+The dice animation never decides the outcome — the deck has already drawn it —
+so how long it runs is purely a pacing choice, offered as **Dice roll speed**:
+Snappy (0.35s), Standard (0.65s), Relaxed (1.1s), Suspenseful (1.8s).
+
+- The chosen duration drives three things that must agree: the wait before the
+  outcome is announced, the flat die's pop, and the 3D cube's tumble. The two
+  animations read `--dice-roll-duration` and `--dice-tumble-duration` from the
+  document root, so a change is felt on the very next roll.
+- The cube travels a longer path than the flat face, so it gets proportionally
+  more time rather than the same value.
+- Reduced motion overrides the choice entirely and disables the control, since a
+  roll length would otherwise promise motion the table has asked not to see.
+- It is a device preference, not part of a saved game: two tables replaying the
+  same record may pace it differently.
+
+The setting appears in the setup wizard and in Settings. Settings is reachable
+mid-game from the header menu, so pacing can be tuned without leaving the table.
+It is not reachable while paused, because pausing opens a modal that owns the
+screen until the table resumes.
+
 ### 5.3 Barbarian panel
 
 Always visible on tablet and desktop; collapsible but status-visible on mobile.

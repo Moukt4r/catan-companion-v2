@@ -10,6 +10,7 @@ const preferences = {
   soundEnabled: false,
   soundVolume: 0.55,
   soundPack: "workshop" as const,
+  diceRollMs: 650 as const,
   keepAwake: false,
 };
 

@@ -1096,3 +1096,51 @@ test("configures Seasons Mode and announces a round-boundary transition", async 
   await resolveSeasonRoll(page);
   await expect(page.locator(".season-transition")).toHaveCount(0);
 });
+
+test("changes dice roll speed live from inside a running game", async ({
+  page,
+}) => {
+  await setupStandardGame(page);
+
+  // The point of the feature: settings are reachable mid-game, without
+  // abandoning or pausing the table.
+  await openHeaderMenu(page);
+  await page.getByRole("button", { name: "Settings" }).click();
+
+  const settings = page.locator("dialog[open]");
+  const speed = settings.getByRole("combobox", { name: "Dice roll speed" });
+  await expect(speed).toHaveValue("650");
+  await speed.selectOption("1800");
+
+  // The choice must reach the CSS that actually animates the dice, not just
+  // localStorage, or the setting would look applied while changing nothing.
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        document.documentElement.style.getPropertyValue("--dice-roll-duration"),
+      ),
+    )
+    .toBe("1800ms");
+
+  await settings.getByRole("button", { name: "Close" }).click();
+
+  // Still the same game, and it still rolls.
+  await expect(
+    page.getByRole("heading", { name: "Roll for Ada" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Roll", exact: true }).click();
+  await resolveRoll(page);
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const stored = localStorage.getItem(
+          "catan-companion-device-preferences",
+        );
+        return stored
+          ? (JSON.parse(stored) as { diceRollMs: number }).diceRollMs
+          : null;
+      }),
+    )
+    .toBe(1800);
+});

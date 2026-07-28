@@ -409,4 +409,69 @@ describe("SetupWizard", () => {
 
     expect(screen.getByRole("combobox", { name: "Sound pack" })).toBeEnabled();
   });
+  it("carries a chosen dice roll speed through to the started game", async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+
+    render(
+      <SetupWizard
+        initialPreferences={defaultDevicePreferences}
+        onCancel={vi.fn()}
+        onStart={onStart}
+      />,
+    );
+
+    for (const [index, input] of screen
+      .getAllByPlaceholderText(/Player \d/)
+      .entries()) {
+      await user.type(input, ["A", "B", "C", "D"][index] ?? "");
+    }
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    const speed = screen.getByRole("combobox", { name: "Dice roll speed" });
+    expect(speed).toHaveValue("650");
+    await user.selectOptions(speed, "350");
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(
+      screen.getByRole("button", { name: "Start and save game" }),
+    );
+
+    expect(onStart.mock.calls[0]?.[0]).toMatchObject({
+      preferences: { diceRollMs: 350 },
+    });
+  });
+
+  it("disables the roll speed picker when reduced motion is chosen", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <SetupWizard
+        initialPreferences={defaultDevicePreferences}
+        onCancel={vi.fn()}
+        onStart={vi.fn()}
+      />,
+    );
+
+    for (const [index, input] of screen
+      .getAllByPlaceholderText(/Player \d/)
+      .entries()) {
+      await user.type(input, ["A", "B", "C", "D"][index] ?? "");
+    }
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    // Reduced motion shows the result at once, so a roll length would be a lie.
+    expect(
+      screen.getByRole("combobox", { name: "Dice roll speed" }),
+    ).toBeEnabled();
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Motion" }),
+      "reduced",
+    );
+    expect(
+      screen.getByRole("combobox", { name: "Dice roll speed" }),
+    ).toBeDisabled();
+  });
 });

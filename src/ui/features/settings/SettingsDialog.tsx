@@ -1,7 +1,15 @@
 import type { DevicePreferences } from "../../../application/devicePreferences";
+import { diceRollDurations } from "../../../application/devicePreferences";
 import type { StorageStatus } from "../../../application/storage";
 import { soundPacks } from "../../../application/soundPacks";
 import { Button, Dialog, StatusBanner } from "../../components";
+
+const diceRollLabels: Record<number, string> = {
+  350: "Snappy",
+  650: "Standard",
+  1100: "Relaxed",
+  1800: "Suspenseful",
+};
 
 interface SettingsDialogProps {
   open: boolean;
@@ -80,6 +88,34 @@ export function SettingsDialog({
             <option value="reduced">Reduced motion</option>
           </select>
         </label>
+
+        <label className="field" htmlFor="settings-dice-roll">
+          <span>Dice roll speed</span>
+          <select
+            id="settings-dice-roll"
+            aria-describedby="settings-dice-roll-hint"
+            value={String(preferences.diceRollMs)}
+            disabled={preferences.motion === "reduced"}
+            onChange={(event) => {
+              onChange({
+                diceRollMs: Number(
+                  event.target.value,
+                ) as DevicePreferences["diceRollMs"],
+              });
+            }}
+          >
+            {diceRollDurations.map((value) => (
+              <option key={value} value={String(value)}>
+                {diceRollLabels[value] ?? `${value} ms`}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="fine-print" id="settings-dice-roll-hint">
+          {preferences.motion === "reduced"
+            ? "Reduced motion shows the result immediately, so roll length has no effect."
+            : "How long the dice tumble before the result is announced. The animation never decides the outcome."}
+        </p>
 
         <label className="check-field">
           <input

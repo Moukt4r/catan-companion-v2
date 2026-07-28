@@ -344,6 +344,11 @@ export function GameTable({
                 >
                   Sound {soundEnabled ? "on" : "off"}
                 </Button>
+                {/*
+                  Paused, like everything else here: pausing opens a modal that
+                  owns the screen until the table resumes, so there is nothing
+                  to reach behind it.
+                */}
                 <Button
                   variant="quiet"
                   size="small"

@@ -99,6 +99,23 @@ type Screen =
   | "board-designer"
   | "world-events";
 
+/**
+ * Roll pacing.
+ *
+ * The table's chosen duration drives three things that must agree: the JS wait
+ * before the outcome cue, the flat die's pop, and the 3D cube's tumble. The two
+ * CSS animations read a custom property, so a preference change is felt on the
+ * very next roll.
+ *
+ * Reduced motion overrides the choice entirely — the result appears at once.
+ */
+function rollDurationMs(preferences: {
+  motion: string;
+  diceRollMs: number;
+}): number {
+  return preferences.motion === "reduced" ? 1 : preferences.diceRollMs;
+}
+
 export function App() {
   const snapshot = useGameController();
   const boardSnapshot = useBoardDesignerController();
@@ -440,10 +457,7 @@ export function App() {
       completed = await dispatch(command);
       if (completed) {
         await new Promise<void>((resolve) => {
-          window.setTimeout(
-            resolve,
-            preferences.motion === "reduced" ? 1 : 650,
-          );
+          window.setTimeout(resolve, rollDurationMs(preferences));
         });
         playRollOutcomeCue(gameController.getSnapshot().activeState);
       }

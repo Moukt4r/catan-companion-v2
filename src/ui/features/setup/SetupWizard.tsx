@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import type { DevicePreferences } from "../../../application/devicePreferences";
+import { diceRollDurations } from "../../../application/devicePreferences";
 import {
   WORLD_EVENTS_CATALOG,
   SEASONS,
@@ -13,6 +14,13 @@ import {
 } from "../../../domain";
 import resourceIllustration from "../../../assets/illustrations/resource-landscape.webp";
 import { soundPacks } from "../../../application/soundPacks";
+
+const DICE_ROLL_LABELS: Record<number, string> = {
+  350: "Snappy",
+  650: "Standard",
+  1100: "Relaxed",
+  1800: "Suspenseful",
+};
 import { Button, PlayerMarker, StatusBanner } from "../../components";
 import {
   EVENT_DIE_ART,
@@ -755,6 +763,33 @@ export function SetupWizard({
                 <option value="reduced">Reduced motion</option>
               </select>
             </label>
+            <label className="field" htmlFor="setup-dice-roll">
+              <span>Dice roll speed</span>
+              <select
+                id="setup-dice-roll"
+                aria-describedby="setup-dice-roll-hint"
+                value={String(preferences.diceRollMs)}
+                disabled={preferences.motion === "reduced"}
+                onChange={(event) => {
+                  setPreferences((current) => ({
+                    ...current,
+                    diceRollMs: Number(
+                      event.target.value,
+                    ) as DevicePreferences["diceRollMs"],
+                  }));
+                }}
+              >
+                {diceRollDurations.map((value) => (
+                  <option key={value} value={String(value)}>
+                    {DICE_ROLL_LABELS[value] ?? `${value} ms`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="fine-print" id="setup-dice-roll-hint">
+              How long the dice tumble before the result is announced. Can be
+              changed later from Settings.
+            </p>
             <label className="check-field">
               <input
                 type="checkbox"

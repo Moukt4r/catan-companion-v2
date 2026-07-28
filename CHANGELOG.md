@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Added a **dice roll speed** preference (Snappy / Standard / Relaxed /
+  Suspenseful). It paces the JS wait, the flat die pop, and the 3D tumble
+  together through CSS custom properties, so a change is felt on the next roll.
+  Reduced motion still shows the result immediately and disables the control.
+- The setting can be changed live from inside a running game through the header
+  menu, and is also offered in the setup wizard.
+
 ## 0.7.0 - 2026-07-28
 
 - Added selectable **sound packs**. The cue vocabulary is unchanged; a pack now

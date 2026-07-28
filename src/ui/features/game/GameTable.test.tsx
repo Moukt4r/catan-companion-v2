@@ -338,6 +338,9 @@ describe("GameTable", () => {
       />,
     );
 
+    // Pausing opens a modal that owns the screen until the table resumes, so
+    // the header behind it is unreachable anyway. Settings are reached from the
+    // menu during play, or from the home screen.
     expect(screen.getByText("Paused")).toBeVisible();
     for (const button of screen.getAllByRole("button")) {
       expect(button).toBeDisabled();
