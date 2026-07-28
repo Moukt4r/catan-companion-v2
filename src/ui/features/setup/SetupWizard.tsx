@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DevicePreferences } from "../../../application/devicePreferences";
 import { diceRollDurations } from "../../../application/devicePreferences";
 import {
@@ -168,6 +168,23 @@ export function SetupWizard({
   });
   const [preferences, setPreferences] = useState(initialPreferences);
   const [error, setError] = useState<string | null>(null);
+  const errorBannerRef = useRef<HTMLDivElement>(null);
+
+  // The banner renders at the top of the card while Continue sits at the bottom
+  // of a long form, so on a phone the message appeared hundreds of pixels above
+  // the fold and the button looked simply dead. Screen readers already got it
+  // through role="alert"; this is what makes it reach everyone else.
+  useEffect(() => {
+    if (error === null) {
+      return;
+    }
+    const banner = errorBannerRef.current;
+    if (!banner) {
+      return;
+    }
+    banner.scrollIntoView({ block: "center", behavior: "smooth" });
+    banner.focus({ preventScroll: true });
+  }, [error]);
 
   const playerError = useMemo(() => {
     const names = players.map((player) => player.name.trim());
@@ -283,7 +300,12 @@ export function SetupWizard({
 
       <section className="surface setup-card">
         {error ? (
-          <StatusBanner tone="danger" role="alert">
+          <StatusBanner
+            tone="danger"
+            role="alert"
+            ref={errorBannerRef}
+            tabIndex={-1}
+          >
             {error}
           </StatusBanner>
         ) : null}

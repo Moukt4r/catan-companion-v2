@@ -56,6 +56,10 @@ export function SettingsDialog({
   schemaVersion,
   storageStatus,
 }: SettingsDialogProps) {
+  const silentPack =
+    soundPacks.find((pack) => pack.id === preferences.soundPack)?.kind ===
+    "none";
+
   return (
     <Dialog
       open={open}
@@ -190,7 +194,9 @@ export function SettingsDialog({
           <Button
             variant="secondary"
             size="small"
-            disabled={!preferences.soundEnabled}
+            // Silent has nothing to preview, so the button would look broken
+            // rather than quiet if it stayed clickable.
+            disabled={!preferences.soundEnabled || silentPack}
             onClick={onPreviewSound}
           >
             Preview sound

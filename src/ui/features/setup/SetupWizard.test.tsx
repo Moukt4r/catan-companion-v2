@@ -409,6 +409,32 @@ describe("SetupWizard", () => {
 
     expect(screen.getByRole("combobox", { name: "Sound pack" })).toBeEnabled();
   });
+  it("brings a validation message into view instead of leaving it off-screen", async () => {
+    const user = userEvent.setup();
+    const scrollIntoView = vi.fn();
+    // jsdom has no layout, so the real call is a no-op; spy on it to prove the
+    // component asks for it at all.
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    render(
+      <SetupWizard
+        initialPreferences={defaultDevicePreferences}
+        onCancel={vi.fn()}
+        onStart={vi.fn()}
+      />,
+    );
+
+    // Leave the names blank so Continue refuses.
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    const banner = await screen.findByRole("alert");
+    expect(banner).toHaveTextContent("Enter a name for every player.");
+    expect(scrollIntoView).toHaveBeenCalled();
+    // Focus moves too, so keyboard users land on the message rather than
+    // continuing from wherever they were.
+    expect(banner).toHaveFocus();
+  });
+
   it("carries a chosen dice roll speed through to the started game", async () => {
     const user = userEvent.setup();
     const onStart = vi.fn();

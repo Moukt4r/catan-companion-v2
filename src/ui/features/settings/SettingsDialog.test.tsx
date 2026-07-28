@@ -144,6 +144,34 @@ describe("SettingsDialog", () => {
     ).toBeVisible();
   });
 
+  it("cannot preview a pack that plays nothing", () => {
+    // Silent has nothing to preview. Left clickable it looked broken rather
+    // than quiet: a table testing packs clicks it and concludes sound is dead.
+    renderSettings({
+      preferences: {
+        ...preferences,
+        soundEnabled: true,
+        soundPack: "silent",
+      },
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Preview sound" }),
+    ).toBeDisabled();
+  });
+
+  it("can preview a pack that makes sound", () => {
+    renderSettings({
+      preferences: {
+        ...preferences,
+        soundEnabled: true,
+        soundPack: "workshop",
+      },
+    });
+
+    expect(screen.getByRole("button", { name: "Preview sound" })).toBeEnabled();
+  });
+
   it("keeps roll speed available when motion is not reduced", () => {
     renderSettings({
       preferences: { ...preferences, motion: "system" },

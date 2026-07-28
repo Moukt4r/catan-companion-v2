@@ -18,3 +18,11 @@ if (!HTMLDialogElement.prototype.close) {
     this.removeAttribute("open");
   };
 }
+
+// jsdom has no layout engine, so scrolling is a no-op rather than a feature.
+// Components legitimately call this to bring validation messages into view.
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {
+    /* no layout in jsdom */
+  };
+}
