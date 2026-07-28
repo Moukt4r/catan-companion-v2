@@ -15,6 +15,12 @@ export const devicePreferencesSchema: z.ZodType<DevicePreferences> = z.object({
   theme: z.enum(["system", "light", "dark", "high-contrast"]).default("system"),
   soundEnabled: z.boolean().default(false),
   soundVolume: z.number().min(0).max(1).default(0.55),
+  // Older stored preferences predate packs, so an unknown or missing pack
+  // falls back to the synthesized one rather than failing the whole parse.
+  soundPack: z
+    .enum(["workshop", "hearth", "silent"])
+    .catch("workshop")
+    .default("workshop"),
   motion: z.enum(["system", "full", "reduced"]).default("system"),
   keepAwake: z.boolean().default(false),
 });

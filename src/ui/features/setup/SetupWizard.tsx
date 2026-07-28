@@ -12,6 +12,7 @@ import {
   type SeasonConfig,
 } from "../../../domain";
 import resourceIllustration from "../../../assets/illustrations/resource-landscape.webp";
+import { soundPacks } from "../../../application/soundPacks";
 import { Button, PlayerMarker, StatusBanner } from "../../components";
 import {
   EVENT_DIE_ART,
@@ -773,6 +774,34 @@ export function SetupWizard({
                 </small>
               </span>
             </label>
+            <label className="field" htmlFor="setup-sound-pack">
+              <span>Sound pack</span>
+              <select
+                id="setup-sound-pack"
+                aria-describedby="setup-sound-pack-hint"
+                value={preferences.soundPack}
+                disabled={!preferences.soundEnabled}
+                onChange={(event) => {
+                  setPreferences((current) => ({
+                    ...current,
+                    soundPack: event.target
+                      .value as DevicePreferences["soundPack"],
+                  }));
+                }}
+              >
+                {soundPacks.map((pack) => (
+                  <option key={pack.id} value={pack.id}>
+                    {pack.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {/* Outside the label: a description inside it would be folded into
+                the select's accessible name. */}
+            <p className="fine-print" id="setup-sound-pack-hint">
+              {soundPacks.find((pack) => pack.id === preferences.soundPack)
+                ?.description ?? ""}
+            </p>
             <label className="field field--range">
               <span>
                 Sound volume

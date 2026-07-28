@@ -64,6 +64,21 @@ export interface NoiseOptions {
   send?: number;
 }
 
+/**
+ * A recorded (or offline-rendered) one-shot played through the same master
+ * chain as the synthesized voices, so volume, mute and the limiter apply
+ * identically no matter which pack is selected.
+ */
+export interface SampleOptions {
+  buffer: AudioBuffer;
+  time: number;
+  level: number;
+  /** Playback rate. Small deviations keep repeated hits from sounding cloned. */
+  rate?: number;
+  pan?: number;
+  send?: number;
+}
+
 export interface PartialsOptions {
   time: number;
   level: number;
@@ -141,6 +156,20 @@ export class AudioEngine {
 
   now(): number {
     return this.ensure().currentTime;
+  }
+
+  /** The context sample rate, needed when decoding pack assets. */
+  sampleRate(): number {
+    return this.ensure().sampleRate;
+  }
+
+  /**
+   * Decodes an encoded asset with the live context so the browser resamples it
+   * to the hardware rate for us.
+   */
+  async decode(data: ArrayBuffer): Promise<AudioBuffer> {
+    const context = this.ensure();
+    return await context.decodeAudioData(data);
   }
 
   /** Uniform random in a range, from the injected source. */
@@ -396,6 +425,30 @@ export class AudioEngine {
         send: send * 0.6,
       });
     }
+  }
+
+  /**
+   * Plays a decoded one-shot. The envelope is a plain gain because the asset
+   * already carries its own attack and decay; all we add is level, a little
+   * rate variation and the shared room.
+   */
+  sample(options: SampleOptions): void {
+    const context = this.ensure();
+    const source = context.createBufferSource();
+    const envelope = context.createGain();
+    const rate = Math.min(4, Math.max(0.25, options.rate ?? 1));
+
+    source.buffer = options.buffer;
+    source.playbackRate.setValueAtTime(rate, options.time);
+    envelope.gain.setValueAtTime(
+      Math.max(MIN_GAIN, options.level),
+      options.time,
+    );
+
+    source.connect(envelope);
+    this.route(envelope, options.pan ?? 0, options.send ?? 0);
+    source.start(options.time);
+    source.stop(options.time + options.buffer.duration / rate + 0.02);
   }
 
   /** Inharmonic partial stack: bells, coins, glass, struck metal. */

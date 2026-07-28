@@ -350,4 +350,63 @@ describe("SetupWizard", () => {
       worldEventPacks: ["nature"],
     });
   });
+  it("carries a chosen sound pack through to the started game", async () => {
+    const user = userEvent.setup();
+    const onStart = vi.fn();
+
+    render(
+      <SetupWizard
+        initialPreferences={{ ...defaultDevicePreferences, soundEnabled: true }}
+        onCancel={vi.fn()}
+        onStart={onStart}
+      />,
+    );
+
+    for (const [index, input] of screen
+      .getAllByPlaceholderText(/Player \d/)
+      .entries()) {
+      await user.type(input, ["A", "B", "C", "D"][index] ?? "");
+    }
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    const pack = screen.getByRole("combobox", { name: "Sound pack" });
+    expect(pack).toHaveValue("workshop");
+    await user.selectOptions(pack, "hearth");
+
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(
+      screen.getByRole("button", { name: "Start and save game" }),
+    );
+
+    expect(onStart.mock.calls[0]?.[0]).toMatchObject({
+      preferences: { soundPack: "hearth", soundEnabled: true },
+    });
+  });
+
+  it("disables the sound pack picker while sound is off", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <SetupWizard
+        initialPreferences={defaultDevicePreferences}
+        onCancel={vi.fn()}
+        onStart={vi.fn()}
+      />,
+    );
+
+    for (const [index, input] of screen
+      .getAllByPlaceholderText(/Player \d/)
+      .entries()) {
+      await user.type(input, ["A", "B", "C", "D"][index] ?? "");
+    }
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByRole("combobox", { name: "Sound pack" })).toBeDisabled();
+
+    await user.click(screen.getByRole("checkbox", { name: /Sound effects/ }));
+
+    expect(screen.getByRole("combobox", { name: "Sound pack" })).toBeEnabled();
+  });
 });

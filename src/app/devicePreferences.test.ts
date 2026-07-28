@@ -41,9 +41,36 @@ describe("device preferences", () => {
       theme: "dark",
       soundEnabled: true,
       soundVolume: 0.55,
+      soundPack: "workshop",
       motion: "full",
       keepAwake: false,
     });
+  });
+
+  it("falls back to the synthesized pack when a stored pack is unknown", () => {
+    window.localStorage.setItem(
+      "catan-companion-device-preferences",
+      JSON.stringify({
+        theme: "dark",
+        soundEnabled: true,
+        soundVolume: 0.4,
+        soundPack: "a-pack-from-a-future-version",
+        motion: "full",
+        keepAwake: false,
+      }),
+    );
+
+    expect(loadDevicePreferences().soundPack).toBe("workshop");
+  });
+
+  it("round trips a selected sound pack", () => {
+    saveDevicePreferences({
+      ...defaultDevicePreferences,
+      soundEnabled: true,
+      soundPack: "hearth",
+    });
+
+    expect(loadDevicePreferences().soundPack).toBe("hearth");
   });
 
   it("recovers from malformed preferences", () => {

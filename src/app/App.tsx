@@ -355,6 +355,14 @@ export function App() {
     if (patch.soundVolume !== undefined) {
       audio.setVolume(patch.soundVolume);
     }
+    if (patch.soundPack !== undefined) {
+      // Switching packs keeps the live context, so no new user gesture is
+      // needed, and the new pack's assets start loading immediately.
+      audio.setPack(patch.soundPack);
+      void audio.prime().catch(() => {
+        // A pack that cannot load its assets still plays synthesized cues.
+      });
+    }
     if (patch.soundEnabled !== undefined) {
       setSoundEnabled(patch.soundEnabled);
       return;
@@ -388,6 +396,12 @@ export function App() {
   async function startGame(draft: SetupDraft): Promise<void> {
     updatePreferences(draft.preferences);
     audio.setVolume(draft.preferences.soundVolume);
+    audio.setPack(draft.preferences.soundPack);
+    if (draft.preferences.soundEnabled) {
+      void audio.prime().catch(() => {
+        // Silent: assets are an enhancement, never a reason to block a start.
+      });
+    }
     const setup = setupFromDraft(draft);
     const started = await runOperation(async () => {
       await gameController.startGame(setup);

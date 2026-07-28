@@ -1,5 +1,6 @@
 import type { DevicePreferences } from "../../../application/devicePreferences";
 import type { StorageStatus } from "../../../application/storage";
+import { soundPacks } from "../../../application/soundPacks";
 import { Button, Dialog, StatusBanner } from "../../components";
 
 interface SettingsDialogProps {
@@ -100,6 +101,30 @@ export function SettingsDialog({
         </label>
 
         <div className="sound-settings">
+          <label className="field">
+            <span>Sound pack</span>
+            <select
+              value={preferences.soundPack}
+              disabled={!preferences.soundEnabled}
+              onChange={(event) => {
+                onChange({
+                  soundPack: event.target
+                    .value as DevicePreferences["soundPack"],
+                });
+              }}
+            >
+              {soundPacks.map((pack) => (
+                <option key={pack.id} value={pack.id}>
+                  {pack.label}
+                </option>
+              ))}
+            </select>
+            <small className="fine-print">
+              {soundPacks.find((pack) => pack.id === preferences.soundPack)
+                ?.description ?? ""}
+            </small>
+          </label>
+
           <label className="field field--range">
             <span>
               Sound volume

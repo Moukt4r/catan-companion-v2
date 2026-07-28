@@ -239,13 +239,38 @@ Sound is an optional enhancement and never the only carrier of game state:
 - World Events combine category, tone, impact, and an event-specific identity
   note into a short procedural cue;
 - each season transition uses its own chime palette;
-- all effects are synthesized locally, add no network requests, and remain
-  available offline;
 - a table-level Sound on/off control, Settings volume slider, and explicit
   preview keep control with the device owner.
 
 Every audible state also remains visible in text, color-independent symbols,
 and the existing live-region announcements.
+
+### 5.2.2 Sound packs
+
+The cue vocabulary is fixed; a **sound pack** decides how each cue is realised.
+The pack is chosen in the setup wizard and can be changed at any time from
+Settings, and the choice is a device preference rather than part of a saved
+game, so two tables replaying the same record may sound different.
+
+| Pack               | Realisation                                                                     | Network                        |
+| ------------------ | ------------------------------------------------------------------------------- | ------------------------------ |
+| Workshop (default) | Synthesized per playback from physical primitives. Every roll differs.          | None                           |
+| Hearth             | Pre-rendered one-shots, decoded on demand. More body and grain, fixed material. | One small file per cue, cached |
+| Silent             | No audio at all.                                                                | None                           |
+
+Rules that hold for every pack:
+
+- Workshop remains the default, so the first run of the app never downloads
+  audio and works fully offline;
+- a sampled pack loads lazily and per cue, and warms only the handful of cues a
+  table hits within the first minute;
+- **an asset that fails to load falls back to the synthesized voice for that
+  cue**, so a broken deployment degrades to Workshop rather than to silence;
+- a failed asset is remembered as failed and not re-requested on every roll;
+- switching packs keeps the audio context alive, so it never costs the user a
+  second unlock gesture;
+- an unknown pack in stored preferences falls back to Workshop instead of
+  discarding the whole preference record.
 
 ### 5.3 Barbarian panel
 
@@ -479,6 +504,8 @@ resolution, or alter domain state.
   event, and confirmation.
 - Every audio cue has an equivalent visual cue.
 - Audio failure is non-fatal and must not delay resolution.
+- Sampled packs may only ship material the project is licensed to redistribute;
+  a pack must record its provenance in `docs/sound-packs.md`.
 
 ## 15. Accessibility requirements
 

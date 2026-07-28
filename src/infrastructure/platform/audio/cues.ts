@@ -7,12 +7,19 @@
  */
 
 import type { AudioEngine } from "./engine";
+import type {
+  ProgressDisciplineSound,
+  SeasonSound,
+  WorldEventCategorySound,
+  WorldEventToneSound,
+} from "./cueTypes";
 
-export type ProgressDisciplineSound = "politics" | "science" | "trade";
-export type WorldEventCategorySound =
-  "diplomacy" | "economy" | "military" | "nature" | "society";
-export type WorldEventToneSound = "boon" | "mixed" | "setback";
-export type SeasonSound = "spring" | "summer" | "autumn" | "winter";
+export type {
+  ProgressDisciplineSound,
+  SeasonSound,
+  WorldEventCategorySound,
+  WorldEventToneSound,
+};
 
 /**
  * A die landing: it strikes, loses energy, strikes again sooner and quieter,

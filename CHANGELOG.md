@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Added selectable **sound packs**. The cue vocabulary is unchanged; a pack now
+  decides how each cue is realised. Workshop (synthesized per playback, the
+  default, no downloads) ships alongside Hearth (pre-rendered one-shots) and
+  Silent. The pack is chosen in the setup wizard and can be changed at any time
+  from Settings.
+- Sampled packs load lazily per cue and fall back to the synthesized voice when
+  an asset is not yet loaded or fails, so audio never delays a roll and a broken
+  deployment degrades to Workshop rather than to silence.
+- Added `scripts/build-sound-pack.mjs`, which trims each one-shot to its onset,
+  fades the tail, peak-limits, encodes to Opus, and refuses to publish a pack
+  that is missing, silent, mistimed, or over its size budget.
 - Added a local-first Board Designer with custom terrain, sea, number-token,
   and port inventories; connected manual placement; balanced generation;
   rules-aware warnings; undo/redo; saved designs; and JSON/SVG/PNG/print

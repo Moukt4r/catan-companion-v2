@@ -9,6 +9,7 @@ const preferences = {
   motion: "system" as const,
   soundEnabled: false,
   soundVolume: 0.55,
+  soundPack: "workshop" as const,
   keepAwake: false,
 };
 
