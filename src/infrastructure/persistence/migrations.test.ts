@@ -332,3 +332,46 @@ describe("removing board-owned bookkeeping from legacy saves", () => {
     expect(result.revision.stateHash).toBe(healthy.stateHash);
   });
 });
+
+describe("initializing the clock on saves written before timing support", () => {
+  it("reproduces the failure an unmigrated pre-clock save would cause", () => {
+    // The schema requires a clock, so a save from before timing support is
+    // rejected outright and would be written back as `corrupt` - losing the
+    // game. docs/data-and-reliability.md promises such a save initializes its
+    // clock when first resumed; nothing implemented that.
+    const preClock = legacyState((raw) => {
+      delete raw.clock;
+    });
+
+    expect(() => parseGameState(preClock)).toThrow();
+  });
+
+  it("gives a pre-clock save a fresh clock so it loads again", () => {
+    const preClock = legacyState((raw) => {
+      delete raw.clock;
+    });
+
+    const { state, changed } = migrateGameState(preClock);
+
+    expect(changed).toBe(true);
+    expect(() => parseGameState(state)).not.toThrow();
+    // Elapsed time was never recorded, so it starts from zero rather than
+    // being invented, and every player gets an entry.
+    expect(state.clock.totalActiveMs).toBe(0);
+    expect(state.clock.currentTurnActiveMs).toBe(0);
+    expect(Object.keys(state.clock.playerActiveMs)).toEqual(
+      state.players.map((player) => player.id),
+    );
+    expect(validateGameState(state)).toEqual([]);
+  });
+
+  it("leaves an existing clock alone", () => {
+    const state = currentState();
+    const before = state.clock;
+
+    const migrated = migrateGameState(state);
+
+    expect(migrated.changed).toBe(false);
+    expect(migrated.state.clock).toBe(before);
+  });
+});

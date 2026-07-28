@@ -1,4 +1,5 @@
-import type { GameState } from "../../domain";
+import type { GameState, IsoTimestamp, PlayerId } from "../../domain";
+import { createGameClock } from "../../domain/clock";
 import type {
   PersistedCommand,
   StoredRevision,
@@ -216,6 +217,34 @@ export function migrateGameState(state: GameState): {
   const statistics = migrateStatistics(source.statistics);
   if (statistics.changed) {
     next.statistics = statistics.statistics;
+    changed = true;
+  }
+
+  // Saves written before timing support carry no clock at all. The schema is
+  // strict and requires one, so such a save would fail to parse and be written
+  // back as `corrupt` — losing the game. The documented promise is that a
+  // legacy game initializes its clock when first resumed, and this is where
+  // that happens: the only place a save is repaired before validation.
+  //
+  // Time starts now rather than at the game's creation, because the elapsed
+  // time was never recorded and inventing it would be worse than starting from
+  // zero.
+  if (source.clock === undefined || source.clock === null) {
+    const playerIds = Array.isArray(source.players)
+      ? (source.players as { id?: unknown }[])
+          .map((player) => player.id)
+          .filter((id): id is string => typeof id === "string")
+      : [];
+    const startedAt =
+      typeof source.updatedAt === "string"
+        ? source.updatedAt
+        : typeof source.createdAt === "string"
+          ? source.createdAt
+          : new Date().toISOString();
+    next.clock = createGameClock(
+      playerIds as unknown as PlayerId[],
+      startedAt as IsoTimestamp,
+    );
     changed = true;
   }
 
