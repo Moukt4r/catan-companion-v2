@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0 - 2026-07-28
 
 - Added selectable **sound packs**. The cue vocabulary is unchanged; a pack now
   decides how each cue is realised. Workshop (synthesized per playback, the
