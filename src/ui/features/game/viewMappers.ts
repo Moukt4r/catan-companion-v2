@@ -1,5 +1,6 @@
 import {
   PROGRESS_ELIGIBILITY_2025,
+  buildGameStatistics,
   currentPlayer,
   currentTurnActiveMilliseconds,
   playerActiveMilliseconds,
@@ -431,6 +432,13 @@ export function toGameCompleteView(state: GameState): GameCompleteView {
   if (!winner) {
     throw new Error("Completed game has no winner.");
   }
+  const statistics = buildGameStatistics(state, state.updatedAt);
+  const nameOf = (playerId: string) =>
+    state.players.find((player) => player.id === playerId)?.name ?? "Unknown";
+  const colorOf = (playerId: string) =>
+    state.players.find((player) => player.id === playerId)?.color.hex ??
+    "#888888";
+
   return {
     title: state.setup.title,
     winnerName: winner.name,
@@ -449,5 +457,43 @@ export function toGameCompleteView(state: GameState): GameCompleteView {
       victoryPoints: scoreForPlayer(state, player.id),
       activeTimeMs: playerActiveMilliseconds(state, player.id, state.updatedAt),
     })),
+    statistics: {
+      averageTotal: statistics.averageTotal,
+      mostCommonTotal: statistics.mostCommonTotal,
+      rarestRolledTotal: statistics.rarestRolledTotal,
+      alchemyRolls: statistics.alchemyRolls,
+      normalRolls: statistics.normalRolls,
+      yearChanges: statistics.yearChanges,
+      diceTotals: statistics.diceTotals.map((entry) => ({
+        total: entry.total,
+        count: entry.count,
+        expected: entry.expected,
+        deviation: entry.deviation,
+        // Scaled against the tallest bar so the chart reads at any roll count.
+        share: entry.share,
+      })),
+      eventFaces: statistics.eventFaces.map((entry) => ({
+        face: entry.face,
+        count: entry.count,
+        share: entry.share,
+      })),
+      players: statistics.players.map((entry) => ({
+        id: entry.playerId,
+        name: nameOf(entry.playerId),
+        color: colorOf(entry.playerId),
+        rolls: entry.rolls,
+        averageTotal: entry.averageTotal,
+        sevens: entry.sevens,
+        alchemyRolls: entry.alchemyRolls,
+        barbarianFaces: entry.barbarianFaces,
+        luckIndex: entry.luckIndex,
+        averageTurnMs: entry.averageTurnMs,
+        turns: entry.turns,
+      })),
+      worldEventsByCategory: statistics.worldEventsByCategory.map((entry) => ({
+        category: entry.category,
+        count: entry.count,
+      })),
+    },
   };
 }

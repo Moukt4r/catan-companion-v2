@@ -2430,3 +2430,149 @@ h3 {
     min-width: 0;
   }
 }
+
+/*
+ * End-of-game statistics.
+ *
+ * The histogram is deliberately plain CSS rather than a charting library: the
+ * shapes are simple, and a dependency here would cost more bundle than the
+ * whole sound pack.
+ */
+.stats-block {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1.3rem, 5vw, 3.5rem);
+}
+
+.dice-histogram {
+  display: grid;
+  grid-template-columns: repeat(11, minmax(0, 1fr));
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dice-histogram li {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+  text-align: center;
+}
+
+.dice-histogram__bar-wrap {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 130px;
+  border-radius: var(--radius-small);
+  background: rgb(23 50 77 / 6%);
+  overflow: hidden;
+}
+
+.dice-histogram__bar {
+  width: 100%;
+  min-height: 2px;
+  border-radius: var(--radius-small) var(--radius-small) 0 0;
+  background: var(--color-navy-700);
+}
+
+/*
+ * The expected-frequency marker. It sits above the bar so a taller-than-fair
+ * column reads instantly, without needing to compare numbers.
+ */
+.dice-histogram__expected {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-gold-300);
+}
+
+.dice-histogram__total {
+  font-weight: 800;
+}
+
+.dice-histogram__count {
+  display: grid;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+.dice-histogram__count small {
+  color: var(--color-navy-700);
+  font-size: 0.7rem;
+}
+
+.stats-table-scroll {
+  overflow-x: auto;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-table th,
+.stats-table td {
+  padding: 0.55rem 0.7rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.stats-table thead th {
+  color: var(--color-navy-700);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgb(23 50 77 / 18%);
+}
+
+.stats-table tbody th {
+  text-align: left;
+}
+
+.stats-table tbody tr + tr th,
+.stats-table tbody tr + tr td {
+  border-top: 1px solid rgb(23 50 77 / 10%);
+}
+
+.stats-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.5rem;
+}
+
+.stats-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stats-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-small);
+  background: rgb(23 50 77 / 5%);
+  text-transform: capitalize;
+}
+
+@media (max-width: 720px) {
+  .dice-histogram {
+    gap: 0.2rem;
+  }
+
+  .dice-histogram__bar-wrap {
+    height: 92px;
+  }
+
+  .dice-histogram__count small {
+    display: none;
+  }
+}
