@@ -1078,6 +1078,7 @@ export function App() {
       <SettingsDialog
         open={settingsOpen}
         preferences={preferences}
+        reducedMotion={prefersReducedMotion(preferences)}
         storageStatus={storageStatus}
         appVersion={APPLICATION_VERSION}
         schemaVersion={DATABASE_SCHEMA_VERSION}

@@ -291,13 +291,21 @@ describe("metropolis proposal rules", () => {
 
     const permanent = metropolisState(
       [player(PLAYER_A, 5), player(PLAYER_B, 5)],
-      { holderId: PLAYER_A, status: "permanent" },
+      { holderId: PLAYER_A, status: "permanent", source: "improvement" },
     );
     expect(
-      propose(permanent, { holderId: PLAYER_A, status: "permanent" }),
+      propose(permanent, {
+        holderId: PLAYER_A,
+        status: "permanent",
+        source: "improvement",
+      }),
     ).toMatchObject({ ok: false, error: { code: "INVALID_COMMAND" } });
     expect(
-      propose(permanent, { holderId: PLAYER_B, status: "permanent" }),
+      propose(permanent, {
+        holderId: PLAYER_B,
+        status: "permanent",
+        source: "improvement",
+      }),
     ).toMatchObject({
       ok: false,
       error: { code: "INVALID_METROPOLIS_STATE" },
@@ -309,6 +317,7 @@ describe("metropolis proposal rules", () => {
       propose(metropolisState(), {
         holderId: UNKNOWN_PLAYER,
         status: "temporary",
+        source: "improvement",
       }),
     ).toMatchObject({
       ok: false,
@@ -318,6 +327,7 @@ describe("metropolis proposal rules", () => {
       propose(metropolisState(), {
         holderId: PLAYER_A,
         status: "temporary",
+        source: "improvement",
       }),
     ).toMatchObject({
       ok: false,
@@ -327,6 +337,7 @@ describe("metropolis proposal rules", () => {
       propose(metropolisState([player(PLAYER_A, 4)]), {
         holderId: PLAYER_A,
         status: "permanent",
+        source: "improvement",
       }),
     ).toMatchObject({
       ok: false,
@@ -338,6 +349,7 @@ describe("metropolis proposal rules", () => {
     const assigned = propose(metropolisState([player(PLAYER_A, 4)]), {
       holderId: PLAYER_A,
       status: "temporary",
+      source: "improvement",
     });
     expect(assigned).toMatchObject({
       ok: true,
@@ -349,7 +361,7 @@ describe("metropolis proposal rules", () => {
 
     const temporary = metropolisState(
       [player(PLAYER_A, 4), player(PLAYER_B, 4)],
-      { holderId: PLAYER_A, status: "temporary" },
+      { holderId: PLAYER_A, status: "temporary", source: "improvement" },
     );
     expect(propose(temporary, null, "correction")).toMatchObject({
       ok: true,
@@ -360,7 +372,7 @@ describe("metropolis proposal rules", () => {
     expect(
       propose(
         temporary,
-        { holderId: PLAYER_A, status: "permanent" },
+        { holderId: PLAYER_A, status: "permanent", source: "improvement" },
         "correction",
       ),
     ).toMatchObject({
@@ -370,10 +382,14 @@ describe("metropolis proposal rules", () => {
 
     const qualified = metropolisState(
       [player(PLAYER_A, 5), player(PLAYER_B, 5)],
-      { holderId: PLAYER_A, status: "temporary" },
+      { holderId: PLAYER_A, status: "temporary", source: "improvement" },
     );
     expect(
-      propose(qualified, { holderId: PLAYER_A, status: "permanent" }),
+      propose(qualified, {
+        holderId: PLAYER_A,
+        status: "permanent",
+        source: "improvement",
+      }),
     ).toMatchObject({
       ok: true,
       value: {
@@ -384,7 +400,7 @@ describe("metropolis proposal rules", () => {
     expect(
       propose(
         qualified,
-        { holderId: PLAYER_B, status: "permanent" },
+        { holderId: PLAYER_B, status: "permanent", source: "improvement" },
         "correction",
       ),
     ).toMatchObject({

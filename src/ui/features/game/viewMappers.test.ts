@@ -184,7 +184,11 @@ describe("toGameTableView", () => {
         ...base.metropolises,
         controls: {
           ...base.metropolises.controls,
-          science: { holderId: ADA, status: "temporary" },
+          science: {
+            holderId: ADA,
+            status: "temporary",
+            source: "improvement",
+          },
         },
       },
       scoreLedger: [
@@ -234,7 +238,7 @@ describe("toGameTableView", () => {
             discipline: "trade",
             source: "improvement",
             from: null,
-            to: { holderId: GRACE, status: "temporary" },
+            to: { holderId: GRACE, status: "temporary", source: "improvement" },
             changes: [],
             summary: "Pending",
           },
@@ -257,7 +261,11 @@ describe("other view mappers", () => {
         ...base.metropolises,
         controls: {
           ...base.metropolises.controls,
-          science: { holderId: ADA, status: "temporary" },
+          science: {
+            holderId: ADA,
+            status: "temporary",
+            source: "improvement",
+          },
         },
       },
     };

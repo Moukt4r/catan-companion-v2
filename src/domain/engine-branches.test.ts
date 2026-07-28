@@ -535,6 +535,7 @@ describe("public-state restrictions and score errors", () => {
       holder.metropolises.controls.science = {
         holderId: PLAYER_IDS[0]!,
         status,
+        source: "improvement",
       };
       expectError(
         holder,
@@ -722,6 +723,7 @@ describe("metropolis command variants, errors, and cancellation", () => {
     state.metropolises.controls.science = {
       holderId: PLAYER_IDS[0]!,
       status: "temporary",
+      source: "improvement",
     };
     state = run(
       state,

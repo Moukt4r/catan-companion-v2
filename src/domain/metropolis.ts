@@ -78,17 +78,15 @@ export function proposeMetropolisChange(
 /**
  * Whether the target is a legal holder.
  *
- * The improvement-level rule applies to corrections too, even though
- * docs/rules-and-domain.md §10 carves them out. That carve-out is not
- * implementable here alone: `validateMetropolises` in invariants.ts enforces the
- * same rule against final state, and it cannot see that a control arrived by
- * correction. Relaxing only this check makes the proposal succeed and the
- * confirmation fail, which strands a pending proposal that blocks the turn --
- * strictly worse than refusing up front.
+ * Corrections skip the improvement-level rule. A correction is the operator
+ * telling the app that the physical board disagrees with it, so checking the
+ * app's own (known-wrong) level first would block the very repair the command
+ * exists for.
  *
- * Closing the gap properly means recording provenance on the control itself,
- * which is a persisted-schema change and needs a migration. Left as is
- * deliberately rather than half-done.
+ * This is only safe because the control now records its `source`, and
+ * `validateMetropolises` skips the same rule for corrected controls. Relaxing
+ * it here alone would let the proposal through and then fail the confirmation
+ * on final state, stranding a pending proposal that blocks the turn.
  */
 function validateTarget(
   state: Pick<GameState, "players">,
@@ -107,6 +105,9 @@ function validateTarget(
       "Metropolis holder does not exist.",
       { holderId: target.holderId },
     );
+  }
+  if (target.source === "correction") {
+    return null;
   }
   const minimum = target.status === "permanent" ? 5 : 4;
   if (player.improvements[discipline] < minimum) {

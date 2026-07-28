@@ -187,9 +187,27 @@ export interface ScoreEntry {
   createdAt: IsoTimestamp;
 }
 
+/**
+ * Who holds a metropolis, and on what authority.
+ *
+ * `source` records how the app learned about the control, and it exists because
+ * the improvement-level rule cannot be checked the same way in both cases:
+ *
+ * - `improvement` — the app watched the level cross 4 or 5, so its own tracked
+ *   level is authoritative and the rule is enforced.
+ * - `correction` — an operator told the app the physical board disagrees with
+ *   it. The app's tracked level is then known to be wrong, so enforcing it
+ *   would block the very repair the command exists for.
+ *
+ * Without this, a correction is impossible: the proposal can be relaxed, but
+ * `validateMetropolises` re-checks the level against final state and cannot
+ * tell how the control arrived, so the confirmation fails and leaves a pending
+ * proposal blocking the turn.
+ */
 export type MetropolisControl = {
   holderId: PlayerId;
   status: "temporary" | "permanent";
+  source: "improvement" | "correction";
 } | null;
 
 export type MetropolisControls = Record<

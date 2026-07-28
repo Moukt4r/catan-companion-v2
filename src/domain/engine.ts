@@ -854,7 +854,7 @@ function findAutomaticMetropolisProposal(
     if (newLevel >= 5 && oldLevel < 5 && control?.status !== "permanent") {
       targets.push({
         discipline,
-        to: { holderId: playerId, status: "permanent" },
+        to: { holderId: playerId, status: "permanent", source: "improvement" },
       });
     } else if (newLevel >= 4 && oldLevel < 4 && control === null) {
       targets.push({
@@ -862,6 +862,7 @@ function findAutomaticMetropolisProposal(
         to: {
           holderId: playerId,
           status: newLevel === 5 ? "permanent" : "temporary",
+          source: "improvement",
         },
       });
     }
@@ -939,7 +940,7 @@ function proposeMetropolisCommand(
   source: "improvement" | "correction",
   deps: DomainDeps,
 ): DomainResult<Decision> {
-  const control = controlFromCommand(holderId, status);
+  const control = controlFromCommand(holderId, status, source);
   if (!control.ok) {
     return failure(control.error);
   }
@@ -1311,6 +1312,7 @@ function requirePhase(state: GameState, expected: GameState["turn"]["phase"]) {
 function controlFromCommand(
   holderId: PlayerId | null,
   status: "temporary" | "permanent" | null,
+  source: "improvement" | "correction",
 ): DomainResult<MetropolisControl> {
   if ((holderId === null) !== (status === null)) {
     return failure(
@@ -1321,7 +1323,7 @@ function controlFromCommand(
     );
   }
   return success(
-    holderId === null || status === null ? null : { holderId, status },
+    holderId === null || status === null ? null : { holderId, status, source },
   );
 }
 

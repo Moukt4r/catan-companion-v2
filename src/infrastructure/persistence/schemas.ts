@@ -190,6 +190,10 @@ const metropolisControlSchema = z
   .strictObject({
     holderId: id,
     status: z.enum(["temporary", "permanent"]),
+    // How the app learned about this control. Corrections skip the
+    // improvement-level rule, because the operator is telling the app that the
+    // physical board disagrees with the level it tracked.
+    source: z.enum(["improvement", "correction"]),
   })
   .nullable();
 const metropolisControlsSchema = z.strictObject({
@@ -207,7 +211,6 @@ const metropolisProposalSchema = z
     changes: z.array(
       z.strictObject({
         playerId: id,
-        ordinaryCityDelta: integer,
         scoreDelta: integer,
       }),
     ),

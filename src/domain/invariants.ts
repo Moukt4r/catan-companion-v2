@@ -275,6 +275,14 @@ function validateMetropolises(state: GameState): DomainError[] {
       );
       continue;
     }
+    // The improvement-level rule only applies to controls the app derived from
+    // its own tracked levels. A correction says the physical board disagrees
+    // with those levels, so re-checking them here would reject the very repair
+    // the operator just made — and, because this runs on final state during
+    // commit, it would strand a confirmed proposal and block the turn.
+    if (control.source === "correction") {
+      continue;
+    }
     const minimum = control.status === "permanent" ? 5 : 4;
     if (player.improvements[discipline] < minimum) {
       errors.push(

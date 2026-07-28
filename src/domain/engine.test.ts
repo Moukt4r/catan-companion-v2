@@ -377,6 +377,7 @@ describe("metropolis lifecycle", () => {
     expect(proposal?.to).toEqual({
       holderId: PLAYER_IDS[0],
       status: "temporary",
+      source: "improvement",
     });
     state = run(
       state,
@@ -401,6 +402,7 @@ describe("metropolis lifecycle", () => {
     expect(proposal?.to).toEqual({
       holderId: PLAYER_IDS[0],
       status: "permanent",
+      source: "improvement",
     });
     expect(proposal?.changes).toEqual([]);
     state = run(
@@ -496,7 +498,11 @@ describe("metropolis lifecycle", () => {
       metropolises: {
         controls: {
           ...state.metropolises.controls,
-          science: { holderId: PLAYER_IDS[0] as PlayerId, status: "temporary" },
+          science: {
+            holderId: PLAYER_IDS[0] as PlayerId,
+            status: "temporary",
+            source: "improvement",
+          },
         },
         pendingProposal: null,
       },
@@ -540,8 +546,88 @@ describe("metropolis lifecycle", () => {
     expect(state.metropolises.controls.science).toEqual({
       holderId: PLAYER_IDS[1],
       status: "permanent",
+      source: "correction",
     });
     expect(validateGameState(state)).toEqual([]);
+  });
+
+  it("lets a correction install a holder the app never tracked", () => {
+    // The operator is telling the app the physical board disagrees with it, so
+    // the app's own improvement level is known to be wrong. Checking it would
+    // block the only command that can repair the disagreement.
+    let state = actionPhase(newGame());
+    expect(state.players[1]?.improvements.science).toBe(0);
+
+    state = run(
+      state,
+      {
+        type: "metropolis.correctionProposed",
+        discipline: "science",
+        holderId: PLAYER_IDS[1] as PlayerId,
+        status: "temporary",
+      },
+      "metro-correct-untracked",
+    );
+    const proposal = state.metropolises.pendingProposal;
+    expect(proposal).not.toBeNull();
+
+    // Confirmation must survive the invariants too. Relaxing only the proposal
+    // check used to strand a pending proposal here and block the turn.
+    state = run(
+      state,
+      {
+        type: "metropolis.proposalConfirmed",
+        proposalId: proposal?.id as never,
+      },
+      "metro-correct-untracked-confirm",
+    );
+
+    expect(state.metropolises.controls.science).toMatchObject({
+      holderId: PLAYER_IDS[1],
+      source: "correction",
+    });
+    expect(validateGameState(state)).toEqual([]);
+    expect(state.metropolises.pendingProposal).toBeNull();
+  });
+
+  it("still refuses a normal improvement proposal below the level", () => {
+    const state = actionPhase(newGame());
+    expect(
+      decide(
+        state,
+        {
+          type: "metropolis.assignmentProposed",
+          discipline: "science",
+          holderId: PLAYER_IDS[1] as PlayerId,
+          status: "temporary",
+        },
+        deps("metro-normal-below-level"),
+      ),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "INVALID_METROPOLIS_STATE" },
+    });
+  });
+
+  it("still flags an improvement-sourced holder below its level", () => {
+    // Provenance must not become a blanket escape hatch: only corrections skip
+    // the rule, and only because the operator vouched for the board.
+    const state = actionPhase(newGame());
+    const tampered = {
+      ...state,
+      metropolises: {
+        ...state.metropolises,
+        controls: {
+          ...state.metropolises.controls,
+          science: {
+            holderId: PLAYER_IDS[0] as PlayerId,
+            status: "temporary" as const,
+            source: "improvement" as const,
+          },
+        },
+      },
+    };
+    expect(validateGameState(tampered).length).toBeGreaterThan(0);
   });
 });
 

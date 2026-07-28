@@ -14,6 +14,13 @@ const diceRollLabels: Record<number, string> = {
 interface SettingsDialogProps {
   open: boolean;
   preferences: DevicePreferences;
+  /**
+   * Whether motion is actually reduced right now, which is not the same as
+   * `preferences.motion === "reduced"`: on "system" it follows the OS. The
+   * resolved answer is passed in because the UI layer cannot reach the code
+   * that reads media queries.
+   */
+  reducedMotion: boolean;
   storageStatus: StorageStatus | null;
   appVersion: string;
   schemaVersion: number;
@@ -45,6 +52,7 @@ export function SettingsDialog({
   onRequestPersistentStorage,
   open,
   preferences,
+  reducedMotion,
   schemaVersion,
   storageStatus,
 }: SettingsDialogProps) {
@@ -95,7 +103,7 @@ export function SettingsDialog({
             id="settings-dice-roll"
             aria-describedby="settings-dice-roll-hint"
             value={String(preferences.diceRollMs)}
-            disabled={preferences.motion === "reduced"}
+            disabled={reducedMotion}
             onChange={(event) => {
               onChange({
                 diceRollMs: Number(
@@ -112,7 +120,7 @@ export function SettingsDialog({
           </select>
         </label>
         <p className="fine-print" id="settings-dice-roll-hint">
-          {preferences.motion === "reduced"
+          {reducedMotion
             ? "Reduced motion shows the result immediately, so roll length has no effect."
             : "How long the dice tumble before the result is announced. The animation never decides the outcome."}
         </p>

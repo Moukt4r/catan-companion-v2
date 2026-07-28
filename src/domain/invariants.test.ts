@@ -360,6 +360,7 @@ describe("persisted game invariants", () => {
     unknown.metropolises.controls.science = {
       holderId: asPlayerId("missing"),
       status: "temporary",
+      source: "improvement",
     };
     expectCode(unknown, "INVALID_METROPOLIS_STATE");
 
@@ -368,6 +369,7 @@ describe("persisted game invariants", () => {
       underLevel.metropolises.controls.science = {
         holderId: PLAYER_IDS[0]!,
         status,
+        source: "improvement",
       };
       expectCode(underLevel, "INVALID_METROPOLIS_STATE");
     }
@@ -377,7 +379,11 @@ describe("persisted game invariants", () => {
       id: asProposalId("proposal"),
       discipline: "science",
       source: "correction",
-      from: { holderId: PLAYER_IDS[0]!, status: "temporary" },
+      from: {
+        holderId: PLAYER_IDS[0]!,
+        status: "temporary",
+        source: "improvement",
+      },
       to: null,
       changes: [],
       summary: "stale",

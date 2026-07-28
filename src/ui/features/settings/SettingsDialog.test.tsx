@@ -20,6 +20,7 @@ function renderSettings(
   const props: ComponentProps<typeof SettingsDialog> = {
     open: true,
     preferences,
+    reducedMotion: false,
     storageStatus: null,
     appVersion: "test",
     schemaVersion: 1,
@@ -124,5 +125,34 @@ describe("SettingsDialog", () => {
     expect(
       screen.queryByRole("button", { name: "Protect saved games" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("disables roll speed whenever motion is actually reduced", () => {
+    // "system" plus an OS that asks for reduced motion is still reduced. The
+    // control used to read the stored literal, so it stayed enabled and its
+    // hint promised a tumble the table had asked not to see.
+    renderSettings({
+      preferences: { ...preferences, motion: "system" },
+      reducedMotion: true,
+    });
+
+    expect(
+      screen.getByRole("combobox", { name: "Dice roll speed" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/Reduced motion shows the result immediately/),
+    ).toBeVisible();
+  });
+
+  it("keeps roll speed available when motion is not reduced", () => {
+    renderSettings({
+      preferences: { ...preferences, motion: "system" },
+      reducedMotion: false,
+    });
+
+    expect(
+      screen.getByRole("combobox", { name: "Dice roll speed" }),
+    ).toBeEnabled();
+    expect(screen.getByText(/How long the dice tumble/)).toBeVisible();
   });
 });
