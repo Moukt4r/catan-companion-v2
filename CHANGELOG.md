@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Metropolis controls now record **how the app learned about them**. A
+  correction says the physical board disagrees with the app, so its own tracked
+  improvement level is the thing known to be wrong; corrections may therefore
+  record a holder below that level, while ordinary improvement proposals still
+  enforce it.
+- Fixed a schema field the domain never produced, which made a game with an
+  open metropolis proposal impossible to save at all.
+- The correction dialog no longer refuses a holder below the tracked level. It
+  shows what is being overridden instead, naming the recorded level and the
+  level the status normally needs.
+- A metropolis transfer now clamps the points taken back from the outgoing
+  holder, instead of failing whenever that would push a score negative.
+- Setup validation scrolls into view and takes focus, so Continue no longer
+  looks dead on a phone when a name is missing.
+- Preview sound is disabled under the Silent pack, where it did nothing.
+- Dice roll speed is disabled whenever motion is actually reduced, including
+  when the operating system asks for it rather than the explicit setting.
 - Added a **dice roll speed** preference (Snappy / Standard / Relaxed /
   Suspenseful). It paces the JS wait, the flat die pop, and the 3D tumble
   together through CSS custom properties, so a change is felt on the next roll.
