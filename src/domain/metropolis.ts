@@ -1,4 +1,5 @@
 import { domainError, failure, success } from "./errors";
+import { scoreForPlayer } from "./selectors";
 import type {
   DomainResult,
   GameState,
@@ -10,7 +11,7 @@ import type {
 } from "./types";
 
 export function proposeMetropolisChange(
-  state: Pick<GameState, "players" | "metropolises">,
+  state: Pick<GameState, "players" | "metropolises" | "scoreLedger">,
   proposalId: ProposalId,
   discipline: MetropolisDiscipline,
   to: MetropolisControl,
@@ -47,7 +48,7 @@ export function proposeMetropolisChange(
     return failure(targetError);
   }
 
-  const changes = buildChanges(from, to);
+  const changes = buildChanges(state, from, to);
   for (const change of changes) {
     const player = state.players.find(
       (candidate) => candidate.id === change.playerId,
@@ -74,6 +75,21 @@ export function proposeMetropolisChange(
   });
 }
 
+/**
+ * Whether the target is a legal holder.
+ *
+ * The improvement-level rule applies to corrections too, even though
+ * docs/rules-and-domain.md §10 carves them out. That carve-out is not
+ * implementable here alone: `validateMetropolises` in invariants.ts enforces the
+ * same rule against final state, and it cannot see that a control arrived by
+ * correction. Relaxing only this check makes the proposal succeed and the
+ * confirmation fail, which strands a pending proposal that blocks the turn --
+ * strictly worse than refusing up front.
+ *
+ * Closing the gap properly means recording provenance on the control itself,
+ * which is a persisted-schema change and needs a migration. Left as is
+ * deliberately rather than half-done.
+ */
 function validateTarget(
   state: Pick<GameState, "players">,
   discipline: MetropolisDiscipline,
@@ -107,7 +123,19 @@ function validateTarget(
   return null;
 }
 
+/**
+ * The public points a metropolis moves.
+ *
+ * The outgoing holder normally gives back the two points the metropolis was
+ * worth. That subtraction is clamped at the holder's current score, because a
+ * public score can never go negative and rejecting the whole transfer would be
+ * worse: the physical board has already moved the metropolis, and refusing to
+ * record it would leave the app permanently disagreeing with the table, with no
+ * way back. A holder can end up below two points through ordinary corrections,
+ * so this is reachable in a normal game.
+ */
 function buildChanges(
+  state: Pick<GameState, "scoreLedger">,
   from: MetropolisControl,
   to: MetropolisControl,
 ): MetropolisChange[] {
@@ -116,10 +144,11 @@ function buildChanges(
   }
   const changes: MetropolisChange[] = [];
   if (from !== null) {
-    changes.push({
-      playerId: from.holderId,
-      scoreDelta: -2,
-    });
+    const available = scoreForPlayer(state, from.holderId);
+    const scoreDelta = -Math.min(2, Math.max(0, available));
+    if (scoreDelta !== 0) {
+      changes.push({ playerId: from.holderId, scoreDelta });
+    }
   }
   if (to !== null) {
     changes.push({

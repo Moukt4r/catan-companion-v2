@@ -37,6 +37,7 @@ import type {
   MetropolisDiscipline,
   PlayerId,
   PlayerState,
+  ScoreEntry,
   ThematicEventDefinition,
   ThematicEventState,
 } from "./types";
@@ -64,9 +65,14 @@ function player(id: PlayerId, science: 0 | 1 | 2 | 3 | 4 | 5 = 0): PlayerState {
 function metropolisState(
   players = [player(PLAYER_A), player(PLAYER_B)],
   science: MetropolisControl = null,
+  // Transfers clamp the outgoing holder's loss at their current score, so the
+  // ledger is part of the input now. Default everyone to a comfortable score so
+  // existing cases keep exercising the full two-point move.
+  scores: Partial<Record<string, number>> = {},
 ): {
   players: PlayerState[];
   metropolises: GameState["metropolises"];
+  scoreLedger: ScoreEntry[];
 } {
   return {
     players,
@@ -74,6 +80,13 @@ function metropolisState(
       controls: { science, trade: null, politics: null },
       pendingProposal: null,
     },
+    scoreLedger: players.map((holder, index) => ({
+      id: asScoreEntryId(`seed-${holder.id}`),
+      playerId: holder.id,
+      delta: scores[holder.id] ?? 10,
+      reason: "correction" as const,
+      createdAt: asIsoTimestamp(`2026-07-12T20:0${index}:00Z`),
+    })),
   };
 }
 

@@ -474,6 +474,75 @@ describe("metropolis lifecycle", () => {
     expect(state.metropolises.controls.trade?.holderId).toBe(PLAYER_IDS[1]);
     expect(scoreForPlayer(state, PLAYER_IDS[1] as PlayerId)).toBe(5);
   });
+
+  it("clamps the outgoing holder's loss instead of refusing the transfer", () => {
+    // A holder can fall below two public points through ordinary corrections.
+    // Taking a flat two points back would push the score negative, which the
+    // invariants reject, so the whole transfer used to fail: the physical board
+    // had moved the metropolis and the app could never agree with it again.
+    let state = actionPhase(newGame());
+    state = {
+      ...state,
+      players: state.players.map((player, index) =>
+        index === 0
+          ? { ...player, improvements: { ...player.improvements, science: 4 } }
+          : index === 1
+            ? {
+                ...player,
+                improvements: { ...player.improvements, science: 5 },
+              }
+            : player,
+      ),
+      metropolises: {
+        controls: {
+          ...state.metropolises.controls,
+          science: { holderId: PLAYER_IDS[0] as PlayerId, status: "temporary" },
+        },
+        pendingProposal: null,
+      },
+    };
+    // Drop the first player to a single public point.
+    state = run(
+      state,
+      {
+        type: "player.publicStateAdjusted",
+        playerId: PLAYER_IDS[0] as PlayerId,
+        patch: {
+          scoreAdjustment: { delta: -2, reason: "correction" },
+        },
+      },
+      "metro-low-score",
+    );
+    expect(scoreForPlayer(state, PLAYER_IDS[0] as PlayerId)).toBe(1);
+
+    state = run(
+      state,
+      {
+        type: "metropolis.correctionProposed",
+        discipline: "science",
+        holderId: PLAYER_IDS[1] as PlayerId,
+        status: "permanent",
+      },
+      "metro-clamp-propose",
+    );
+    const proposal = state.metropolises.pendingProposal;
+    state = run(
+      state,
+      {
+        type: "metropolis.proposalConfirmed",
+        proposalId: proposal?.id as never,
+      },
+      "metro-clamp-confirm",
+    );
+
+    // The transfer is recorded, and the loser lands on zero rather than -1.
+    expect(scoreForPlayer(state, PLAYER_IDS[0] as PlayerId)).toBe(0);
+    expect(state.metropolises.controls.science).toEqual({
+      holderId: PLAYER_IDS[1],
+      status: "permanent",
+    });
+    expect(validateGameState(state)).toEqual([]);
+  });
 });
 
 describe("thematic cadence and cooldown", () => {
