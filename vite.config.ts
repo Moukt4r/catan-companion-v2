@@ -63,7 +63,11 @@ export default defineConfig({
       workbox: {
         navigateFallback: `${base}index.html`,
         cleanupOutdatedCaches: true,
-        globPatterns: ["**/*.{js,css,html,svg,png,webp,webmanifest}"],
+        // Sound-pack assets are precached deliberately. The whole Hearth pack is
+        // ~143 KB, and the app promises to work offline after the first load,
+        // so leaving the cues to the HTTP cache made the pack silently fall
+        // back to synthesized audio once that cache expired.
+        globPatterns: ["**/*.{js,css,html,svg,png,webp,webmanifest,opus}"],
         globIgnores: ["**/world-events/*.webp"],
         runtimeCaching: [
           {
@@ -76,6 +80,21 @@ export default defineConfig({
               cacheableResponse: { statuses: [0, 200] },
               expiration: {
                 maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 * 365,
+              },
+            },
+          },
+          {
+            // A safety net for packs added after this service worker was built,
+            // and for any cue the precache misses.
+            urlPattern: ({ url }) =>
+              url.pathname.includes("/sfx/") && url.pathname.endsWith(".opus"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "sound-pack-v1",
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: {
+                maxEntries: 60,
                 maxAgeSeconds: 60 * 60 * 24 * 365,
               },
             },

@@ -147,7 +147,12 @@ export function App() {
   const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(
     null,
   );
-  const [audio] = useState(() => new AudioCues());
+  const [audio] = useState(
+    // The stored preferences are read synchronously on first render, so the
+    // engine can start on the table's chosen pack instead of defaulting to
+    // Workshop and only correcting itself if someone opens Settings.
+    () => new AudioCues({ pack: preferences.soundPack }),
+  );
   const [wakeLock] = useState(() => new ScreenWakeLock());
 
   useEffect(() => {
@@ -213,6 +218,24 @@ export function App() {
     audio.setVolume(preferences.soundVolume);
     audio.setMuted(!preferences.soundEnabled);
   }, [audio, preferences.soundEnabled, preferences.soundVolume]);
+
+  /**
+   * Keeps the engine on whichever pack the preferences say, and warms it.
+   *
+   * This is what makes a restored pack actually audible: without it the engine
+   * would only ever learn about a pack change made in this session, so a table
+   * that picked Hearth yesterday would silently get Workshop today.
+   */
+  useEffect(() => {
+    audio.setPack(preferences.soundPack);
+    if (!preferences.soundEnabled) {
+      return;
+    }
+    void audio.prime().catch(() => {
+      // Assets are an enhancement; a failed warm-up still plays synthesized
+      // cues, so there is nothing worth interrupting the table for.
+    });
+  }, [audio, preferences.soundPack, preferences.soundEnabled]);
 
   useEffect(
     () => () => {

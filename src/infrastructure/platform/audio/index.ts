@@ -118,6 +118,15 @@ export class AudioCues {
   private engine: AudioEngine;
   private pack: SoundPackDefinition;
   private library: SampleLibrary | null = null;
+  /**
+   * One library per sampled pack, kept for the lifetime of the engine.
+   *
+   * A table comparing packs mid-game switches back and forth; rebuilding the
+   * library each time would throw away every decoded buffer and re-download
+   * the whole pack, and the first cue after each switch would fall back to the
+   * synthesized voice. Keeping them means a switch back is instant.
+   */
+  private readonly libraries = new Map<SoundPackId, SampleLibrary>();
   private readonly options: AudioCuesOptions;
 
   constructor(options: AudioCuesOptions = {}) {
@@ -142,7 +151,7 @@ export class AudioCues {
   /**
    * Switching packs is cheap and non-destructive: the engine and its context
    * stay alive, so a change mid-game does not need another user gesture to
-   * unlock audio.
+   * unlock audio, and already-decoded assets are kept rather than re-fetched.
    */
   setPack(id: SoundPackId): void {
     if (id === this.pack.id) {
@@ -205,7 +214,9 @@ export class AudioCues {
   close(): void {
     this.engine.close();
     // A closed context cannot be reused, so the next play starts a fresh one.
+    // Decoded buffers belong to the old context, so the cache goes with it.
     this.engine = new AudioEngine(this.options);
+    this.libraries.clear();
     this.library = this.createLibrary();
   }
 
@@ -213,7 +224,13 @@ export class AudioCues {
     if (this.pack.kind !== "sampled") {
       return null;
     }
-    return new SampleLibrary(this.pack, this.options.sampleLibrary);
+    const existing = this.libraries.get(this.pack.id);
+    if (existing) {
+      return existing;
+    }
+    const created = new SampleLibrary(this.pack, this.options.sampleLibrary);
+    this.libraries.set(this.pack.id, created);
+    return created;
   }
 }
 

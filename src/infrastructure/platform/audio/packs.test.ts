@@ -6,6 +6,7 @@ import {
   soundPacks,
   type SampleAssetName,
 } from "../../../application/soundPacks";
+import { AudioCues } from "./index";
 import { SampleLibrary } from "./sampleLibrary";
 import { selectSample } from "./sampleSelection";
 import type { SoundCue } from "./cueTypes";
@@ -271,5 +272,180 @@ describe("sample library", () => {
       baseUrl: "/",
     });
     expect(library.status("season-winter")).toBe("idle");
+  });
+});
+
+/**
+ * Pack switching.
+ *
+ * A table comparing packs mid-game switches back and forth. Each switch used to
+ * rebuild the library from scratch, which threw away every decoded buffer, so
+ * the whole pack was re-downloaded and the first cue after each switch fell back
+ * to the synthesized voice.
+ */
+describe("switching packs", () => {
+  /**
+   * A context stub good enough for AudioCues to schedule against, which also
+   * counts what was actually scheduled.
+   *
+   * Counting raw buffer sources is not enough: the synthesized voices build
+   * their filtered noise from buffer sources too, so a synth dice roll creates
+   * more than twenty of them. Only `sample()` sets a playback rate, so that is
+   * what separates "played a recording" from "synthesized a noise burst".
+   */
+  function audioCues(fetcher: ReturnType<typeof okFetch>) {
+    const counts = { samples: 0, noiseSources: 0, oscillators: 0 };
+    const context = {
+      currentTime: 0,
+      sampleRate: 48_000,
+      state: "running" as AudioContextState,
+      destination: { connect: vi.fn(), disconnect: vi.fn() },
+      createGain: () => ({
+        gain: {
+          setValueAtTime: vi.fn(),
+          linearRampToValueAtTime: vi.fn(),
+          exponentialRampToValueAtTime: vi.fn(),
+          setTargetAtTime: vi.fn(),
+        },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      }),
+      createBufferSource: () => {
+        counts.noiseSources += 1;
+        return {
+          buffer: null,
+          loop: false,
+          playbackRate: {
+            setValueAtTime: () => {
+              // Only a decoded one-shot goes through sample().
+              counts.samples += 1;
+              counts.noiseSources -= 1;
+            },
+          },
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+          start: vi.fn(),
+          stop: vi.fn(),
+        };
+      },
+      createOscillator: () => {
+        counts.oscillators += 1;
+        return {
+          type: "sine",
+          frequency: {
+            setValueAtTime: vi.fn(),
+            exponentialRampToValueAtTime: vi.fn(),
+          },
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+          start: vi.fn(),
+          stop: vi.fn(),
+        };
+      },
+      createBiquadFilter: () => ({
+        type: "lowpass",
+        frequency: {
+          setValueAtTime: vi.fn(),
+          exponentialRampToValueAtTime: vi.fn(),
+        },
+        Q: { setValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      }),
+      createStereoPanner: () => ({
+        pan: { setValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      }),
+      createDynamicsCompressor: () => ({
+        threshold: { setValueAtTime: vi.fn() },
+        knee: { setValueAtTime: vi.fn() },
+        ratio: { setValueAtTime: vi.fn() },
+        attack: { setValueAtTime: vi.fn() },
+        release: { setValueAtTime: vi.fn() },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      }),
+      createConvolver: () => ({
+        buffer: null,
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      }),
+      createBuffer: (channels: number, length: number) => ({
+        numberOfChannels: channels,
+        length,
+        sampleRate: 48_000,
+        duration: length / 48_000,
+        getChannelData: () => new Float32Array(length),
+      }),
+      decodeAudioData: () =>
+        Promise.resolve({ duration: 1 } as unknown as AudioBuffer),
+    };
+
+    const cues = new AudioCues({
+      createContext: () => context as unknown as BaseAudioContext,
+      random: () => 0.5,
+      pack: "hearth",
+      sampleLibrary: { fetch: fetcher, baseUrl: "/" },
+    });
+    return { cues, counts };
+  }
+
+  it("honours a pack passed to the constructor", () => {
+    expect(new AudioCues({ pack: "hearth" }).currentPack()).toBe("hearth");
+    expect(new AudioCues({ pack: "silent" }).currentPack()).toBe("silent");
+  });
+
+  it("defaults to the synthesized pack when none is given", () => {
+    expect(new AudioCues().currentPack()).toBe(defaultSoundPackId);
+  });
+
+  it("does not re-download a pack that was already loaded", async () => {
+    const fetcher = okFetch();
+    const { cues } = audioCues(fetcher);
+
+    await cues.prime();
+    const afterFirstPrime = fetcher.mock.calls.length;
+    expect(afterFirstPrime).toBeGreaterThan(0);
+
+    cues.setPack("workshop");
+    cues.setPack("hearth");
+    await cues.prime();
+
+    // The decoded buffers survived the round trip, so nothing is refetched.
+    expect(fetcher.mock.calls.length).toBe(afterFirstPrime);
+  });
+
+  it("plays a real sample, not the synth voice, right after switching back", async () => {
+    const fetcher = okFetch();
+    const { cues, counts } = audioCues(fetcher);
+    await cues.prime();
+
+    cues.setPack("workshop");
+    cues.setPack("hearth");
+
+    counts.samples = 0;
+    counts.noiseSources = 0;
+    counts.oscillators = 0;
+    await cues.play({ type: "dice-roll" });
+
+    // Before the fix the rebuilt library was empty, so this fell back to the
+    // synthesized voice: many oscillators and noise bursts, and no recording.
+    expect(counts.samples).toBe(1);
+    expect(counts.oscillators).toBe(0);
+    expect(counts.noiseSources).toBe(0);
+  });
+
+  it("still falls back to the synth voice for an asset that never loaded", async () => {
+    const fetcher = vi.fn(() =>
+      Promise.resolve({ ok: false, status: 404 } as unknown as Response),
+    );
+    const { cues, counts } = audioCues(fetcher);
+
+    await cues.play({ type: "dice-roll" });
+
+    // Sound is an enhancement: a missing asset must never mean silence.
+    expect(counts.samples).toBe(0);
+    expect(counts.oscillators + counts.noiseSources).toBeGreaterThan(0);
   });
 });
